@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>US State High Points Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+        .state {
+            stroke: #fff;
+            stroke-width: 1px;
+            transition: fill 0.3s ease;
+        }
+        .state:hover {
+            opacity: 0.7;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: left;
+            padding: 12px;
+            font-size: 14px;
+            background: #2d3748;
+            color: #fff;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .climbed {
+            fill: #48bb78; /* Green */
+        }
+        .unclimbed {
+            fill: #a0aec0; /* Gray */
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-slate-900">U.S. State High Point Tracker</h1>
+            <!-- <p class="text-lg text-slate-600 mt-2">An interactive map of the highest point in each state.</p> -->
+        </header>
+
+        <!-- Map and Legend Section -->
+        <div class="w-full max-w-6xl mx-auto bg-white p-4 sm:p-6 rounded-lg shadow-md">
+            <div id="map-container" class="relative min-h-[610px] flex items-center justify-center">
+                 <!-- Loading indicator -->
+                <div id="loading" class="text-center">
+                    <div class="loading-spinner mx-auto"></div>
+                    <p class="mt-2 text-slate-500">Loading map and climb data...</p>
+                </div>
+            </div>
+            <div id="legend" class="flex items-center justify-center mt-4 space-x-6 text-sm" style="display: none;">
+                <div class="flex items-center">
+                    <div class="w-5 h-5 rounded-full mr-2" style="background-color: #48bb78;"></div>
+                    <span>Climbed</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-5 h-5 rounded-full mr-2" style="background-color: #a0aec0;"></div>
+                    <span>Not Climbed</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        // --- Static Data Section ---
+        // This data remains in the code as it's unlikely to change often.
+        const highPointsStaticData = {
+            'Alabama': { name: 'Cheaha Mountain', elevation: 2407 }, 'Alaska': { name: 'Denali', elevation: 20310 },
+            'Arizona': { name: 'Humphreys Peak', elevation: 12633 }, 'Arkansas': { name: 'Mount Magazine', elevation: 2753 },
+            'California': { name: 'Mount Whitney', elevation: 14505 }, 'Colorado': { name: 'Mount Elbert', elevation: 14440 },
+            'Connecticut': { name: 'Mount Frissell (south slope)', elevation: 2380 }, 'Delaware': { name: 'Ebright Azimuth', elevation: 448 },
+            'Florida': { name: 'Britton Hill', elevation: 345 }, 'Georgia': { name: 'Brasstown Bald', elevation: 4784 },
+            'Hawaii': { name: 'Mauna Kea', elevation: 13803 }, 'Idaho': { name: 'Borah Peak', elevation: 12662 },
+            'Illinois': { name: 'Charles Mound', elevation: 1235 }, 'Indiana': { name: 'Hoosier Hill', elevation: 1257 },
+            'Iowa': { name: 'Hawkeye Point', elevation: 1670 }, 'Kansas': { name: 'Mount Sunflower', elevation: 4039 },
+            'Kentucky': { name: 'Black Mountain', elevation: 4145 }, 'Louisiana': { name: 'Driskill Mountain', elevation: 535 },
+            'Maine': { name: 'Mount Katahdin', elevation: 5269 }, 'Maryland': { name: 'Hoye-Crest', elevation: 3360 },
+            'Massachusetts': { name: 'Mount Greylock', elevation: 3489 }, 'Michigan': { name: 'Mount Arvon', elevation: 1979 },
+            'Minnesota': { name: 'Eagle Mountain', elevation: 2301 }, 'Mississippi': { name: 'Woodall Mountain', elevation: 807 },
+            'Missouri': { name: 'Taum Sauk Mountain', elevation: 1772 }, 'Montana': { name: 'Granite Peak', elevation: 12807 },
+            'Nebraska': { name: 'Panorama Point', elevation: 5424 }, 'Nevada': { name: 'Boundary Peak', elevation: 13147 },
+            'New Hampshire': { name: 'Mount Washington', elevation: 6288 }, 'New Jersey': { name: 'High Point', elevation: 1803 },
+            'New Mexico': { name: 'Wheeler Peak', elevation: 13161 }, 'New York': { name: 'Mount Marcy', elevation: 5344 },
+            'North Carolina': { name: 'Mount Mitchell', elevation: 6684 }, 'North Dakota': { name: 'White Butte', elevation: 3506 },
+            'Ohio': { name: 'Campbell Hill', elevation: 1550 }, 'Oklahoma': { name: 'Black Mesa', elevation: 4973 },
+            'Oregon': { name: 'Mount Hood', elevation: 11249 }, 'Pennsylvania': { name: 'Mount Davis', elevation: 3213 },
+            'Rhode Island': { name: 'Jerimoth Hill', elevation: 812 }, 'South Carolina': { name: 'Sassafras Mountain', elevation: 3553 },
+            'South Dakota': { name: 'Black Elk Peak', elevation: 7242 }, 'Tennessee': { name: 'Clingmans Dome', elevation: 6643 },
+            'Texas': { name: 'Guadalupe Peak', elevation: 8751 }, 'Utah': { name: 'Kings Peak', elevation: 13528 },
+            'Vermont': { name: 'Mount Mansfield', elevation: 4393 }, 'Virginia': { name: 'Mount Rogers', elevation: 5729 },
+            'Washington': { name: 'Mount Rainier', elevation: 14411 }, 'West Virginia': { name: 'Spruce Knob', elevation: 4863 },
+            'Wisconsin': { name: 'Timms Hill', elevation: 1951 }, 'Wyoming': { name: 'Gannett Peak', elevation: 13804 }
+        };
+
+        // --- D3 Map Drawing ---
+        const width = 975;
+        const height = 610;
+        const mapContainer = d3.select("#map-container");
+        const tooltip = d3.select("#tooltip");
+
+        // !!! IMPORTANT !!!
+        // Replace this URL with the one you got from publishing your Google Sheet.
+        const googleSheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSG_jYamDCnFA5-3hYGaSX_q5XvS5DkLTBEDeee3LYZf6UsnDshd_b_tX2y7De5TTxapR3tngfS3SvZ/pub?output=csv";
+
+        // Load external data
+        Promise.all([
+            d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json"),
+            d3.csv(googleSheetUrl)
+        ]).then(([us, climbData]) => {
+            // Hide loading spinner and show legend
+            d3.select("#loading").style("display", "none");
+            d3.select("#legend").style("display", "flex");
+
+            // Process the climb data from the Google Sheet
+            const climbDates = new Map(climbData.map(d => [d.State, d.Date]));
+
+            // Combine static data with dynamic climb dates
+            const finalHighPointsData = {};
+            for (const stateName in highPointsStaticData) {
+                finalHighPointsData[stateName] = {
+                    ...highPointsStaticData[stateName],
+                    date: climbDates.get(stateName) || null
+                };
+            }
+
+            // Draw the map
+            const svg = mapContainer.append("svg")
+                .attr("viewBox", `0 0 ${width} ${height}`)
+                .style("width", "100%")
+                .style("height", "auto");
+
+            const projection = d3.geoAlbersUsa().scale(1300).translate([width / 2, height / 2]);
+            const path = d3.geoPath().projection(projection);
+
+            svg.append("g")
+                .selectAll("path")
+                .data(topojson.feature(us, us.objects.states).features)
+                .enter().append("path")
+                .attr("d", path)
+                .attr("class", d => {
+                    const stateName = d.properties.name;
+                    const data = finalHighPointsData[stateName];
+                    return data && data.date ? 'state climbed' : 'state unclimbed';
+                })
+                .on("mouseover", function(event, d) {
+                    const stateName = d.properties.name;
+                    const data = finalHighPointsData[stateName];
+                    
+                    d3.select(this).raise().style('opacity', 0.7);
+
+                    tooltip.transition().duration(200).style("opacity", .95);
+                    let tooltipContent = `<div class="font-bold text-lg">${stateName}</div>`;
+                    if (data) {
+                        tooltipContent += `<div><strong>High Point:</strong> ${data.name}</div>`;
+                        tooltipContent += `<div><strong>Elevation:</strong> ${data.elevation.toLocaleString()} ft</div>`;
+                        if (data.date) {
+                            tooltipContent += `<div><strong>Climbed:</strong> ${new Date(data.date).toLocaleDateString()}</div>`;
+                        } else {
+                            tooltipContent += `<div><strong>Status:</strong> Not Climbed</div>`;
+                        }
+                    } else {
+                        tooltipContent += `<div>No data available</div>`;
+                    }
+                    tooltip.html(tooltipContent)
+                        .style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function() {
+                    d3.select(this).style('opacity', 1);
+                    tooltip.transition().duration(500).style("opacity", 0);
+                });
+
+        }).catch(error => {
+            // Handle errors, e.g., if the Google Sheet URL is wrong
+            console.error("Error loading data:", error);
+            d3.select("#loading")
+                .html(`<p class="text-red-500">Failed to load data. Please check the Google Sheet URL and make sure it's published correctly.</p>`);
+        });
+    </script>
+</body>
+</html>
