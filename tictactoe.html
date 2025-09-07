@@ -10,6 +10,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // IMPORTANT: Paste your Firebase config object here to run this on your own site.
         // If left as null, the game will try to use the placeholder variables from this environment.
@@ -177,10 +178,6 @@
         async function resetGame() {
             if (!isAuthReady) {
                 showMessage('Please wait for authentication to be ready.');
-                return;
-            }
-            if (playerMark !== 'X') {
-                showMessage('Only Player X can reset the game.');
                 return;
             }
             board = ['', '', '', '', '', '', '', '', ''];
