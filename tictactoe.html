@@ -62,7 +62,7 @@
         const closeMessageBtn = document.getElementById('close-message');
         const chooseMarkContainer = document.getElementById('choose-mark-container');
         const chooseXBtn = document.getElementById('choose-x-btn');
-        const chooseOBtn = document.getElementById('choose-o-btn');
+        const chooseOBtn = document = document.getElementById('choose-o-btn');
 
         let board = ['', '', '', '', '', '', '', '', ''];
         let currentPlayer = 'X';
@@ -290,6 +290,12 @@
                     isGameActive = data.isGameActive;
                     playerX = data.playerX;
                     playerO = data.playerO;
+
+                    // If the current user is not in the game document's player list,
+                    // reset their local playerMark to null.
+                    if (userId !== playerX && userId !== playerO) {
+                        playerMark = null;
+                    }
 
                     // Automatically assign O to the second player
                     if (!playerMark && playerX !== null && playerO === null && userId !== playerX) {
