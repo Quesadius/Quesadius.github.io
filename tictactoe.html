@@ -141,10 +141,12 @@
                 chooseMarkContainer.classList.remove('hidden');
                 boardElement.classList.add('hidden');
                 statusTextElement.textContent = 'Choose your mark to begin.';
+                shareBtn.classList.add('hidden');
                 return;
             } else {
                 chooseMarkContainer.classList.add('hidden');
                 boardElement.classList.remove('hidden');
+                shareBtn.classList.remove('hidden');
             }
 
             let statusMessage = isGameActive ? `Current Player: ${currentPlayer}` : 'Game Over';
@@ -297,11 +299,17 @@
                         playerMark = null;
                     }
 
-                    // Automatically assign O to the second player
-                    if (!playerMark && playerX !== null && playerO === null && userId !== playerX) {
-                        playerO = userId;
-                        playerMark = 'O';
-                        updateGameInFirestore(); // Persist the assignment to Firestore
+                    // Assign the second player to the available slot
+                    if (playerMark === null && userId !== playerX && userId !== playerO) {
+                        if (playerX !== null && playerO === null) {
+                            playerO = userId;
+                            playerMark = 'O';
+                            updateGameInFirestore(); // Persist the assignment to Firestore
+                        } else if (playerO !== null && playerX === null) {
+                            playerX = userId;
+                            playerMark = 'X';
+                            updateGameInFirestore(); // Persist the assignment to Firestore
+                        }
                     }
 
                     if (!playerMark && playerX === userId) {
@@ -347,7 +355,7 @@
             <button id="reset-btn" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
                 Reset Game
             </button>
-             <button id="share-btn" class="bg-green-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-600 transition-colors duration-200">
+             <button id="share-btn" class="hidden bg-green-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-600 transition-colors duration-200">
                 Copy Link
             </button>
              <button id="delete-btn" class="bg-red-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-red-600 transition-colors duration-200">
