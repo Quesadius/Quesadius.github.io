@@ -13,47 +13,24 @@
 
         // IMPORTANT: Paste your Firebase config object here to run this on your own site.
         // If left as null, the game will try to use the placeholder variables from this environment.
-        // const YOUR_FIREBASE_CONFIG = null; // e.g., { apiKey: "...", authDomain: "...", ... };
         const YOUR_FIREBASE_CONFIG = {
-    apiKey: "AIzaSyBhP0eTmmHB2LNh4nIaOZtTk7f1pBbPvgI",
-    authDomain: "tictactoe-76547.firebaseapp.com",
-    projectId: "tictactoe-76547",
-    storageBucket: "tictactoe-76547.firebasestorage.app",
-    messagingSenderId: "46072501212",
-    appId: "1:46072501212:web:f427fe7d366a9feccd7519",
-    measurementId: "G-BDP38SG25L"
-  };
+            apiKey: "AIzaSyBhP0eTmmHB2LNh4nIaOZtTk7f1pBbPvgI",
+            authDomain: "tictactoe-76547.firebaseapp.com",
+            projectId: "tictactoe-76547",
+            storageBucket: "tictactoe-76547.firebasestorage.app",
+            messagingSenderId: "46072501212",
+            appId: "1:46072501212:web:f427fe7d366a9feccd7519",
+            measurementId: "G-BDP38SG25L"
+        };
         
-// <script type="module">
-//   // Import the functions you need from the SDKs you need
-//   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-//   import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-analytics.js";
-//   // TODO: Add SDKs for Firebase products that you want to use
-//   // https://firebase.google.com/docs/web/setup#available-libraries
-
-//   // Your web app's Firebase configuration
-//   // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-//   const firebaseConfig = {
-//     apiKey: "AIzaSyBhP0eTmmHB2LNh4nIaOZtTk7f1pBbPvgI",
-//     authDomain: "tictactoe-76547.firebaseapp.com",
-//     projectId: "tictactoe-76547",
-//     storageBucket: "tictactoe-76547.firebasestorage.app",
-//     messagingSenderId: "46072501212",
-//     appId: "1:46072501212:web:f427fe7d366a9feccd7519",
-//     measurementId: "G-BDP38SG25L"
-//   };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
-
-
         let firebaseConfig;
         let appId;
-        if (YOUR_FIREBASE_CONFIG) {
+
+        // Determine the Firebase configuration to use
+        if (YOUR_FIREBASE_CONFIG && Object.keys(YOUR_FIREBASE_CONFIG).length > 0) {
             firebaseConfig = YOUR_FIREBASE_CONFIG;
-            appId = "tic-tac-toe-game"; // A unique ID for your app
+            // Using the projectId as a unique identifier for the app's data in Firestore
+            appId = YOUR_FIREBASE_CONFIG.projectId; 
         } else {
             // These variables are automatically provided in the collaborative environment
             firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
@@ -63,12 +40,22 @@
         let app, db, auth;
         let userId = null;
         let isAuthReady = false;
-        const gameId = 'main-game'; // Identifier for this game instance
+
+        // Get game ID from URL or generate a new one
+        const urlParams = new URLSearchParams(window.location.search);
+        let gameId = urlParams.get('gameId');
+
+        if (!gameId) {
+            // If no gameId in URL, generate a new one and redirect
+            gameId = crypto.randomUUID();
+            window.history.replaceState({}, '', `${window.location.pathname}?gameId=${gameId}`);
+        }
 
         const boardElement = document.getElementById('board');
         const statusTextElement = document.getElementById('status-text');
         const authIdElement = document.getElementById('auth-id');
         const resetBtn = document.getElementById('reset-btn');
+        const shareBtn = document.getElementById('share-btn');
         const messageBox = document.getElementById('message-box');
         const messageContent = document.getElementById('message-content');
         const closeMessageBtn = document.getElementById('close-message');
@@ -79,9 +66,18 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             if (Object.keys(firebaseConfig).length > 0) {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+                try {
+                    console.log("Attempting to initialize Firebase with:", firebaseConfig);
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    console.log("Firebase initialized successfully.", firebaseConfig);
+                } catch (e) {
+                    statusTextElement.textContent = 'Error initializing Firebase.';
+                    showMessage(`Error initializing Firebase: ${e.message}. Check your configuration.`);
+                    console.error("Error initializing Firebase:", e);
+                    return; // Stop execution if init fails
+                }
 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
@@ -102,6 +98,7 @@
             }
 
             resetBtn.addEventListener('click', resetGame);
+            shareBtn.addEventListener('click', copyLink);
             boardElement.addEventListener('click', handleCellClick);
             closeMessageBtn.addEventListener('click', () => messageBox.classList.add('hidden'));
         });
@@ -109,6 +106,17 @@
         function showMessage(text) {
             messageContent.textContent = text;
             messageBox.classList.remove('hidden');
+        }
+
+        async function copyLink() {
+            try {
+                const urlToCopy = window.location.href;
+                await navigator.clipboard.writeText(urlToCopy);
+                showMessage('Link copied to clipboard!');
+            } catch (err) {
+                showMessage('Failed to copy link. Your browser may not support this feature or you need to grant permission.');
+                console.error('Could not copy URL: ', err);
+            }
         }
 
         function updateUI() {
@@ -218,9 +226,12 @@
             <!-- Board cells will be generated here -->
         </div>
 
-        <div class="flex justify-center mt-6">
+        <div class="flex justify-center mt-6 space-x-4">
             <button id="reset-btn" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
                 Reset Game
+            </button>
+             <button id="share-btn" class="bg-green-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-600 transition-colors duration-200">
+                Copy Link
             </button>
         </div>
     </div>
@@ -228,7 +239,7 @@
     <!-- Custom Modal for Messages -->
     <div id="message-box" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden">
         <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full text-center">
-            <p id="message-content" class="text-gray-800 text-lg font-medium mb-4"></p>
+            <p id="message-content" class="text-gray-800 text-lg text-lg font-medium mb-4"></p>
             <button id="close-message" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors duration-200">
                 OK
             </button>
