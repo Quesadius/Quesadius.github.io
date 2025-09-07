@@ -46,9 +46,12 @@
         let gameId = urlParams.get('gameId');
 
         if (!gameId) {
-            // If no gameId in URL, generate a new one and redirect
+            // If no gameId in URL, generate a new one
             gameId = crypto.randomUUID();
-            window.history.replaceState({}, '', `${window.location.pathname}?gameId=${gameId}`);
+            // Only update the URL if not running from a blob URL (e.g., when deployed)
+            if (window.location.protocol !== 'blob:') {
+                window.history.replaceState({}, '', `${window.location.pathname}?gameId=${gameId}`);
+            }
         }
 
         const boardElement = document.getElementById('board');
@@ -65,36 +68,38 @@
         let isGameActive = true;
 
         document.addEventListener('DOMContentLoaded', () => {
-            if (Object.keys(firebaseConfig).length > 0) {
-                try {
-                    console.log("Attempting to initialize Firebase with:", firebaseConfig);
-                    app = initializeApp(firebaseConfig);
-                    db = getFirestore(app);
-                    auth = getAuth(app);
-                    console.log("Firebase initialized successfully.", firebaseConfig);
-                } catch (e) {
-                    statusTextElement.textContent = 'Error initializing Firebase.';
-                    showMessage(`Error initializing Firebase: ${e.message}. Check your configuration.`);
-                    console.error("Error initializing Firebase:", e);
-                    return; // Stop execution if init fails
-                }
-
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                    } else {
-                        await signInAnonymously(auth);
-                        userId = auth.currentUser.uid;
-                    }
-                    authIdElement.textContent = userId;
-                    isAuthReady = true;
-                    // Start listening for game state changes only after authentication is ready
-                    setupGameListener();
-                });
-            } else {
+            // Check for valid Firebase config
+            if (Object.keys(firebaseConfig).length === 0) {
                 statusTextElement.textContent = 'Firebase configuration is missing.';
                 showMessage('Error: Firebase configuration is missing. Please provide your own config to deploy this game outside of this environment.');
                 console.error('Firebase configuration object is empty or not provided.');
+                return;
+            }
+            
+            // Initialize Firebase and set up authentication
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // Sign in anonymously and then set up the game listener
+                signInAnonymously(auth)
+                    .then((userCredential) => {
+                        userId = userCredential.user.uid;
+                        authIdElement.textContent = userId;
+                        isAuthReady = true;
+                        console.log("Firebase initialized successfully. User ID:", userId);
+                        setupGameListener();
+                    })
+                    .catch((error) => {
+                        statusTextElement.textContent = 'Auth Error.';
+                        showMessage(`Authentication Error: ${error.message}. Please check your Firebase project settings.`);
+                        console.error("Authentication Error:", error);
+                    });
+            } catch (e) {
+                statusTextElement.textContent = 'Error initializing Firebase.';
+                showMessage(`Error initializing Firebase: ${e.message}. Check your configuration.`);
+                console.error("Error initializing Firebase:", e);
             }
 
             resetBtn.addEventListener('click', resetGame);
