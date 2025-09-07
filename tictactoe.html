@@ -9,7 +9,7 @@
         // Firebase imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // IMPORTANT: Paste your Firebase config object here to run this on your own site.
         // If left as null, the game will try to use the placeholder variables from this environment.
@@ -55,6 +55,7 @@
         const authIdElement = document.getElementById('auth-id');
         const resetBtn = document.getElementById('reset-btn');
         const shareBtn = document.getElementById('share-btn');
+        const deleteBtn = document.getElementById('delete-btn');
         const messageBox = document.getElementById('message-box');
         const messageContent = document.getElementById('message-content');
         const closeMessageBtn = document.getElementById('close-message');
@@ -99,6 +100,7 @@
 
             resetBtn.addEventListener('click', resetGame);
             shareBtn.addEventListener('click', copyLink);
+            deleteBtn.addEventListener('click', deleteGame);
             boardElement.addEventListener('click', handleCellClick);
             closeMessageBtn.addEventListener('click', () => messageBox.classList.add('hidden'));
         });
@@ -171,6 +173,28 @@
             await updateGameInFirestore();
         }
 
+        async function deleteGame() {
+            if (!isAuthReady) {
+                showMessage('Please wait for authentication to be ready.');
+                return;
+            }
+            if (playerMark !== 'X' && playerMark !== 'O') {
+                showMessage('Only active players can delete the game.');
+                return;
+            }
+            try {
+                const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
+                await deleteDoc(gameDocRef);
+                showMessage('Game deleted! You can start a new one.');
+                 if (window.location.protocol !== 'blob:') {
+                    window.history.replaceState({}, '', window.location.pathname);
+                }
+            } catch (e) {
+                showMessage('Error deleting game. Check your permissions.');
+                console.error("Error deleting document: ", e);
+            }
+        }
+
         async function handleCellClick(e) {
             const index = e.target.dataset.index;
             if (playerMark !== currentPlayer) {
@@ -227,11 +251,10 @@
                         } else if (!playerO) {
                             playerO = userId;
                             playerMark = 'O';
-                            updateGameInFirestore(); // Update the document with the new player
+                            updateGameInFirestore();
                         } else if (playerO === userId) {
                             playerMark = 'O';
                         } else {
-                             // This is a third player (spectator)
                             showMessage("You are a spectator! A game is already in progress.");
                         }
                     }
@@ -266,6 +289,9 @@
             </button>
              <button id="share-btn" class="bg-green-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-600 transition-colors duration-200">
                 Copy Link
+            </button>
+             <button id="delete-btn" class="bg-red-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-red-600 transition-colors duration-200">
+                Delete Game
             </button>
         </div>
     </div>
