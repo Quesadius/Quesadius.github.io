@@ -291,10 +291,16 @@
                     playerX = data.playerX;
                     playerO = data.playerO;
 
+                    // Automatically assign O to the second player
+                    if (!playerMark && playerX !== null && playerO === null && userId !== playerX) {
+                        playerO = userId;
+                        playerMark = 'O';
+                        updateGameInFirestore(); // Persist the assignment to Firestore
+                    }
+
                     if (!playerMark && playerX === userId) {
                          playerMark = 'X';
-                    }
-                    if (!playerMark && playerO === userId) {
+                    } else if (!playerMark && playerO === userId) {
                          playerMark = 'O';
                     }
                     
