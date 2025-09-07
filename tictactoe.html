@@ -59,6 +59,9 @@
         const messageBox = document.getElementById('message-box');
         const messageContent = document.getElementById('message-content');
         const closeMessageBtn = document.getElementById('close-message');
+        const chooseMarkContainer = document.getElementById('choose-mark-container');
+        const chooseXBtn = document.getElementById('choose-x-btn');
+        const chooseOBtn = document.getElementById('choose-o-btn');
 
         let board = ['', '', '', '', '', '', '', '', ''];
         let currentPlayer = 'X';
@@ -103,6 +106,8 @@
             deleteBtn.addEventListener('click', deleteGame);
             boardElement.addEventListener('click', handleCellClick);
             closeMessageBtn.addEventListener('click', () => messageBox.classList.add('hidden'));
+            chooseXBtn.addEventListener('click', () => chooseMark('X'));
+            chooseOBtn.addEventListener('click', () => chooseMark('O'));
         });
 
         function showMessage(text) {
@@ -131,6 +136,16 @@
                 boardElement.appendChild(cellDiv);
             });
             
+            if (playerX === null && playerO === null) {
+                chooseMarkContainer.classList.remove('hidden');
+                boardElement.classList.add('hidden');
+                statusTextElement.textContent = 'Choose your mark to begin.';
+                return;
+            } else {
+                chooseMarkContainer.classList.add('hidden');
+                boardElement.classList.remove('hidden');
+            }
+
             let statusMessage = isGameActive ? `Current Player: ${currentPlayer}` : 'Game Over';
             if (isGameActive) {
                 if (playerMark === currentPlayer) {
@@ -164,12 +179,47 @@
                 showMessage('Please wait for authentication to be ready.');
                 return;
             }
+            if (playerMark !== 'X') {
+                showMessage('Only Player X can reset the game.');
+                return;
+            }
             board = ['', '', '', '', '', '', '', '', ''];
             currentPlayer = 'X';
             isGameActive = true;
-            playerX = userId;
+            playerX = null;
             playerO = null;
-            playerMark = 'X';
+            playerMark = null;
+            await updateGameInFirestore();
+        }
+
+        async function chooseMark(mark) {
+            if (!isAuthReady) {
+                showMessage('Please wait for authentication to be ready.');
+                return;
+            }
+            if (playerMark) {
+                showMessage('You have already chosen your mark.');
+                return;
+            }
+
+            const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
+            const docSnap = await getDoc(gameDocRef);
+            
+            if (mark === 'X') {
+                if (docSnap.exists() && docSnap.data().playerX !== null) {
+                    showMessage('Player X is already taken. Please refresh and try again.');
+                    return;
+                }
+                playerX = userId;
+                playerMark = 'X';
+            } else if (mark === 'O') {
+                if (docSnap.exists() && docSnap.data().playerO !== null) {
+                    showMessage('Player O is already taken. Please refresh and try again.');
+                    return;
+                }
+                playerO = userId;
+                playerMark = 'O';
+            }
             await updateGameInFirestore();
         }
 
@@ -244,21 +294,13 @@
                     playerX = data.playerX;
                     playerO = data.playerO;
 
-                    // Assign player mark if not already set
-                    if (!playerMark) {
-                        if (playerX === userId) {
-                            playerMark = 'X';
-                        } else if (!playerO) {
-                            playerO = userId;
-                            playerMark = 'O';
-                            updateGameInFirestore();
-                        } else if (playerO === userId) {
-                            playerMark = 'O';
-                        } else {
-                            showMessage("You are a spectator! A game is already in progress.");
-                        }
+                    if (!playerMark && playerX === userId) {
+                         playerMark = 'X';
                     }
-
+                    if (!playerMark && playerO === userId) {
+                         playerMark = 'O';
+                    }
+                    
                     updateUI();
                 } else {
                     resetGame();
@@ -277,6 +319,15 @@
             <p class="text-xs text-blue-500 break-all mt-1">
                 Auth ID: <span id="auth-id" class="font-mono">Loading...</span>
             </p>
+        </div>
+
+        <div id="choose-mark-container" class="flex justify-center mt-4 space-x-4 hidden">
+            <button id="choose-x-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-200">
+                Play as X
+            </button>
+            <button id="choose-o-btn" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-red-700 transition-colors duration-200">
+                Play as O
+            </button>
         </div>
 
         <div id="board" class="grid grid-cols-3 gap-2 p-2 bg-gray-300 rounded-lg">
