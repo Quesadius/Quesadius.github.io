@@ -318,6 +318,16 @@
                          playerMark = 'O';
                     }
                     
+                    // Show a message to both players if the game is over.
+                    if (!isGameActive) {
+                        const winner = checkWinner();
+                        if (winner) {
+                            showMessage(`${winner} wins!`);
+                        } else {
+                            showMessage("It's a draw!");
+                        }
+                    }
+
                     updateUI();
                 } else {
                     resetGame();
