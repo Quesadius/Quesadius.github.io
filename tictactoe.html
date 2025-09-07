@@ -8,8 +8,8 @@
     <script type="module">
         // Firebase imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, updateDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // IMPORTANT: Paste your Firebase config object here to run this on your own site.
         // If left as null, the game will try to use the placeholder variables from this environment.
@@ -29,10 +29,8 @@
         // Determine the Firebase configuration to use
         if (YOUR_FIREBASE_CONFIG && Object.keys(YOUR_FIREBASE_CONFIG).length > 0) {
             firebaseConfig = YOUR_FIREBASE_CONFIG;
-            // Using the projectId as a unique identifier for the app's data in Firestore
             appId = YOUR_FIREBASE_CONFIG.projectId; 
         } else {
-            // These variables are automatically provided in the collaborative environment
             firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
             appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         }
@@ -40,15 +38,13 @@
         let app, db, auth;
         let userId = null;
         let isAuthReady = false;
+        let playerMark = null;
 
-        // Get game ID from URL or generate a new one
         const urlParams = new URLSearchParams(window.location.search);
         let gameId = urlParams.get('gameId');
 
         if (!gameId) {
-            // If no gameId in URL, generate a new one
             gameId = crypto.randomUUID();
-            // Only update the URL if not running from a blob URL (e.g., when deployed)
             if (window.location.protocol !== 'blob:') {
                 window.history.replaceState({}, '', `${window.location.pathname}?gameId=${gameId}`);
             }
@@ -66,9 +62,10 @@
         let board = ['', '', '', '', '', '', '', '', ''];
         let currentPlayer = 'X';
         let isGameActive = true;
+        let playerX = null;
+        let playerO = null;
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Check for valid Firebase config
             if (Object.keys(firebaseConfig).length === 0) {
                 statusTextElement.textContent = 'Firebase configuration is missing.';
                 showMessage('Error: Firebase configuration is missing. Please provide your own config to deploy this game outside of this environment.');
@@ -76,13 +73,11 @@
                 return;
             }
             
-            // Initialize Firebase and set up authentication
             try {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // Sign in anonymously and then set up the game listener
                 signInAnonymously(auth)
                     .then((userCredential) => {
                         userId = userCredential.user.uid;
@@ -133,7 +128,16 @@
                 cellDiv.textContent = cell;
                 boardElement.appendChild(cellDiv);
             });
-            statusTextElement.textContent = isGameActive ? `Current Player: ${currentPlayer}` : 'Game Over';
+            
+            let statusMessage = isGameActive ? `Current Player: ${currentPlayer}` : 'Game Over';
+            if (isGameActive) {
+                if (playerMark === currentPlayer) {
+                    statusMessage = `It's your turn (${playerMark})`;
+                } else {
+                    statusMessage = `Waiting for ${currentPlayer} to move...`;
+                }
+            }
+            statusTextElement.textContent = statusMessage;
         }
 
         async function updateGameInFirestore() {
@@ -144,6 +148,8 @@
                     board: JSON.stringify(board),
                     currentPlayer: currentPlayer,
                     isGameActive: isGameActive,
+                    playerX: playerX,
+                    playerO: playerO,
                     lastUpdated: Date.now()
                 });
             } catch (e) {
@@ -159,13 +165,18 @@
             board = ['', '', '', '', '', '', '', '', ''];
             currentPlayer = 'X';
             isGameActive = true;
+            playerX = userId;
+            playerO = null;
+            playerMark = 'X';
             await updateGameInFirestore();
-            updateUI();
-            showMessage('Game reset!');
         }
 
         async function handleCellClick(e) {
             const index = e.target.dataset.index;
+            if (playerMark !== currentPlayer) {
+                showMessage("It's not your turn!");
+                return;
+            }
             if (!isGameActive || board[index] !== '') {
                 return;
             }
@@ -181,7 +192,6 @@
                 currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
             }
             await updateGameInFirestore();
-            updateUI();
         }
 
         function checkWinner() {
@@ -207,9 +217,28 @@
                     board = JSON.parse(data.board);
                     currentPlayer = data.currentPlayer;
                     isGameActive = data.isGameActive;
+                    playerX = data.playerX;
+                    playerO = data.playerO;
+
+                    // Assign player mark if not already set
+                    if (!playerMark) {
+                        if (playerX === userId) {
+                            playerMark = 'X';
+                        } else if (!playerO) {
+                            playerO = userId;
+                            playerMark = 'O';
+                            updateGameInFirestore(); // Update the document with the new player
+                        } else if (playerO === userId) {
+                            playerMark = 'O';
+                        } else {
+                             // This is a third player (spectator)
+                            showMessage("You are a spectator! A game is already in progress.");
+                        }
+                    }
+
                     updateUI();
                 } else {
-                    resetGame(); // Initialize the game if the document doesn't exist
+                    resetGame();
                 }
             }, (error) => {
                 console.error("Error getting real-time game state: ", error);
