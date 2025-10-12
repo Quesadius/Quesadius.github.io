@@ -9,11 +9,9 @@
         // Firebase imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // IMPORTANT: Paste your Firebase config object here to run this on your own site.
-        // If left as null, the game will try to use the placeholder variables from this environment.
         const YOUR_FIREBASE_CONFIG = {
             apiKey: "AIzaSyBhP0eTmmHB2LNh4nIaOZtTk7f1pBbPvgI",
             authDomain: "tictactoe-76547.firebaseapp.com",
@@ -24,10 +22,7 @@
             measurementId: "G-BDP38SG25L"
         };
         
-        let firebaseConfig;
-        let appId;
-
-        // Determine the Firebase configuration to use
+        let firebaseConfig, appId;
         if (YOUR_FIREBASE_CONFIG && Object.keys(YOUR_FIREBASE_CONFIG).length > 0) {
             firebaseConfig = YOUR_FIREBASE_CONFIG;
             appId = YOUR_FIREBASE_CONFIG.projectId; 
@@ -36,25 +31,23 @@
             appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         }
 
+        // Firebase and Game State Variables
         let app, db, auth;
         let userId = null;
         let isAuthReady = false;
         let playerMark = null;
+        let gameId = new URLSearchParams(window.location.search).get('gameId');
 
-        const urlParams = new URLSearchParams(window.location.search);
-        let gameId = urlParams.get('gameId');
+        // Game Mode State
+        let gameMode = null; // 'computer' or 'multiplayer'
+        let computerSkillLevel = null; // 'easy', 'medium', 'hard'
+        let computerMark = null;
 
-        if (!gameId) {
-            gameId = crypto.randomUUID();
-            if (window.location.protocol !== 'blob:') {
-                window.history.replaceState({}, '', `${window.location.pathname}?gameId=${gameId}`);
-            }
-        }
-
+        // DOM Elements
         const boardElement = document.getElementById('board');
         const statusTextElement = document.getElementById('status-text');
         const authIdElement = document.getElementById('auth-id');
-        const resetBtn = document.getElementById('reset-btn');
+        const newGameBtn = document.getElementById('new-game-btn');
         const shareBtn = document.getElementById('share-btn');
         const deleteBtn = document.getElementById('delete-btn');
         const messageBox = document.getElementById('message-box');
@@ -63,7 +56,13 @@
         const chooseMarkContainer = document.getElementById('choose-mark-container');
         const chooseXBtn = document.getElementById('choose-x-btn');
         const chooseOBtn = document.getElementById('choose-o-btn');
+        const gameModeContainer = document.getElementById('game-mode-container');
+        const difficultyContainer = document.getElementById('difficulty-container');
+        const modeComputerBtn = document.getElementById('mode-computer-btn');
+        const modeMultiplayerBtn = document.getElementById('mode-multiplayer-btn');
+        const authIdContainer = document.getElementById('auth-id-container');
 
+        // Core Game Logic Variables
         let board = ['', '', '', '', '', '', '', '', ''];
         let currentPlayer = 'X';
         let isGameActive = true;
@@ -71,44 +70,28 @@
         let playerO = null;
 
         document.addEventListener('DOMContentLoaded', () => {
-            if (Object.keys(firebaseConfig).length === 0) {
-                statusTextElement.textContent = 'Firebase configuration is missing.';
-                showMessage('Error: Firebase configuration is missing. Please provide your own config to deploy this game outside of this environment.');
-                console.error('Firebase configuration object is empty or not provided.');
-                return;
-            }
-            
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                signInAnonymously(auth)
-                    .then((userCredential) => {
-                        userId = userCredential.user.uid;
-                        authIdElement.textContent = userId;
-                        isAuthReady = true;
-                        console.log("Firebase initialized successfully. User ID:", userId);
-                        setupGameListener();
-                    })
-                    .catch((error) => {
-                        statusTextElement.textContent = 'Auth Error.';
-                        showMessage(`Authentication Error: ${error.message}. Please check your Firebase project settings.`);
-                        console.error("Authentication Error:", error);
-                    });
-            } catch (e) {
-                statusTextElement.textContent = 'Error initializing Firebase.';
-                showMessage(`Error initializing Firebase: ${e.message}. Check your configuration.`);
-                console.error("Error initializing Firebase:", e);
-            }
-
-            resetBtn.addEventListener('click', resetGame);
+            // Event Listeners
+            newGameBtn.addEventListener('click', startNewGame);
             shareBtn.addEventListener('click', copyLink);
             deleteBtn.addEventListener('click', deleteGame);
             boardElement.addEventListener('click', handleCellClick);
             closeMessageBtn.addEventListener('click', () => messageBox.classList.add('hidden'));
             chooseXBtn.addEventListener('click', () => chooseMark('X'));
             chooseOBtn.addEventListener('click', () => chooseMark('O'));
+            modeComputerBtn.addEventListener('click', setupComputerGame);
+            modeMultiplayerBtn.addEventListener('click', setupMultiplayerGame);
+
+            difficultyContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('difficulty-btn')) {
+                    computerSkillLevel = e.target.dataset.level;
+                    difficultyContainer.classList.add('hidden');
+                    chooseMarkContainer.classList.remove('hidden');
+                    statusTextElement.textContent = 'Choose your mark to begin.';
+                }
+            });
+
+            // Initial UI Setup
+            startNewGame();
         });
 
         function showMessage(text) {
@@ -118,12 +101,59 @@
 
         async function copyLink() {
             try {
-                const urlToCopy = window.location.href;
-                await navigator.clipboard.writeText(urlToCopy);
+                await navigator.clipboard.writeText(window.location.href);
                 showMessage('Link copied to clipboard!');
             } catch (err) {
-                showMessage('Failed to copy link. Your browser may not support this feature or you need to grant permission.');
+                showMessage('Failed to copy link.');
                 console.error('Could not copy URL: ', err);
+            }
+        }
+        
+        function setupComputerGame() {
+            gameMode = 'computer';
+            gameModeContainer.classList.add('hidden');
+            difficultyContainer.classList.remove('hidden');
+            statusTextElement.textContent = 'Select computer skill level.';
+        }
+
+        function setupMultiplayerGame() {
+            gameMode = 'multiplayer';
+            gameModeContainer.classList.add('hidden');
+            authIdContainer.classList.remove('hidden');
+            initializeFirebase();
+        }
+
+        function initializeFirebase() {
+             if (Object.keys(firebaseConfig).length === 0) {
+                statusTextElement.textContent = 'Firebase configuration is missing.';
+                showMessage('Error: Firebase configuration is missing.');
+                return;
+            }
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                signInAnonymously(auth).then((userCredential) => {
+                    userId = userCredential.user.uid;
+                    authIdElement.textContent = userId;
+                    isAuthReady = true;
+                    if (!gameId) {
+                        gameId = crypto.randomUUID();
+                        if (window.location.protocol !== 'blob:') {
+                            window.history.replaceState({}, '', `${window.location.pathname}?gameId=${gameId}`);
+                        }
+                    }
+                    setupGameListener();
+                }).catch((error) => {
+                    statusTextElement.textContent = 'Auth Error.';
+                    showMessage(`Authentication Error: ${error.message}.`);
+                    console.error("Authentication Error:", error);
+                });
+            } catch (e) {
+                statusTextElement.textContent = 'Error initializing Firebase.';
+                showMessage(`Error initializing Firebase: ${e.message}.`);
+                console.error("Error initializing Firebase:", e);
             }
         }
 
@@ -137,39 +167,35 @@
                 boardElement.appendChild(cellDiv);
             });
             
-            if (playerX === null && playerO === null) {
-                chooseMarkContainer.classList.remove('hidden');
-                boardElement.classList.add('hidden');
-                statusTextElement.textContent = 'Choose your mark to begin.';
-                shareBtn.classList.add('hidden');
-                return;
-            } else {
-                chooseMarkContainer.classList.add('hidden');
-                boardElement.classList.remove('hidden');
-                shareBtn.classList.remove('hidden');
-            }
-
-            let statusMessage = isGameActive ? `Current Player: ${currentPlayer}` : 'Game Over';
-            if (isGameActive) {
-                if (playerMark === currentPlayer) {
-                    statusMessage = `It's your turn (${playerMark})`;
+            let statusMessage = '';
+            if (gameMode === 'multiplayer') {
+                if (playerX === null && playerO === null) {
+                    chooseMarkContainer.classList.remove('hidden');
+                    boardElement.classList.add('hidden');
+                    statusTextElement.textContent = 'Choose your mark to begin.';
+                    shareBtn.classList.add('hidden');
+                    deleteBtn.classList.add('hidden');
+                    return;
                 } else {
-                    statusMessage = `Waiting for ${currentPlayer} to move...`;
+                    chooseMarkContainer.classList.add('hidden');
+                    boardElement.classList.remove('hidden');
+                    shareBtn.classList.remove('hidden');
+                    deleteBtn.classList.remove('hidden');
                 }
+                statusMessage = isGameActive ? (playerMark === currentPlayer ? `It's your turn (${playerMark})` : `Waiting for ${currentPlayer}...`) : 'Game Over';
+            } else if (gameMode === 'computer') {
+                 statusMessage = isGameActive ? (currentPlayer === playerMark ? `Your turn (${playerMark})` : 'Computer is thinking...') : 'Game Over';
             }
             statusTextElement.textContent = statusMessage;
         }
 
         async function updateGameInFirestore() {
-            if (!isAuthReady) return;
+            if (!isAuthReady || gameMode !== 'multiplayer') return;
             try {
                 const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
                 await setDoc(gameDocRef, {
                     board: JSON.stringify(board),
-                    currentPlayer: currentPlayer,
-                    isGameActive: isGameActive,
-                    playerX: playerX,
-                    playerO: playerO,
+                    currentPlayer, isGameActive, playerX, playerO,
                     lastUpdated: Date.now()
                 });
             } catch (e) {
@@ -177,97 +203,128 @@
             }
         }
 
-        async function resetGame() {
-            if (!isAuthReady) {
-                showMessage('Please wait for authentication to be ready.');
-                return;
-            }
+        async function startNewGame() {
             board = ['', '', '', '', '', '', '', '', ''];
             currentPlayer = 'X';
             isGameActive = true;
+            playerMark = null;
             playerX = null;
             playerO = null;
-            playerMark = null;
-            await updateGameInFirestore();
-        }
+            gameMode = null;
+            computerSkillLevel = null;
+            computerMark = null;
 
-        async function chooseMark(mark) {
-            if (!isAuthReady) {
-                showMessage('Please wait for authentication to be ready.');
-                return;
-            }
-            if (playerMark) {
-                showMessage('You have already chosen your mark.');
-                return;
-            }
-
-            const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
-            const docSnap = await getDoc(gameDocRef);
-            
-            if (mark === 'X') {
-                if (docSnap.exists() && docSnap.data().playerX !== null) {
-                    showMessage('Player X is already taken. Please refresh and try again.');
-                    return;
-                }
-                playerX = userId;
-                playerMark = 'X';
-            } else if (mark === 'O') {
-                if (docSnap.exists() && docSnap.data().playerO !== null) {
-                    showMessage('Player O is already taken. Please refresh and try again.');
-                    return;
-                }
-                playerO = userId;
-                playerMark = 'O';
-            }
-            await updateGameInFirestore();
-        }
-
-        async function deleteGame() {
-            if (!isAuthReady) {
-                showMessage('Please wait for authentication to be ready.');
-                return;
-            }
-            if (playerMark !== 'X' && playerMark !== 'O') {
-                showMessage('Only active players can delete the game.');
-                return;
-            }
-            try {
-                const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
-                await deleteDoc(gameDocRef);
-                showMessage('Game deleted! You can start a new one.');
+            if (gameMode === 'multiplayer' && isAuthReady) {
                  if (window.location.protocol !== 'blob:') {
                     window.history.replaceState({}, '', window.location.pathname);
                 }
+                 gameId = null;
+            }
+
+            gameModeContainer.classList.remove('hidden');
+            difficultyContainer.classList.add('hidden');
+            chooseMarkContainer.classList.add('hidden');
+            boardElement.classList.add('hidden');
+            shareBtn.classList.add('hidden');
+            deleteBtn.classList.add('hidden');
+            authIdContainer.classList.add('hidden');
+            statusTextElement.textContent = 'Choose Game Mode';
+        }
+
+        async function chooseMark(mark) {
+            if (gameMode === 'multiplayer') {
+                if (!isAuthReady) return showMessage('Please wait for authentication.');
+                if (playerMark) return showMessage('You have already chosen your mark.');
+
+                const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
+                const docSnap = await getDoc(gameDocRef);
+                if (mark === 'X' && docSnap.exists() && docSnap.data().playerX) return showMessage('Player X is taken.');
+                if (mark === 'O' && docSnap.exists() && docSnap.data().playerO) return showMessage('Player O is taken.');
+                
+                playerMark = mark;
+                if (mark === 'X') playerX = userId; else playerO = userId;
+                await updateGameInFirestore();
+            } else { // Computer mode
+                playerMark = mark;
+                computerMark = mark === 'X' ? 'O' : 'X';
+                chooseMarkContainer.classList.add('hidden');
+                boardElement.classList.remove('hidden');
+                
+                board = ['', '', '', '', '', '', '', '', ''];
+                currentPlayer = 'X';
+                isGameActive = true;
+                updateUI();
+
+                if (currentPlayer === computerMark) {
+                    boardElement.classList.add('pointer-events-none');
+                    setTimeout(() => {
+                        makeComputerMove();
+                        boardElement.classList.remove('pointer-events-none');
+                    }, 700);
+                }
+            }
+        }
+
+        async function deleteGame() {
+            if (!isAuthReady) return showMessage('Authentication not ready.');
+            if (playerMark !== 'X' && playerMark !== 'O') return showMessage('Only players can delete the game.');
+            try {
+                const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
+                await deleteDoc(gameDocRef);
+                showMessage('Game deleted! Starting a new one.');
+                setTimeout(startNewGame, 1500);
             } catch (e) {
-                showMessage('Error deleting game. Check your permissions.');
+                showMessage('Error deleting game.');
                 console.error("Error deleting document: ", e);
             }
+        }
+        
+        function checkGameStatus() {
+            const winner = checkWinner(board);
+            let gameOver = false;
+            if (winner) {
+                isGameActive = false;
+                showMessage(gameMode === 'computer' ? (winner === playerMark ? 'You win!' : 'Computer wins!') : `${winner} wins!`);
+                gameOver = true;
+            } else if (board.every(cell => cell !== '')) {
+                isGameActive = false;
+                showMessage("It's a draw!");
+                gameOver = true;
+            }
+            if (gameOver) updateUI();
+            return gameOver;
         }
 
         async function handleCellClick(e) {
             const index = e.target.dataset.index;
-            if (playerMark !== currentPlayer) {
-                showMessage("It's not your turn!");
+            if (!isGameActive || board[index] !== '' || currentPlayer !== playerMark) {
+                if (gameMode === 'multiplayer' && currentPlayer !== playerMark) showMessage("It's not your turn!");
                 return;
             }
-            if (!isGameActive || board[index] !== '') {
-                return;
-            }
+            
             board[index] = currentPlayer;
-            const winner = checkWinner();
-            if (winner) {
-                isGameActive = false;
-                showMessage(`${winner} wins!`);
-            } else if (board.every(cell => cell !== '')) {
-                isGameActive = false;
-                showMessage("It's a draw!");
-            } else {
-                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            updateUI();
+
+            if (checkGameStatus()) {
+                if (gameMode === 'multiplayer') await updateGameInFirestore();
+                return;
             }
-            await updateGameInFirestore();
+
+            currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+            updateUI();
+
+            if (gameMode === 'multiplayer') {
+                await updateGameInFirestore();
+            } else if (gameMode === 'computer' && isGameActive) {
+                boardElement.classList.add('pointer-events-none');
+                setTimeout(() => {
+                    makeComputerMove();
+                    boardElement.classList.remove('pointer-events-none');
+                }, 700);
+            }
         }
 
-        function checkWinner() {
+        function checkWinner(currentBoard) {
             const winningCombos = [
                 [0, 1, 2], [3, 4, 5], [6, 7, 8],
                 [0, 3, 6], [1, 4, 7], [2, 5, 8],
@@ -275,12 +332,102 @@
             ];
             for (const combo of winningCombos) {
                 const [a, b, c] = combo;
-                if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-                    return board[a];
+                if (currentBoard[a] && currentBoard[a] === currentBoard[b] && currentBoard[a] === currentBoard[c]) {
+                    return currentBoard[a];
                 }
             }
             return null;
         }
+        
+        // --- Computer AI Logic ---
+        function makeComputerMove() {
+            let move;
+            switch (computerSkillLevel) {
+                case 'easy': move = getEasyMove(); break;
+                case 'medium': move = getMediumMove(); break;
+                case 'hard': move = getHardMove(); break;
+            }
+            if (move !== -1) {
+                board[move] = computerMark;
+                if (checkGameStatus()) return;
+                currentPlayer = playerMark;
+            }
+            updateUI();
+        }
+        
+        function getAvailableMoves(b) {
+            return b.map((cell, index) => cell === '' ? index : null).filter(val => val !== null);
+        }
+        
+        function getEasyMove() {
+            const availableMoves = getAvailableMoves(board);
+            return availableMoves[Math.floor(Math.random() * availableMoves.length)];
+        }
+        
+        function getMediumMove() {
+            const testMove = (mark) => {
+                for (let i = 0; i < 9; i++) {
+                    if (board[i] === '') {
+                        board[i] = mark;
+                        if (checkWinner(board) === mark) { board[i] = ''; return i; }
+                        board[i] = '';
+                    }
+                }
+                return -1;
+            };
+            let move = testMove(computerMark); // Can I win?
+            if (move !== -1) return move;
+            move = testMove(playerMark); // Can player win? Block them.
+            if (move !== -1) return move;
+            return getEasyMove(); // Otherwise, random move.
+        }
+
+        function getHardMove() {
+            let bestScore = -Infinity;
+            let move = -1;
+            for (let i = 0; i < 9; i++) {
+                if (board[i] === '') {
+                    board[i] = computerMark;
+                    let score = minimax(board, 0, false);
+                    board[i] = '';
+                    if (score > bestScore) {
+                        bestScore = score;
+                        move = i;
+                    }
+                }
+            }
+            return move;
+        }
+
+        function minimax(currentBoard, depth, isMaximizing) {
+            const scores = { [computerMark]: 10, [playerMark]: -10, tie: 0 };
+            const winner = checkWinner(currentBoard);
+            if (winner) return scores[winner] - depth;
+            if (getAvailableMoves(currentBoard).length === 0) return scores.tie;
+
+            if (isMaximizing) {
+                let bestScore = -Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (currentBoard[i] === '') {
+                        currentBoard[i] = computerMark;
+                        bestScore = Math.max(bestScore, minimax(currentBoard, depth + 1, false));
+                        currentBoard[i] = '';
+                    }
+                }
+                return bestScore;
+            } else {
+                let bestScore = Infinity;
+                for (let i = 0; i < 9; i++) {
+                    if (currentBoard[i] === '') {
+                        currentBoard[i] = playerMark;
+                        bestScore = Math.min(bestScore, minimax(currentBoard, depth + 1, true));
+                        currentBoard[i] = '';
+                    }
+                }
+                return bestScore;
+            }
+        }
+        // --- End AI Logic ---
 
         function setupGameListener() {
             const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
@@ -293,48 +440,24 @@
                     playerX = data.playerX;
                     playerO = data.playerO;
 
-                    // If the current user is not in the game document's player list,
-                    // reset their local playerMark to null.
-                    if (userId !== playerX && userId !== playerO) {
-                        playerMark = null;
-                    }
-
-                    // Assign the second player to the available slot
+                    if (userId !== playerX && userId !== playerO) playerMark = null;
                     if (playerMark === null && userId !== playerX && userId !== playerO) {
                         if (playerX !== null && playerO === null) {
-                            playerO = userId;
-                            playerMark = 'O';
-                            updateGameInFirestore(); // Persist the assignment to Firestore
+                            playerO = userId; playerMark = 'O'; updateGameInFirestore();
                         } else if (playerO !== null && playerX === null) {
-                            playerX = userId;
-                            playerMark = 'X';
-                            updateGameInFirestore(); // Persist the assignment to Firestore
+                            playerX = userId; playerMark = 'X'; updateGameInFirestore();
                         }
                     }
-
-                    if (!playerMark && playerX === userId) {
-                         playerMark = 'X';
-                    } else if (!playerMark && playerO === userId) {
-                         playerMark = 'O';
-                    }
+                    if (!playerMark && playerX === userId) playerMark = 'X';
+                    else if (!playerMark && playerO === userId) playerMark = 'O';
                     
-                    // Show a message to both players if the game is over.
-                    if (!isGameActive) {
-                        const winner = checkWinner();
-                        if (winner) {
-                            showMessage(`${winner} wins!`);
-                        } else {
-                            showMessage("It's a draw!");
-                        }
-                    }
-
+                    if (!isGameActive) checkGameStatus();
                     updateUI();
                 } else {
-                    resetGame();
+                    startNewGame();
+                    showMessage("Game session not found or deleted. Choose a mode to start a new game.");
                 }
-            }, (error) => {
-                console.error("Error getting real-time game state: ", error);
-            });
+            }, (error) => console.error("Error with real-time listener: ", error));
         }
     </script>
 </head>
@@ -342,10 +465,32 @@
     <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">Tic-Tac-Toe</h1>
         <p id="status-text" class="text-center text-gray-500 mb-4 text-sm">Initializing...</p>
-        <div class="text-center mb-6 p-3 bg-blue-100 rounded-lg shadow-inner">
+        
+        <div id="auth-id-container" class="text-center mb-6 p-3 bg-blue-100 rounded-lg shadow-inner hidden">
             <p class="text-xs text-blue-500 break-all mt-1">
                 Auth ID: <span id="auth-id" class="font-mono">Loading...</span>
             </p>
+        </div>
+
+        <div id="game-mode-container" class="text-center mt-4 hidden">
+            <h2 class="text-lg font-semibold mb-3 text-gray-700">Choose Game Mode</h2>
+            <div class="flex justify-center space-x-4">
+                <button id="mode-computer-btn" class="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-purple-700 transition-colors duration-200">
+                    vs. Computer
+                </button>
+                <button id="mode-multiplayer-btn" class="bg-teal-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-teal-700 transition-colors duration-200">
+                    vs. Friend
+                </button>
+            </div>
+        </div>
+
+        <div id="difficulty-container" class="text-center mt-4 hidden">
+            <h2 class="text-lg font-semibold mb-3 text-gray-700">Choose Difficulty</h2>
+            <div class="flex justify-center space-x-2">
+                <button data-level="easy" class="difficulty-btn bg-green-500 text-white font-semibold py-2 px-3 rounded-lg shadow-md hover:bg-green-600 transition-colors duration-200">Easy</button>
+                <button data-level="medium" class="difficulty-btn bg-yellow-500 text-white font-semibold py-2 px-3 rounded-lg shadow-md hover:bg-yellow-600 transition-colors duration-200">Medium</button>
+                <button data-level="hard" class="difficulty-btn bg-red-500 text-white font-semibold py-2 px-3 rounded-lg shadow-md hover:bg-red-600 transition-colors duration-200">Hard</button>
+            </div>
         </div>
 
         <div id="choose-mark-container" class="flex justify-center mt-4 space-x-4 hidden">
@@ -357,27 +502,25 @@
             </button>
         </div>
 
-        <div id="board" class="grid grid-cols-3 gap-2 p-2 bg-gray-300 rounded-lg">
-            <!-- Board cells will be generated here -->
-        </div>
+        <div id="board" class="grid grid-cols-3 gap-2 p-2 bg-gray-300 rounded-lg hidden">
+            </div>
 
         <div class="flex justify-center mt-6 space-x-4">
-            <button id="reset-btn" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
-                Reset Game
+            <button id="new-game-btn" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
+                New Game
             </button>
              <button id="share-btn" class="hidden bg-green-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-600 transition-colors duration-200">
                 Copy Link
             </button>
-             <button id="delete-btn" class="bg-red-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-red-600 transition-colors duration-200">
+             <button id="delete-btn" class="hidden bg-red-500 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-red-600 transition-colors duration-200">
                 Delete Game
             </button>
         </div>
     </div>
     
-    <!-- Custom Modal for Messages -->
     <div id="message-box" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden">
         <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full text-center">
-            <p id="message-content" class="text-gray-800 text-lg text-lg font-medium mb-4"></p>
+            <p id="message-content" class="text-gray-800 text-lg font-medium mb-4"></p>
             <button id="close-message" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors duration-200">
                 OK
             </button>
