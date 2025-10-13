@@ -36,7 +36,8 @@
         let userId = null;
         let isAuthReady = false;
         let playerMark = null;
-        let gameId = new URLSearchParams(window.location.search).get('gameId');
+        let gameId = null;
+        let gameListenerUnsubscribe = null;
 
         // Game Mode State
         let gameMode = null; // 'computer' or 'multiplayer'
@@ -71,7 +72,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             // Event Listeners
-            newGameBtn.addEventListener('click', startNewGame);
+            newGameBtn.addEventListener('click', showMainMenu);
             shareBtn.addEventListener('click', copyLink);
             deleteBtn.addEventListener('click', deleteGame);
             boardElement.addEventListener('click', handleCellClick);
@@ -79,7 +80,7 @@
             chooseXBtn.addEventListener('click', () => chooseMark('X'));
             chooseOBtn.addEventListener('click', () => chooseMark('O'));
             modeComputerBtn.addEventListener('click', setupComputerGame);
-            modeMultiplayerBtn.addEventListener('click', setupMultiplayerGame);
+            modeMultiplayerBtn.addEventListener('click', setupNewMultiplayerGame);
 
             difficultyContainer.addEventListener('click', (e) => {
                 if (e.target.classList.contains('difficulty-btn')) {
@@ -89,9 +90,9 @@
                     statusTextElement.textContent = 'Choose your mark to begin.';
                 }
             });
-
-            // Initial UI Setup
-            startNewGame();
+            
+            // Initialize Firebase immediately to handle direct links to games
+            initializeAppAndAuth();
         });
 
         function showMessage(text) {
@@ -109,24 +110,11 @@
             }
         }
         
-        function setupComputerGame() {
-            gameMode = 'computer';
-            gameModeContainer.classList.add('hidden');
-            difficultyContainer.classList.remove('hidden');
-            statusTextElement.textContent = 'Select computer skill level.';
-        }
-
-        function setupMultiplayerGame() {
-            gameMode = 'multiplayer';
-            gameModeContainer.classList.add('hidden');
-            authIdContainer.classList.remove('hidden');
-            initializeFirebase();
-        }
-
-        function initializeFirebase() {
-             if (Object.keys(firebaseConfig).length === 0) {
-                statusTextElement.textContent = 'Firebase configuration is missing.';
-                showMessage('Error: Firebase configuration is missing.');
+        function initializeAppAndAuth() {
+            if (Object.keys(firebaseConfig).length === 0) {
+                const errorMsg = 'Firebase configuration is missing.';
+                statusTextElement.textContent = errorMsg;
+                showMessage(`Error: ${errorMsg}`);
                 return;
             }
             try {
@@ -138,13 +126,18 @@
                     userId = userCredential.user.uid;
                     authIdElement.textContent = userId;
                     isAuthReady = true;
-                    if (!gameId) {
-                        gameId = crypto.randomUUID();
-                        if (window.location.protocol !== 'blob:') {
-                            window.history.replaceState({}, '', `${window.location.pathname}?gameId=${gameId}`);
-                        }
+
+                    // KEY CHANGE: Check for a gameId in the URL right after authentication
+                    gameId = new URLSearchParams(window.location.search).get('gameId');
+                    if (gameId) {
+                        // If a gameId exists, user is joining a multiplayer game
+                        gameMode = 'multiplayer';
+                        authIdContainer.classList.remove('hidden');
+                        setupGameListener();
+                    } else {
+                        // If no gameId, show the main menu to choose a mode
+                        showMainMenu();
                     }
-                    setupGameListener();
                 }).catch((error) => {
                     statusTextElement.textContent = 'Auth Error.';
                     showMessage(`Authentication Error: ${error.message}.`);
@@ -157,6 +150,74 @@
             }
         }
 
+        function showMainMenu() {
+            // Reset all game state variables
+            board = ['', '', '', '', '', '', '', '', ''];
+            currentPlayer = 'X';
+            isGameActive = true;
+            playerMark = null;
+            playerX = null;
+            playerO = null;
+            gameMode = null;
+            computerSkillLevel = null;
+            computerMark = null;
+            gameId = null;
+
+            // Detach any existing Firebase listener
+            if (gameListenerUnsubscribe) {
+                gameListenerUnsubscribe();
+                gameListenerUnsubscribe = null;
+            }
+
+            // Clean up the URL
+            if (window.location.protocol !== 'blob:') {
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+            
+            // Set UI to main menu state
+            gameModeContainer.classList.remove('hidden');
+            difficultyContainer.classList.add('hidden');
+            chooseMarkContainer.classList.add('hidden');
+            boardElement.classList.add('hidden');
+            shareBtn.classList.add('hidden');
+            deleteBtn.classList.add('hidden');
+            authIdContainer.classList.add('hidden');
+            statusTextElement.textContent = 'Choose Game Mode';
+            updateUI(); // Clear the board display
+        }
+
+        function setupComputerGame() {
+            gameMode = 'computer';
+            gameModeContainer.classList.add('hidden');
+            difficultyContainer.classList.remove('hidden');
+            statusTextElement.textContent = 'Select computer skill level.';
+        }
+
+        async function setupNewMultiplayerGame() {
+            gameMode = 'multiplayer';
+            gameId = crypto.randomUUID();
+            if (window.location.protocol !== 'blob:') {
+                window.history.replaceState({}, '', `${window.location.pathname}?gameId=${gameId}`);
+            }
+            
+            // Reset local game state for a new match
+            board = ['', '', '', '', '', '', '', '', ''];
+            currentPlayer = 'X';
+            isGameActive = true;
+            playerX = null;
+            playerO = null;
+            playerMark = null;
+
+            // Create the new game in Firestore and then listen for changes
+            await updateGameInFirestore();
+            setupGameListener();
+            
+            gameModeContainer.classList.add('hidden');
+            authIdContainer.classList.remove('hidden');
+            chooseMarkContainer.classList.remove('hidden');
+            statusTextElement.textContent = 'Choose your mark to begin.';
+        }
+        
         function updateUI() {
             boardElement.innerHTML = '';
             board.forEach((cell, index) => {
@@ -190,7 +251,7 @@
         }
 
         async function updateGameInFirestore() {
-            if (!isAuthReady || gameMode !== 'multiplayer') return;
+            if (!isAuthReady || gameMode !== 'multiplayer' || !gameId) return;
             try {
                 const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
                 await setDoc(gameDocRef, {
@@ -203,34 +264,6 @@
             }
         }
 
-        async function startNewGame() {
-            board = ['', '', '', '', '', '', '', '', ''];
-            currentPlayer = 'X';
-            isGameActive = true;
-            playerMark = null;
-            playerX = null;
-            playerO = null;
-            gameMode = null;
-            computerSkillLevel = null;
-            computerMark = null;
-
-            if (gameMode === 'multiplayer' && isAuthReady) {
-                 if (window.location.protocol !== 'blob:') {
-                    window.history.replaceState({}, '', window.location.pathname);
-                }
-                 gameId = null;
-            }
-
-            gameModeContainer.classList.remove('hidden');
-            difficultyContainer.classList.add('hidden');
-            chooseMarkContainer.classList.add('hidden');
-            boardElement.classList.add('hidden');
-            shareBtn.classList.add('hidden');
-            deleteBtn.classList.add('hidden');
-            authIdContainer.classList.add('hidden');
-            statusTextElement.textContent = 'Choose Game Mode';
-        }
-
         async function chooseMark(mark) {
             if (gameMode === 'multiplayer') {
                 if (!isAuthReady) return showMessage('Please wait for authentication.');
@@ -238,8 +271,10 @@
 
                 const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
                 const docSnap = await getDoc(gameDocRef);
-                if (mark === 'X' && docSnap.exists() && docSnap.data().playerX) return showMessage('Player X is taken.');
-                if (mark === 'O' && docSnap.exists() && docSnap.data().playerO) return showMessage('Player O is taken.');
+                const gameData = docSnap.exists() ? docSnap.data() : {};
+
+                if (mark === 'X' && gameData.playerX) return showMessage('Player X is taken.');
+                if (mark === 'O' && gameData.playerO) return showMessage('Player O is taken.');
                 
                 playerMark = mark;
                 if (mark === 'X') playerX = userId; else playerO = userId;
@@ -266,13 +301,13 @@
         }
 
         async function deleteGame() {
-            if (!isAuthReady) return showMessage('Authentication not ready.');
+            if (!isAuthReady || !gameId) return showMessage('Authentication not ready or no game selected.');
             if (playerMark !== 'X' && playerMark !== 'O') return showMessage('Only players can delete the game.');
             try {
                 const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
                 await deleteDoc(gameDocRef);
                 showMessage('Game deleted! Starting a new one.');
-                setTimeout(startNewGame, 1500);
+                setTimeout(showMainMenu, 1500);
             } catch (e) {
                 showMessage('Error deleting game.');
                 console.error("Error deleting document: ", e);
@@ -284,11 +319,11 @@
             let gameOver = false;
             if (winner) {
                 isGameActive = false;
-                showMessage(gameMode === 'computer' ? (winner === playerMark ? 'You win!' : 'Computer wins!') : `${winner} wins!`);
+                showMessage(gameMode === 'computer' ? (winner === playerMark ? 'You win! 🎉' : 'Computer wins! 🤖') : `${winner} wins! 🎉`);
                 gameOver = true;
             } else if (board.every(cell => cell !== '')) {
                 isGameActive = false;
-                showMessage("It's a draw!");
+                showMessage("It's a draw! 🤝");
                 gameOver = true;
             }
             if (gameOver) updateUI();
@@ -297,7 +332,7 @@
 
         async function handleCellClick(e) {
             const index = e.target.dataset.index;
-            if (!isGameActive || board[index] !== '' || currentPlayer !== playerMark) {
+            if (!isGameActive || board[index] !== '' || (gameMode !== 'computer' && currentPlayer !== playerMark)) {
                 if (gameMode === 'multiplayer' && currentPlayer !== playerMark) showMessage("It's not your turn!");
                 return;
             }
@@ -365,73 +400,77 @@
         }
         
         function getMediumMove() {
-            const testMove = (mark) => {
-                for (let i = 0; i < 9; i++) {
-                    if (board[i] === '') {
-                        board[i] = mark;
-                        if (checkWinner(board) === mark) { board[i] = ''; return i; }
-                        board[i] = '';
-                    }
-                }
-                return -1;
-            };
-            let move = testMove(computerMark); // Can I win?
-            if (move !== -1) return move;
-            move = testMove(playerMark); // Can player win? Block them.
-            if (move !== -1) return move;
+            // Check if computer can win in the next move
+            for (const move of getAvailableMoves(board)) {
+                const newBoard = [...board];
+                newBoard[move] = computerMark;
+                if (checkWinner(newBoard) === computerMark) return move;
+            }
+            // Check if player can win in the next move and block them
+            for (const move of getAvailableMoves(board)) {
+                const newBoard = [...board];
+                newBoard[move] = playerMark;
+                if (checkWinner(newBoard) === playerMark) return move;
+            }
             return getEasyMove(); // Otherwise, random move.
         }
 
         function getHardMove() {
-            let bestScore = -Infinity;
-            let move = -1;
-            for (let i = 0; i < 9; i++) {
-                if (board[i] === '') {
-                    board[i] = computerMark;
-                    let score = minimax(board, 0, false);
-                    board[i] = '';
-                    if (score > bestScore) {
-                        bestScore = score;
-                        move = i;
-                    }
-                }
-            }
-            return move;
+            const result = minimax(board, computerMark);
+            return result.index;
         }
 
-        function minimax(currentBoard, depth, isMaximizing) {
-            const scores = { [computerMark]: 10, [playerMark]: -10, tie: 0 };
-            const winner = checkWinner(currentBoard);
-            if (winner) return scores[winner] - depth;
-            if (getAvailableMoves(currentBoard).length === 0) return scores.tie;
+        function minimax(newBoard, player) {
+            const availSpots = getAvailableMoves(newBoard);
+            
+            if (checkWinner(newBoard) === playerMark) return { score: -10 };
+            if (checkWinner(newBoard) === computerMark) return { score: 10 };
+            if (availSpots.length === 0) return { score: 0 };
 
-            if (isMaximizing) {
-                let bestScore = -Infinity;
-                for (let i = 0; i < 9; i++) {
-                    if (currentBoard[i] === '') {
-                        currentBoard[i] = computerMark;
-                        bestScore = Math.max(bestScore, minimax(currentBoard, depth + 1, false));
-                        currentBoard[i] = '';
-                    }
+            const moves = [];
+            for (let i = 0; i < availSpots.length; i++) {
+                const move = {};
+                move.index = availSpots[i];
+                newBoard[availSpots[i]] = player;
+
+                if (player === computerMark) {
+                    const result = minimax(newBoard, playerMark);
+                    move.score = result.score;
+                } else {
+                    const result = minimax(newBoard, computerMark);
+                    move.score = result.score;
                 }
-                return bestScore;
-            } else {
-                let bestScore = Infinity;
-                for (let i = 0; i < 9; i++) {
-                    if (currentBoard[i] === '') {
-                        currentBoard[i] = playerMark;
-                        bestScore = Math.min(bestScore, minimax(currentBoard, depth + 1, true));
-                        currentBoard[i] = '';
-                    }
-                }
-                return bestScore;
+                newBoard[availSpots[i]] = '';
+                moves.push(move);
             }
+
+            let bestMove;
+            if (player === computerMark) {
+                let bestScore = -10000;
+                for (let i = 0; i < moves.length; i++) {
+                    if (moves[i].score > bestScore) {
+                        bestScore = moves[i].score;
+                        bestMove = i;
+                    }
+                }
+            } else {
+                let bestScore = 10000;
+                for (let i = 0; i < moves.length; i++) {
+                    if (moves[i].score < bestScore) {
+                        bestScore = moves[i].score;
+                        bestMove = i;
+                    }
+                }
+            }
+            return moves[bestMove];
         }
         // --- End AI Logic ---
 
         function setupGameListener() {
+            if (gameListenerUnsubscribe) gameListenerUnsubscribe(); // Detach old listener if exists
+            
             const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId);
-            onSnapshot(gameDocRef, (docSnap) => {
+            gameListenerUnsubscribe = onSnapshot(gameDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     board = JSON.parse(data.board);
@@ -440,35 +479,40 @@
                     playerX = data.playerX;
                     playerO = data.playerO;
 
-                    if (userId !== playerX && userId !== playerO) playerMark = null;
-                    if (playerMark === null && userId !== playerX && userId !== playerO) {
-                        if (playerX !== null && playerO === null) {
-                            playerO = userId; playerMark = 'O'; updateGameInFirestore();
-                        } else if (playerO !== null && playerX === null) {
-                            playerX = userId; playerMark = 'X'; updateGameInFirestore();
+                    // Auto-join logic for the second player
+                    if (userId !== playerX && userId !== playerO) {
+                        playerMark = null; // This user is a spectator
+                        if(isGameActive) {
+                             if (playerX !== null && playerO === null) {
+                                playerO = userId; playerMark = 'O'; updateGameInFirestore();
+                            } else if (playerO !== null && playerX === null) {
+                                playerX = userId; playerMark = 'X'; updateGameInFirestore();
+                            }
                         }
+                    } else {
+                        // Ensure local playerMark is correctly set if already a player
+                         if (playerX === userId) playerMark = 'X';
+                         else if (playerO === userId) playerMark = 'O';
                     }
-                    if (!playerMark && playerX === userId) playerMark = 'X';
-                    else if (!playerMark && playerO === userId) playerMark = 'O';
                     
                     if (!isGameActive) checkGameStatus();
                     updateUI();
                 } else {
-                    startNewGame();
-                    showMessage("Game session not found or deleted. Choose a mode to start a new game.");
+                    showMessage("Game session not found or was deleted.");
+                    setTimeout(showMainMenu, 2000);
                 }
             }, (error) => console.error("Error with real-time listener: ", error));
         }
     </script>
 </head>
-<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
-    <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 font-sans">
+    <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl max-w-sm w-full">
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">Tic-Tac-Toe</h1>
-        <p id="status-text" class="text-center text-gray-500 mb-4 text-sm">Initializing...</p>
+        <p id="status-text" class="text-center text-gray-500 mb-4 text-sm min-h-[20px]">Initializing...</p>
         
-        <div id="auth-id-container" class="text-center mb-6 p-3 bg-blue-100 rounded-lg shadow-inner hidden">
-            <p class="text-xs text-blue-500 break-all mt-1">
-                Auth ID: <span id="auth-id" class="font-mono">Loading...</span>
+        <div id="auth-id-container" class="text-center mb-4 p-3 bg-blue-100 rounded-lg shadow-inner hidden">
+            <p class="text-xs text-blue-500 break-all">
+                Your ID: <span id="auth-id" class="font-mono">Loading...</span>
             </p>
         </div>
 
@@ -503,7 +547,7 @@
         </div>
 
         <div id="board" class="grid grid-cols-3 gap-2 p-2 bg-gray-300 rounded-lg hidden">
-            </div>
+        </div>
 
         <div class="flex justify-center mt-6 space-x-4">
             <button id="new-game-btn" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
@@ -518,7 +562,7 @@
         </div>
     </div>
     
-    <div id="message-box" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden">
+    <div id="message-box" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50 p-4">
         <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full text-center">
             <p id="message-content" class="text-gray-800 text-lg font-medium mb-4"></p>
             <button id="close-message" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors duration-200">
