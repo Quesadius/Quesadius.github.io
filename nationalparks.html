@@ -89,7 +89,7 @@
         </div>
     </div>
     
-    <p id="loading-text">Loading visited dates from Google Sheet...</p>
+    <!-- <p id="loading-text">Loading visited dates from Google Sheet...</p> -->
 
     <div id="map"></div>
 
@@ -241,17 +241,6 @@
             // 1. Fetch the visited data first
             const visitedMap = await fetchVisitedData();
 
-            // Update Progress Bar
-            const visitedCount = visitedMap.size;
-            const totalParks = staticParkData.length;
-            const percentage = totalParks > 0 ? (visitedCount / totalParks) * 100 : 0;
-
-            const progressLabel = document.getElementById('progress-label');
-            const progressFill = document.getElementById('progress-fill');
-            
-            progressLabel.innerText = `Parks Visited: ${visitedCount}/${totalParks}`;
-            progressFill.style.width = `${percentage}%`;
-
             // 2. Initialize the Leaflet map, centered on the U.S.
             const map = L.map('map').setView([39.8283, -98.5795], 4);
 
@@ -300,6 +289,17 @@
                     .addTo(map)
                     .bindTooltip(tooltipContent);
             });
+
+                        // Update Progress Bar
+            const visitedCount = visitedMap.size;
+            const totalParks = staticParkData.length;
+            const percentage = totalParks > 0 ? (visitedCount / totalParks) * 100 : 0;
+
+            const progressLabel = document.getElementById('progress-label');
+            const progressFill = document.getElementById('progress-fill');
+            
+            progressLabel.innerText = `Parks Visited: ${visitedCount}/${totalParks}`;
+            progressFill.style.width = `${percentage}%`;
         }
 
         // Run the app once the page is fully loaded
