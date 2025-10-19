@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My National Parks Map</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+    <style>
+        /* Basic page styling */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        /* This is critical: The map MUST have a defined height */
+        #map {
+            width: 90%;
+            height: 75vh; /* 75% of the viewport height */
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>My National Parks Visited Map</h1>
+    <p id="loading-text">Loading visited dates from Google Sheet...</p>
+
+    <div id="map"></div>
+
+    <script>
+        // --- START: USER CONFIGURATION ---
+
+        // PASTE YOUR PUBLISHED GOOGLE SHEET CSV LINK HERE
+        // (See instructions in comments above)
+        // Example: "https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"
+        const googleSheetCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRUWxT5A4PPlR9XiYxu_WbjAxXyea-m8l43bD0_Cpj0YyfrbZfFbx_3D7jbe6f9cHIos61ZeyHf1MLs/pub?gid=0&single=true&output=csv";
+
+        // --- END: USER CONFIGURATION ---
+
+
+        // This is the static list of all 63 National Parks.
+        // The 'name' must EXACTLY match the name in your Google Sheet (Column A).
+        const staticParkData = [
+            { name: "Acadia National Park", lat: 44.3386, lon: -68.2733 },
+            { name: "American Samoa National Park", lat: -14.2584, lon: -170.6879 },
+            { name: "Arches National Park", lat: 38.7331, lon: -109.5925 },
+            { name: "Badlands National Park", lat: 43.8554, lon: -102.3397 },
+            { name: "Big Bend National Park", lat: 29.25, lon: -103.25 },
+            { name: "Biscayne National Park", lat: 25.4939, lon: -80.2084 },
+            { name: "Black Canyon of the Gunnison National Park", lat: 38.5754, lon: -107.7243 },
+            { name: "Bryce Canyon National Park", lat: 37.5930, lon: -112.1871 },
+            { name: "Canyonlands National Park", lat: 38.3269, lon: -109.8783 },
+            { name: "Capitol Reef National Park", lat: 38.3670, lon: -111.2615 },
+            { name: "Carlsbad Caverns National Park", lat: 32.1743, lon: -104.4452 },
+            { name: "Channel Islands National Park", lat: 33.9961, lon: -119.7735 },
+            { name: "Congaree National Park", lat: 33.7842, lon: -80.7812 },
+            { name: "Crater Lake National Park", lat: 42.9446, lon: -122.1092 },
+            { name: "Cuyahoga Valley National Park", lat: 41.2808, lon: -81.5714 },
+            { name: "Death Valley National pPark", lat: 36.5054, lon: -117.0794 },
+            { name: "Denali National Park", lat: 63.3333, lon: -150.5000 },
+            { name: "Dry Tortugas National Park", lat: 24.6287, lon: -82.8732 },
+            { name: "Everglades National Park", lat: 25.32, lon: -80.93 },
+            { name: "Gates of the Arctic National Park", lat: 67.78, lon: -153.30 },
+            { name: "Gateway Arch National Park", lat: 38.6247, lon: -90.1848 },
+            { name: "Glacier National Park", lat: 48.7596, lon: -113.7870 },
+            { name: "Glacier Bay National Park", lat: 58.5, lon: -137.0 },
+            { name: "Grand Canyon National Park", lat: 36.1069, lon: -112.1129 },
+            { name: "Grand Teton National Park", lat: 43.7904, lon: -110.6817 },
+            { name: "Great Basin National Park", lat: 38.98, lon: -114.30 },
+            { name: "Great Sand Dunes National Park", lat: 37.7916, lon: -105.5943 },
+            { name: "Great Smoky Mountains National Park", lat: 35.6532, lon: -83.5070 },
+            { name: "Guadalupe Mountains National Park", lat: 31.94, lon: -104.87 },
+            { name: "Haleakalā National Park", lat: 20.72, lon: -156.17 },
+            { name: "Hawaiʻi Volcanoes National Park", lat: 19.38, lon: -155.20 },
+            { name: "Hot Springs National Park", lat: 34.51, lon: -93.05 },
+            { name: "Indiana Dunes National Park", lat: 41.6533, lon: -87.0524 },
+            { name: "Isle Royale National Park", lat: 48.1, lon: -88.55 },
+            { name: "Joshua Tree National Park", lat: 33.8734, lon: -115.9010 },
+            { name: "Katmai National Park", lat: 58.5, lon: -155.0 },
+            { name: "Kenai Fjords National Park", lat: 59.92, lon: -149.65 },
+            { name: "Kings Canyon National Park", lat: 36.8879, lon: -118.5551 },
+            { name: "Kobuk Valley National Park", lat: 67.55, lon: -159.28 },
+            { name: "Lake Clark National Park", lat: 60.97, lon: -153.42 },
+            { name: "Lassen Volcanic National Park", lat: 40.4977, lon: -121.4207 },
+            { name: "Mammoth Cave National Park", lat: 37.18, lon: -86.10 },
+            { name: "Mesa Verde National Park", lat: 37.1838, lon: -108.4887 },
+            { name: "Mount Rainier National Park", lat: 46.8800, lon: -121.7269 },
+            { name: "New River Gorge National Park", lat: 37.822, lon: -81.082 },
+            { name: "North Cascades National Park", lat: 48.7718, lon: -121.2985 },
+            { name: "Olympic National Park", lat: 47.7998, lon: -123.6044 },
+            { name: "Petrified Forest National Park", lat: 35.0655, lon: -109.7816 },
+            { name: "Pinnacles National Park", lat: 36.4906, lon: -121.1824 },
+            { name: "Redwood National Park", lat: 41.2132, lon: -124.0046 },
+            { name: "Rocky Mountain National Park", lat: 40.3428, lon: -105.6836 },
+            { name: "Saguaro National Park", lat: 32.25, lon: -110.50 },
+            { name: "Sequoia National Park", lat: 36.4864, lon: -118.5658 },
+            { name: "Shenandoah National Park", lat: 38.4552, lon: -78.4532 },
+            { name: "Theodore Roosevelt National Park", lat: 46.97, lon: -103.45 },
+            { name: "Virgin Islands National Park", lat: 18.33, lon: -64.73 },
+            { name: "Voyageurs National Park", lat: 48.5, lon: -92.88 },
+            { name: "White Sands National Park", lat: 32.7798, lon: -106.1714 },
+            { name: "Wind Cave National Park", lat: 43.57, lon: -103.48 },
+            { name: "Wrangell-St. Elias National Park", lat: 61.0, lon: -142.0 },
+            { name: "Yellowstone National Park", lat: 44.4280, lon: -110.5885 },
+            { name: "Yosemite National Park", lat: 37.8651, lon: -119.5383 },
+            { name: "Zion National Park", lat: 37.2982, lon: -113.0263 }
+        ];
+
+        
+        /**
+         * Fetches the visited park data from the published Google Sheet CSV.
+         * Returns a Map object where the key is the park name and the value is the visited date.
+         */
+        async function fetchVisitedData() {
+            const loadingText = document.getElementById('loading-text');
+            if (!googleSheetCsvUrl) {
+                loadingText.innerText = "Please paste your Google Sheet URL into the script.";
+                loadingText.style.color = "red";
+                return new Map();
+            }
+
+            const visitedMap = new Map();
+            try {
+                const response = await fetch(googleSheetCsvUrl);
+                if (!response.ok) {
+                    throw new Error("Network response was not ok. Check your URL and sharing permissions.");
+                }
+                
+                const csvText = await response.text();
+                
+                // Parse the CSV text
+                const rows = csvText.trim().split('\n');
+                
+                // Start from 1 to skip the header row ("ParkName", "DateVisited")
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i].split(',');
+                    if (row.length >= 2) {
+                        const parkName = row[0].trim().replace(/"/g, ''); // Get ParkName
+                        const visitDate = row[1].trim().replace(/"/g, ''); // Get DateVisited
+                        
+                        if (parkName && visitDate) {
+                            visitedMap.set(parkName, visitDate);
+                        }
+                    }
+                }
+                
+                loadingText.innerText = `Successfully loaded ${visitedMap.size} visited park(s).`;
+                return visitedMap;
+
+            } catch (error) {
+                console.error("Failed to fetch park data:", error);
+                loadingText.innerText = "Error loading park data. Is your Google Sheet URL correct and published?";
+                loadingText.style.color = "red";
+                return new Map(); // Return an empty map on failure
+            }
+        }
+
+        /**
+         * Initializes the Leaflet map and populates it with markers.
+         */
+        async function initializeMap() {
+            // 1. Fetch the visited data first
+            const visitedMap = await fetchVisitedData();
+
+            // 2. Initialize the Leaflet map, centered on the U.S.
+            const map = L.map('map').setView([39.8283, -98.5795], 4);
+
+            // 3. Add the base map tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // 4. Loop through the static park data and add markers
+            staticParkData.forEach(park => {
+                // Check if this park is in our visited map
+                const dateVisited = visitedMap.get(park.name);
+
+                // Build the content for the hover box (Tooltip)
+                let tooltipContent = `<strong>${park.name}</strong>`;
+                if (dateVisited) {
+                    tooltipContent += `<br>Visited: ${dateVisited}`;
+                }
+
+                // 5. Create the marker and add it to the map
+                L.marker([park.lat, park.lon])
+                    .addTo(map)
+                    .bindTooltip(tooltipContent);
+            });
+        }
+
+        // Run the app once the page is fully loaded
+        document.addEventListener('DOMContentLoaded', initializeMap);
+
+    </script>
+
+</body>
+</html>
