@@ -36,28 +36,59 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             margin-bottom: 2rem;
         }
+
+        .progress-container {
+            width: 90%;
+            margin-bottom: 1rem;
+        }
+        
+        #progress-label {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #444;
+            margin-bottom: 0.25rem;
+            text-align: left;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            background-color: #e0e0e0;
+            border-radius: 12px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden; /* Keeps the inner bar's corners rounded */
+        }
+        
+        #progress-fill {
+            height: 100%;
+            width: 0%; /* Updated by JavaScript */
+            background-color: #4CAF50; /* Green */
+            border-radius: 12px;
+            /* Smooth transition when the width changes */
+            transition: width 0.5s ease-in-out;
+        }
+        /* --- End: Progress Bar Styles --- */
+
     </style>
 </head>
 <body>
 
     <h1>My National Parks Visited Map</h1>
+
+    <div class="progress-container">
+        <div id="progress-label">Parks Visited: 0/63</div>
+        <div class="progress-bar">
+            <div id="progress-fill"></div>
+        </div>
+    </div>
+    
     <p id="loading-text">Loading visited dates from Google Sheet...</p>
 
     <div id="map"></div>
 
     <script>
-        // --- START: USER CONFIGURATION ---
-
-        // PASTE YOUR PUBLISHED GOOGLE SHEET CSV LINK HERE
-        // (See instructions in comments above)
-        // Example: "https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"
         const googleSheetCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRUWxT5A4PPlR9XiYxu_WbjAxXyea-m8l43bD0_Cpj0YyfrbZfFbx_3D7jbe6f9cHIos61ZeyHf1MLs/pub?gid=0&single=true&output=csv";
 
-        // --- END: USER CONFIGURATION ---
-
-
-        // This is the static list of all 63 National Parks.
-        // The 'name' must EXACTLY match the name in your Google Sheet (Column A).
         const staticParkData = [
             { name: "Acadia National Park", lat: 44.3386, lon: -68.2733 },
             { name: "American Samoa National Park", lat: -14.2584, lon: -170.6879 },
@@ -74,7 +105,7 @@
             { name: "Congaree National Park", lat: 33.7842, lon: -80.7812 },
             { name: "Crater Lake National Park", lat: 42.9446, lon: -122.1092 },
             { name: "Cuyahoga Valley National Park", lat: 41.2808, lon: -81.5714 },
-            { name: "Death Valley National pPark", lat: 36.5054, lon: -117.0794 },
+            { name: "Death Valley National Park", lat: 36.5054, lon: -117.0794 },
             { name: "Denali National Park", lat: 63.3333, lon: -150.5000 },
             { name: "Dry Tortugas National Park", lat: 24.6287, lon: -82.8732 },
             { name: "Everglades National Park", lat: 25.32, lon: -80.93 },
@@ -124,11 +155,6 @@
             { name: "Zion National Park", lat: 37.2982, lon: -113.0263 }
         ];
 
-        
-        /**
-         * Fetches the visited park data from the published Google Sheet CSV.
-         * Returns a Map object where the key is the park name and the value is the visited date.
-         */
         async function fetchVisitedData() {
             const loadingText = document.getElementById('loading-text');
             if (!googleSheetCsvUrl) {
@@ -151,18 +177,28 @@
                 
                 // Start from 1 to skip the header row ("ParkName", "DateVisited")
                 for (let i = 1; i < rows.length; i++) {
-                    const row = rows[i].split(',');
-                    if (row.length >= 2) {
-                        const parkName = row[0].trim().replace(/"/g, ''); // Get ParkName
-                        const visitDate = row[1].trim().replace(/"/g, ''); // Get DateVisited
+                    // Handle potential commas inside quoted fields by splitting on the last comma
+                    // This is a simple parser; it assumes the date is the last column
+                    const rowParts = rows[i].rsplit(',', 1);
+                    
+                    if (rowParts.length === 2) {
+                        const parkName = rowParts[0].trim().replace(/"/g, ''); // Get ParkName
+                        const visitDate = rowParts[1].trim().replace(/"/g, ''); // Get DateVisited
                         
                         if (parkName && visitDate) {
                             visitedMap.set(parkName, visitDate);
                         }
+                    } else if (rows[i].trim()) { // Handle rows with park name but no date
+                        const parkName = rows[i].trim().replace(/"/g, '').replace(/,$/, '');
+                        if(parkName) {
+                            // You could choose to set it with a null/empty date, but the
+                            // instructions imply we only care about parks *with* dates.
+                        }
                     }
                 }
                 
-                loadingText.innerText = `Successfully loaded ${visitedMap.size} visited park(s).`;
+                // loadingText.innerText = `Successfully loaded ${visitedMap.size} visited park(s).`;
+                loadingText.style.color = "green";
                 return visitedMap;
 
             } catch (error) {
@@ -172,6 +208,14 @@
                 return new Map(); // Return an empty map on failure
             }
         }
+        
+        // Helper function to split a string on the last occurrence of a delimiter
+        // This helps avoid errors if a park name unexpectedly contains a comma
+        String.prototype.rsplit = function(sep, maxsplit) {
+            var split = this.split(sep);
+            return maxsplit ? [ split.slice(0, -maxsplit).join(sep) ].concat(split.slice(-maxsplit)) : split;
+        };
+
 
         /**
          * Initializes the Leaflet map and populates it with markers.
@@ -179,6 +223,16 @@
         async function initializeMap() {
             // 1. Fetch the visited data first
             const visitedMap = await fetchVisitedData();
+
+            const visitedCount = visitedMap.size;
+            const totalParks = staticParkData.length;
+            const percentage = totalParks > 0 ? (visitedCount / totalParks) * 100 : 0;
+
+            const progressLabel = document.getElementById('progress-label');
+            const progressFill = document.getElementById('progress-fill');
+            
+            progressLabel.innerText = `Parks Visited: ${visitedCount}/${totalParks}`;
+            progressFill.style.width = `${percentage}%`;
 
             // 2. Initialize the Leaflet map, centered on the U.S.
             const map = L.map('map').setView([39.8283, -98.5795], 4);
