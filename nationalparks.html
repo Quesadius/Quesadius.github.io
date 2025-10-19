@@ -68,8 +68,7 @@
             transition: width 0.5s ease-in-out;
         }
 
-        /* --- NEW: Loading/Error Text Style --- */
-        /* This text is now hidden by default and only shown on error */
+        /* Loading/Error Text Style */
         #loading-text {
             display: none; /* Hidden by default */
             color: red;
@@ -101,6 +100,7 @@
         // PASTE YOUR PUBLISHED GOOGLE SHEET CSV LINK HERE
         // Example: "https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"
         const googleSheetCsvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRUWxT5A4PPlR9XiYxu_WbjAxXyea-m8l43bD0_Cpj0YyfrbZfFbx_3D7jbe6f9cHIos61ZeyHf1MLs/pub?gid=0&single=true&output=csv";
+
         // --- END: USER CONFIGURATION ---
 
 
@@ -174,7 +174,6 @@
         
         /**
          * Fetches the visited park data from the published Google Sheet CSV.
-         * Returns a Map object where the key is the park name and the value is the visited date.
          */
         async function fetchVisitedData() {
             const loadingText = document.getElementById('loading-text');
@@ -209,7 +208,6 @@
                     }
                 }
                 
-                // NEW: Removed success message. Loading text only shows on error.
                 return visitedMap;
 
             } catch (error) {
@@ -234,16 +232,19 @@
             // 1. Fetch the visited data first
             const visitedMap = await fetchVisitedData();
 
-            // Update Progress Bar
+            // --- NEW: Update Progress Bar ---
             const visitedCount = visitedMap.size;
             const totalParks = staticParkData.length;
+            // Calculate percentage, use toFixed(0) for a whole number
             const percentage = totalParks > 0 ? (visitedCount / totalParks) * 100 : 0;
 
             const progressLabel = document.getElementById('progress-label');
             const progressFill = document.getElementById('progress-fill');
             
-            progressLabel.innerText = `Parks Visited: ${visitedCount}/${totalParks}`;
+            // Update the label text to include the percentage
+            progressLabel.innerText = `Parks Visited: ${visitedCount}/${totalParks} (${percentage.toFixed(0)}%)`;
             progressFill.style.width = `${percentage}%`;
+            // --- End: Update Progress Bar ---
 
             // 2. Initialize the Leaflet map, centered on the U.S.
             const map = L.map('map').setView([39.8283, -98.5795], 4);
@@ -253,9 +254,7 @@
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
 
-            // --- NEW: Define custom icons ---
-            
-            // Standard (unvisited) blue icon
+            // 4. Define custom icons
             const defaultIcon = L.icon({
                 iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
                 shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
@@ -265,19 +264,16 @@
                 shadowSize: [41, 41]
             });
 
-            // Green (visited) icon
             const visitedIcon = L.icon({
-                // Using a reliable raw github content link for a green marker
                 iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png', // Can use the standard shadow
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
                 iconSize: [25, 41],
                 iconAnchor: [12, 41],
                 popupAnchor: [1, -34],
                 shadowSize: [41, 41]
             });
-            // --- END: Define custom icons ---
 
-            // 4. Loop through the static park data and add markers
+            // 5. Loop through the static park data and add markers
             staticParkData.forEach(park => {
                 const dateVisited = visitedMap.get(park.name);
 
@@ -286,11 +282,9 @@
                     tooltipContent += `<br>Visited: ${dateVisited}`;
                 }
 
-                // Conditionally choose the icon
                 const iconToUse = dateVisited ? visitedIcon : defaultIcon;
 
-                // 5. Create the marker and add it to the map
-                L.marker([park.lat, park.lon], { icon: iconToUse }) // Pass the selected icon
+                L.marker([park.lat, park.lon], { icon: iconToUse })
                     .addTo(map)
                     .bindTooltip(tooltipContent);
             });
