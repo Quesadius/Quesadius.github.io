@@ -169,7 +169,15 @@
 
         // !!! IMPORTANT !!!
         // Replace this URL with the one you got from publishing your Google Sheet.
-        const googleSheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSG_jYamDCnFA5-3hYGaSX_q5XvS5DkLTBEDeee3LYZf6UsnDshd_b_tX2y7De5TTxapR3tngfS3SvZ/pub?output=csv";
+        const productionGoogleSheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSG_jYamDCnFA5-3hYGaSX_q5XvS5DkLTBEDeee3LYZf6UsnDshd_b_tX2y7De5TTxapR3tngfS3SvZ/pub?output=csv";
+
+        // Automatically use dummy data if running locally
+        const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+        const googleSheetUrl = isLocalhost ? "dummy_climb_data.csv" : productionGoogleSheetUrl;
+
+        if (isLocalhost) {
+            console.log("Running locally, using dummy data:", googleSheetUrl);
+        }
 
         // Load external data
         Promise.all([
