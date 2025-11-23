@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,26 +10,31 @@
         body {
             font-family: sans-serif;
             display: flex;
-            flex-direction: column; /* Arrange items vertically */
+            flex-direction: column;
+            /* Arrange items vertically */
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             background-color: #f0f0f0;
             margin: 0;
-            padding: 20px; /* Add some padding around the content */
-            padding-top: 100px; /* Add padding to the top to make space for the fixed scoreboard */
+            padding: 20px;
+            /* Add some padding around the content */
+            padding-top: 100px;
+            /* Add padding to the top to make space for the fixed scoreboard */
         }
 
         /* Styles for the fixed match scoreboard */
         #matchScoreboard {
-            position: fixed; /* Keep the scoreboard visible when scrolling */
+            position: fixed;
+            /* Keep the scoreboard visible when scrolling */
             top: 0;
             left: 0;
             right: 0;
             background-color: #fff;
             padding: 10px 20px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            z-index: 1000; /* Ensure the scoreboard is above other content */
+            z-index: 1000;
+            /* Ensure the scoreboard is above other content */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -36,7 +42,8 @@
 
         #matchScoreboard table {
             width: 100%;
-            max-width: 800px; /* Limit scoreboard width */
+            max-width: 800px;
+            /* Limit scoreboard width */
             border-collapse: collapse;
         }
 
@@ -54,93 +61,126 @@
         /* Container for all grid rows to arrange them vertically */
         #allGridsContainer {
             display: flex;
-            flex-direction: column; /* Stack rows of grids vertically */
-            gap: 40px; /* Space between rows of grids */
+            flex-direction: column;
+            /* Stack rows of grids vertically */
+            gap: 40px;
+            /* Space between rows of grids */
             justify-content: center;
-            align-items: center; /* Center the rows of grids */
-            margin-top: 20px; /* Add space below the fixed scoreboard */
+            align-items: center;
+            /* Center the rows of grids */
+            margin-top: 20px;
+            /* Add space below the fixed scoreboard */
         }
 
         /* Container for a row of grids to arrange them side-by-side */
         .grid-row-container {
             display: flex;
-            flex-direction: row; /* Arrange grid sections horizontally */
-            gap: 30px; /* Space between the two grid sections within a row */
+            flex-direction: row;
+            /* Arrange grid sections horizontally */
+            gap: 30px;
+            /* Space between the two grid sections within a row */
             justify-content: center;
-            align-items: flex-start; /* Align grid sections to the top */
-            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            align-items: flex-start;
+            /* Align grid sections to the top */
+            flex-wrap: wrap;
+            /* Allow wrapping on smaller screens */
         }
 
         /* Container for a single grid and its total score */
         .grid-section {
             display: flex;
-            flex-direction: column; /* Stack grid and total score vertically */
-            align-items: center; /* Center grid and total score within the section */
+            flex-direction: column;
+            /* Stack grid and total score vertically */
+            align-items: center;
+            /* Center grid and total score within the section */
         }
 
         /* Styles for the grid titles */
         .grid-title {
             font-size: 1.5em;
             font-weight: bold;
-            margin-bottom: 10px; /* Space below the title */
+            margin-bottom: 10px;
+            /* Space below the title */
             text-align: center;
-            width: 100%; /* Ensure title takes full width of its section */
+            width: 100%;
+            /* Ensure title takes full width of its section */
         }
 
 
         /* Styles for the main grid containers */
-        .checkbox-grid-container { /* Using a class now as there are multiple */
+        .checkbox-grid-container {
+            /* Using a class now as there are multiple */
             display: grid;
             /* grid-template-columns and grid-template-rows set by JavaScript */
-            gap: 10px; /* Space between grid cells */
-            padding: 10px; /* Padding inside the main grid container */
-            background-color: #fff; /* Background for the overall grid area */
+            gap: 10px;
+            /* Space between grid cells */
+            padding: 10px;
+            /* Padding inside the main grid container */
+            background-color: #fff;
+            /* Background for the overall grid area */
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            max-width: 780px; /* Max width per grid */
-            box-sizing: border-box; /* Include padding in width */
+            max-width: 780px;
+            /* Max width per grid */
+            box-sizing: border-box;
+            /* Include padding in width */
         }
 
         /* Styles for the row label elements */
         .row-label {
             display: flex;
-            align-items: center; /* Center label text vertically in its cell */
+            align-items: center;
+            /* Center label text vertically in its cell */
             font-weight: bold;
-            padding-top: 5px; /* Add top padding to align with checkboxes */
+            padding-top: 5px;
+            /* Add top padding to align with checkboxes */
             /* grid-column and grid-row will be set by JavaScript */
         }
 
         /* Specific style for the left row labels */
         .row-label.left {
-            justify-content: flex-end; /* Align text to the right */
-            padding-right: 10px; /* Space between label and first column of checkboxes */
+            justify-content: flex-end;
+            /* Align text to the right */
+            padding-right: 10px;
+            /* Space between label and first column of checkboxes */
         }
 
-         /* Specific style for the right row labels */
+        /* Specific style for the right row labels */
         .row-label.right {
-            justify-content: flex-start; /* Align text to the left */
-            padding-left: 10px; /* Space between last column of checkboxes and label */
+            justify-content: flex-start;
+            /* Align text to the left */
+            padding-left: 10px;
+            /* Space between last column of checkboxes and label */
         }
 
 
         /* Styles for each individual grid item (the div containing only the checkbox now) */
         .grid-item {
-            display: flex; /* Use flexbox to align checkbox */
-            justify-content: center; /* Center the checkbox horizontally */
-            align-items: center; /* Center the checkbox vertically */
-            padding: 10px; /* Padding inside each grid item */
-            border-radius: 4px; /* Slightly rounded corners for items */
+            display: flex;
+            /* Use flexbox to align checkbox */
+            justify-content: center;
+            /* Center the checkbox horizontally */
+            align-items: center;
+            /* Center the checkbox vertically */
+            padding: 10px;
+            /* Padding inside each grid item */
+            border-radius: 4px;
+            /* Slightly rounded corners for items */
             /* Background color and grid position will be set by JavaScript */
         }
 
         /* Styles for the column count elements within the grid */
         .column-count {
             display: flex;
-            justify-content: center; /* Center the count horizontally */
-            align-items: center; /* Center the count vertically */
+            justify-content: center;
+            /* Center the count horizontally */
+            align-items: center;
+            /* Center the count vertically */
             font-weight: bold;
-            padding-top: 10px; /* Space above the count */
-            border-top: 1px solid #ccc; /* Optional: Add a line above the counts */
+            padding-top: 10px;
+            /* Space above the count */
+            border-top: 1px solid #ccc;
+            /* Optional: Add a line above the counts */
             /* grid-column and grid-row will be set by JavaScript */
         }
 
@@ -152,15 +192,102 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             text-align: center;
-            width: 100%; /* Take full width of its parent grid-section */
-            max-width: 780px; /* Match max-width of the grid for alignment */
-            box-sizing: border-box; /* Include padding in width */
+            width: 100%;
+            /* Take full width of its parent grid-section */
+            max-width: 780px;
+            /* Match max-width of the grid for alignment */
+            box-sizing: border-box;
+            /* Include padding in width */
             font-size: 1.2em;
             font-weight: bold;
         }
+
+        /* Styles for the player name modal */
+        #playerModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            /* Above everything else */
+        }
+
+        .modal-content {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            min-width: 300px;
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            /* Ensure padding doesn't affect width */
+        }
+
+        #startGameBtn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        #startGameBtn:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
+
 <body>
+
+    <!-- Player Name Modal -->
+    <div id="playerModal">
+        <div class="modal-content">
+            <h2>Enter Player Names</h2>
+            <div class="input-group">
+                <label for="player1Input">Player 1 Name:</label>
+                <input type="text" id="player1Input" placeholder="e.g., Player 1" value="Player1">
+            </div>
+            <div class="input-group">
+                <label for="player2Input">Player 2 Name:</label>
+                <input type="text" id="player2Input" placeholder="e.g., Player 2" value="Player2">
+            </div>
+            <button id="startGameBtn">Start Game</button>
+        </div>
+    </div>
 
     <div id="matchScoreboard">
         <table>
@@ -175,18 +302,18 @@
             </thead>
             <tbody>
                 <tr>
-                    <td>Maggie</td>
-                    <td id="maggieGame1Score">0</td>
-                    <td id="maggieGame2Score">0</td>
-                    <td id="maggieGame3Score">0</td>
-                    <td id="maggieTotalScore">0</td>
+                    <td id="player1ScoreboardName">Player 1</td>
+                    <td id="player1Game1Score">0</td>
+                    <td id="player1Game2Score">0</td>
+                    <td id="player1Game3Score">0</td>
+                    <td id="player1TotalScore">0</td>
                 </tr>
                 <tr>
-                    <td>Joe</td>
-                    <td id="joeGame1Score">0</td>
-                    <td id="joeGame2Score">0</td>
-                    <td id="joeGame3Score">0</td>
-                    <td id="joeTotalScore">0</td>
+                    <td id="player2ScoreboardName">Player 2</td>
+                    <td id="player2Game1Score">0</td>
+                    <td id="player2Game2Score">0</td>
+                    <td id="player2Game3Score">0</td>
+                    <td id="player2TotalScore">0</td>
                 </tr>
             </tbody>
         </table>
@@ -195,36 +322,36 @@
     <div id="allGridsContainer">
         <div class="grid-row-container">
             <div class="grid-section">
-                <h3 class="grid-title">Maggie</h3>
+                <h3 class="grid-title player1-name">Player 1</h3>
                 <div id="checkboxGridContainer1" class="checkbox-grid-container"></div>
                 <div id="totalScore1" class="total-score">0</div>
             </div>
             <div class="grid-section">
-                 <h3 class="grid-title">Joe</h3>
+                <h3 class="grid-title player2-name">Player 2</h3>
                 <div id="checkboxGridContainer2" class="checkbox-grid-container"></div>
                 <div id="totalScore2" class="total-score">0</div>
             </div>
         </div>
         <div class="grid-row-container">
-             <div class="grid-section">
-                <h3 class="grid-title">Maggie</h3>
+            <div class="grid-section">
+                <h3 class="grid-title player1-name">Player 1</h3>
                 <div id="checkboxGridContainer3" class="checkbox-grid-container"></div>
                 <div id="totalScore3" class="total-score">0</div>
             </div>
             <div class="grid-section">
-                 <h3 class="grid-title">Joe</h3>
+                <h3 class="grid-title player2-name">Player 2</h3>
                 <div id="checkboxGridContainer4" class="checkbox-grid-container"></div>
                 <div id="totalScore4" class="total-score">0</div>
             </div>
         </div>
-         <div class="grid-row-container">
-             <div class="grid-section">
-                <h3 class="grid-title">Maggie</h3>
+        <div class="grid-row-container">
+            <div class="grid-section">
+                <h3 class="grid-title player1-name">Player 1</h3>
                 <div id="checkboxGridContainer5" class="checkbox-grid-container"></div>
                 <div id="totalScore5" class="total-score">0</div>
             </div>
             <div class="grid-section">
-                 <h3 class="grid-title">Joe</h3>
+                <h3 class="grid-title player2-name">Player 2</h3>
                 <div id="checkboxGridContainer6" class="checkbox-grid-container"></div>
                 <div id="totalScore6" class="total-score">0</div>
             </div>
@@ -250,17 +377,17 @@
         const currentGridTotalScores = {};
         // Object to store references to the match scoreboard game score elements
         const matchScoreboardGameElements = {
-            maggieGame1Score: document.getElementById('maggieGame1Score'),
-            maggieGame2Score: document.getElementById('maggieGame2Score'),
-            maggieGame3Score: document.getElementById('maggieGame3Score'),
-            joeGame1Score: document.getElementById('joeGame1Score'),
-            joeGame2Score: document.getElementById('joeGame2Score'),
-            joeGame3Score: document.getElementById('joeGame3Score')
+            player1Game1Score: document.getElementById('player1Game1Score'),
+            player1Game2Score: document.getElementById('player1Game2Score'),
+            player1Game3Score: document.getElementById('player1Game3Score'),
+            player2Game1Score: document.getElementById('player2Game1Score'),
+            player2Game2Score: document.getElementById('player2Game2Score'),
+            player2Game3Score: document.getElementById('player2Game3Score')
         };
         // Object to store references to the match scoreboard total score elements
         const matchScoreboardTotalElements = {
-            maggieTotalScore: document.getElementById('maggieTotalScore'),
-            joeTotalScore: document.getElementById('joeTotalScore')
+            player1TotalScore: document.getElementById('player1TotalScore'),
+            player2TotalScore: document.getElementById('player2TotalScore')
         };
 
         /**
@@ -298,7 +425,7 @@
 
 
                     if (!isNaN(row) && !isNaN(col)) {
-                         checkedCounts[col]++; // Increment the total checked count for the column
+                        checkedCounts[col]++; // Increment the total checked count for the column
 
                         if (row < 3) {
                             // This is one of the 🤝 rows (indices 0, 1, 2)
@@ -364,43 +491,43 @@
          * Updates the match scoreboard with the latest game and total scores.
          */
         function updateMatchScoreboard() {
-            let maggieTotalMatchScore = 0;
-            let joeTotalMatchScore = 0;
+            let player1TotalMatchScore = 0;
+            let player2TotalMatchScore = 0;
 
-            // Update Maggie's game scores and contribute to total match score
-            if (matchScoreboardGameElements.maggieGame1Score && currentGridTotalScores['checkboxGridContainer1'] !== undefined) {
-                matchScoreboardGameElements.maggieGame1Score.textContent = currentGridTotalScores['checkboxGridContainer1'];
-                maggieTotalMatchScore += currentGridTotalScores['checkboxGridContainer1'];
+            // Update Player 1's game scores and contribute to total match score
+            if (matchScoreboardGameElements.player1Game1Score && currentGridTotalScores['checkboxGridContainer1'] !== undefined) {
+                matchScoreboardGameElements.player1Game1Score.textContent = currentGridTotalScores['checkboxGridContainer1'];
+                player1TotalMatchScore += currentGridTotalScores['checkboxGridContainer1'];
             }
-             if (matchScoreboardGameElements.maggieGame2Score && currentGridTotalScores['checkboxGridContainer3'] !== undefined) {
-                matchScoreboardGameElements.maggieGame2Score.textContent = currentGridTotalScores['checkboxGridContainer3'];
-                maggieTotalMatchScore += currentGridTotalScores['checkboxGridContainer3'];
+            if (matchScoreboardGameElements.player1Game2Score && currentGridTotalScores['checkboxGridContainer3'] !== undefined) {
+                matchScoreboardGameElements.player1Game2Score.textContent = currentGridTotalScores['checkboxGridContainer3'];
+                player1TotalMatchScore += currentGridTotalScores['checkboxGridContainer3'];
             }
-             if (matchScoreboardGameElements.maggieGame3Score && currentGridTotalScores['checkboxGridContainer5'] !== undefined) {
-                matchScoreboardGameElements.maggieGame3Score.textContent = currentGridTotalScores['checkboxGridContainer5'];
-                maggieTotalMatchScore += currentGridTotalScores['checkboxGridContainer5'];
+            if (matchScoreboardGameElements.player1Game3Score && currentGridTotalScores['checkboxGridContainer5'] !== undefined) {
+                matchScoreboardGameElements.player1Game3Score.textContent = currentGridTotalScores['checkboxGridContainer5'];
+                player1TotalMatchScore += currentGridTotalScores['checkboxGridContainer5'];
             }
 
-            // Update Joe's game scores and contribute to total match score
-             if (matchScoreboardGameElements.joeGame1Score && currentGridTotalScores['checkboxGridContainer2'] !== undefined) {
-                matchScoreboardGameElements.joeGame1Score.textContent = currentGridTotalScores['checkboxGridContainer2'];
-                joeTotalMatchScore += currentGridTotalScores['checkboxGridContainer2'];
+            // Update Player 2's game scores and contribute to total match score
+            if (matchScoreboardGameElements.player2Game1Score && currentGridTotalScores['checkboxGridContainer2'] !== undefined) {
+                matchScoreboardGameElements.player2Game1Score.textContent = currentGridTotalScores['checkboxGridContainer2'];
+                player2TotalMatchScore += currentGridTotalScores['checkboxGridContainer2'];
             }
-             if (matchScoreboardGameElements.joeGame2Score && currentGridTotalScores['checkboxGridContainer4'] !== undefined) {
-                matchScoreboardGameElements.joeGame2Score.textContent = currentGridTotalScores['checkboxGridContainer4'];
-                joeTotalMatchScore += currentGridTotalScores['checkboxGridContainer4'];
+            if (matchScoreboardGameElements.player2Game2Score && currentGridTotalScores['checkboxGridContainer4'] !== undefined) {
+                matchScoreboardGameElements.player2Game2Score.textContent = currentGridTotalScores['checkboxGridContainer4'];
+                player2TotalMatchScore += currentGridTotalScores['checkboxGridContainer4'];
             }
-             if (matchScoreboardGameElements.joeGame3Score && currentGridTotalScores['checkboxGridContainer6'] !== undefined) {
-                matchScoreboardGameElements.joeGame3Score.textContent = currentGridTotalScores['checkboxGridContainer6'];
-                joeTotalMatchScore += currentGridTotalScores['checkboxGridContainer6'];
+            if (matchScoreboardGameElements.player2Game3Score && currentGridTotalScores['checkboxGridContainer6'] !== undefined) {
+                matchScoreboardGameElements.player2Game3Score.textContent = currentGridTotalScores['checkboxGridContainer6'];
+                player2TotalMatchScore += currentGridTotalScores['checkboxGridContainer6'];
             }
 
             // Update the total match scores
-            if (matchScoreboardTotalElements.maggieTotalScore) {
-                matchScoreboardTotalElements.maggieTotalScore.textContent = maggieTotalMatchScore;
+            if (matchScoreboardTotalElements.player1TotalScore) {
+                matchScoreboardTotalElements.player1TotalScore.textContent = player1TotalMatchScore;
             }
-            if (matchScoreboardTotalElements.joeTotalScore) {
-                matchScoreboardTotalElements.joeTotalScore.textContent = joeTotalMatchScore;
+            if (matchScoreboardTotalElements.player2TotalScore) {
+                matchScoreboardTotalElements.player2TotalScore.textContent = player2TotalMatchScore;
             }
         }
 
@@ -424,7 +551,7 @@
                 return; // Exit the function if the container is not found
             }
 
-             // Check if the total score element exists
+            // Check if the total score element exists
             if (!totalScoreElement) {
                 console.error(`Total score element with ID "${totalScoreId}" not found.`);
                 return; // Exit the function if the total score element is not found
@@ -453,7 +580,7 @@
 
             // Create and place row labels and checkboxes directly in the grid
             for (let i = 0; i < rows; i++) {
-                 // Create the left row label element
+                // Create the left row label element
                 const leftRowLabelDiv = document.createElement('div');
                 leftRowLabelDiv.classList.add('row-label', 'left');
                 // Use the custom label for the current row, or default to row number if not enough custom labels
@@ -468,7 +595,7 @@
                 // Create the right row label element
                 const rightRowLabelDiv = document.createElement('div');
                 rightRowLabelDiv.classList.add('row-label', 'right');
-                 // Use the custom label for the current row, or default to row number if not enough custom labels
+                // Use the custom label for the current row, or default to row number if not enough custom labels
                 rightRowLabelDiv.textContent = (i < customRowLabels.length) ? customRowLabels[i] : i + 1;
 
                 // Position the right row label in the grid (last column, current row)
@@ -531,7 +658,7 @@
                 allColumnCountElements[containerId].push(countDiv);
             }
 
-             // Add an empty cell in the last column of the last row for alignment
+            // Add an empty cell in the last column of the last row for alignment
             const emptyCountLabelRight = document.createElement('div');
             emptyCountLabelRight.style.gridColumn = cols + 2; // Position in the last grid column
             emptyCountLabelRight.style.gridRow = rows + 1; // Position in the new last row
@@ -542,18 +669,51 @@
             updateScores(containerId);
         }
 
+        // --- Modal Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('playerModal');
+            const startBtn = document.getElementById('startGameBtn');
+            const player1Input = document.getElementById('player1Input');
+            const player2Input = document.getElementById('player2Input');
+
+            // Scoreboard Name Elements
+            const p1ScoreboardName = document.getElementById('player1ScoreboardName');
+            const p2ScoreboardName = document.getElementById('player2ScoreboardName');
+
+            // Grid Title Elements (NodeLists)
+            const p1GridTitles = document.querySelectorAll('.player1-name');
+            const p2GridTitles = document.querySelectorAll('.player2-name');
+
+            startBtn.addEventListener('click', () => {
+                const p1Name = player1Input.value.trim() || "Player 1";
+                const p2Name = player2Input.value.trim() || "Player 2";
+
+                // Update Scoreboard
+                p1ScoreboardName.textContent = p1Name;
+                p2ScoreboardName.textContent = p2Name;
+
+                // Update Grid Titles
+                p1GridTitles.forEach(el => el.textContent = p1Name);
+                p2GridTitles.forEach(el => el.textContent = p2Name);
+
+                // Hide Modal
+                modal.style.display = 'none';
+            });
+        });
+
         // --- How to use the function ---
         // Call the function to create all grids when the page loads.
         // Arguments: number of rows, number of columns, ID of the grid container element, ID of the total score element
-        window.onload = function() {
-             createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer1', 'totalScore1'); // Creates the first grid
-             createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer2', 'totalScore2'); // Creates the second grid
-             createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer3', 'totalScore3'); // Creates the third grid
-             createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer4', 'totalScore4'); // Creates the fourth grid
-             createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer5', 'totalScore5'); // Creates the fifth grid
-             createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer6', 'totalScore6'); // Creates the sixth grid
+        window.onload = function () {
+            createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer1', 'totalScore1'); // Creates the first grid
+            createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer2', 'totalScore2'); // Creates the second grid
+            createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer3', 'totalScore3'); // Creates the third grid
+            createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer4', 'totalScore4'); // Creates the fourth grid
+            createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer5', 'totalScore5'); // Creates the fifth grid
+            createCheckboxGrid(gridRows, gridCols, 'checkboxGridContainer6', 'totalScore6'); // Creates the sixth grid
         };
     </script>
 
 </body>
+
 </html>
