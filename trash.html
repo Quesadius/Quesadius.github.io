@@ -546,8 +546,9 @@
             currentCardDisplay.innerHTML = '';
             if (gameState.currentCard) {
                 const card = renderCard(gameState.currentCard, true, () => handleDiscard());
+                card.classList.add('shrink-0'); // Add this to prevent shrinking
                 const hint = document.createElement('div');
-                hint.className = "text-xs text-center mt-2 font-bold text-blue-800 bg-blue-100 px-2 py-1 rounded shadow-sm";
+                hint.className = "text-xs text-center mt-2 font-bold text-blue-800 bg-blue-100 px-2 py-1 rounded shadow-sm z-10 relative";
                 hint.textContent = "Click to Discard";
                 
                 const val = getCardValue(gameState.currentCard);
@@ -693,7 +694,7 @@
                     <div class="w-20 h-28 bg-blue-800 rounded-lg border-2 border-white shadow-lg flex items-center justify-center text-white">Deck</div>
                 </div>
                 
-                <div id="current-card-display" class="w-24 h-32 flex flex-col items-center justify-center border-2 border-yellow-400 rounded-xl bg-yellow-50 shadow-inner p-2 animate-pulse">
+                <div id="current-card-display" class="w-24 min-h-32 flex flex-col items-center justify-center border-2 border-yellow-400 rounded-xl bg-yellow-50 shadow-inner p-2 animate-pulse">
                     <!-- The card you are holding -->
                 </div>
 
