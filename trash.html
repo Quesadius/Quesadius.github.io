@@ -427,39 +427,35 @@
 
         // --- Rendering ---
         
-        function getCardColor(suit) {
-            return (suit === 'H' || suit === 'D') ? 'text-red-600' : 'text-black';
-        }
+
         
         function renderCard(cardString, isFaceUp, onClick = null, isHighlight = false) {
             const div = document.createElement('div');
-            div.className = `w-14 h-20 sm:w-20 sm:h-28 border-2 ${isHighlight ? 'border-yellow-400 ring-2 ring-yellow-400 scale-105' : 'border-gray-300'} rounded-lg flex items-center justify-center text-xl sm:text-2xl font-bold bg-white shadow-md relative select-none transition-transform active:scale-95`;
+            // Maintain layout dimensions and styling containers
+            div.className = `w-14 h-20 sm:w-20 sm:h-28 relative select-none transition-transform active:scale-95 ${isHighlight ? 'scale-105' : ''}`;
+            
+            const img = document.createElement('img');
+            img.className = `w-full h-full object-contain rounded-lg shadow-md ${isHighlight ? 'ring-2 ring-yellow-400' : ''}`;
             
             if (!isFaceUp) {
-                div.classList.add("bg-blue-800"); 
-                // Simple pattern with css
-                div.style.backgroundImage = "repeating-linear-gradient(45deg, #1e40af 0, #1e40af 10px, #1d4ed8 10px, #1d4ed8 20px)";
-                div.innerHTML = `<div class="w-full h-full rounded-lg border-2 border-white/20"></div>`;
+                img.src = "https://deckofcardsapi.com/static/img/back.png";
+                img.alt = "Back of Card";
             } else {
-                const rank = cardString.slice(0, -1);
-                const suitChar = cardString.slice(-1);
-                const suitSymbol = suitChar === 'H'?'♥':suitChar==='D'?'♦':suitChar==='C'?'♣':'♠';
-                const colorClass = getCardColor(suitChar);
-                div.classList.add(colorClass);
+                // Parse card string. E.g. "10H", "AS", "KD"
+                // API mapping: 
+                // 10 -> 0 (e.g. 0H)
+                // Rest is same (AS = AS, KD = KD, 8C = 8C)
                 
-                // Better internal layout
-                div.innerHTML = `
-                    <div class="absolute top-1 left-1 text-xs sm:text-sm leading-none flex flex-col items-center">
-                        <span>${rank}</span>
-                        <span class="text-xs">${suitSymbol}</span>
-                    </div>
-                    <div class="text-3xl sm:text-4xl select-none">${suitSymbol}</div>
-                    <div class="absolute bottom-1 right-1 text-xs sm:text-sm leading-none flex flex-col items-center rotate-180">
-                        <span>${rank}</span>
-                        <span class="text-xs">${suitSymbol}</span>
-                    </div>
-                `;
+                let rank = cardString.slice(0, -1);
+                const suit = cardString.slice(-1);
+                
+                if (rank === '10') rank = '0';
+                
+                img.src = `https://deckofcardsapi.com/static/img/${rank}${suit}.png`;
+                img.alt = cardString;
             }
+            
+            div.appendChild(img);
             
             if (onClick) {
                 div.style.cursor = "pointer";
