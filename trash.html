@@ -295,16 +295,23 @@
                 
                 // Check win (all revealed)
                 const isWinner = mySlots.every(s => s.revealed);
+                
+                // Construct updated players object
+                const updatedPlayers = {
+                    ...gameState.players,
+                    [userId]: {
+                        ...gameState.players[userId],
+                        slots: mySlots,
+                        isWinner: isWinner
+                    }
+                };
 
                 await updateGameState({
-                    [`players.${userId}.slots`]: mySlots,
+                    players: updatedPlayers,
                     currentCard: newCurrentCard,
-                    [`players.${userId}.isWinner`]: isWinner
-                    // If winner, we might end game?
-                }, true); // Use deep merge or careful object reconstruction
-                // Firestore flat update syntax used above is pseudo-code for the helper, 
-                // but real fetch needs full object or dot notation.
-                // For simplicity, we construct full object in the helper helper.
+                    // If winner, we might want to flag the game as inactive?
+                    // For now, modal handles it locally.
+                }); 
             } else {
                 // Invalid move visual feedback?
                 console.log("Invalid move");
