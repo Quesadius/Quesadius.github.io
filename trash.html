@@ -140,6 +140,11 @@
             if (!isAuthReady) return;
             gameId = crypto.randomUUID();
             window.history.replaceState({}, '', `?gameId=${gameId}`);
+            
+            // Auto-copy link
+            navigator.clipboard.writeText(window.location.href)
+                .then(() => alert("Link copied to clipboard! Share it with a friend."))
+                .catch(err => console.error("Could not copy text: ", err));
 
             // Initial levels
             const p1Level = 10;
@@ -437,15 +442,22 @@
                 div.innerHTML = `<div class="w-full h-full rounded-lg border-2 border-white/20"></div>`;
             } else {
                 const rank = cardString.slice(0, -1);
-                const suit = cardString.slice(-1);
-                const colorClass = getCardColor(suit);
+                const suitChar = cardString.slice(-1);
+                const suitSymbol = suitChar === 'H'?'♥':suitChar==='D'?'♦':suitChar==='C'?'♣':'♠';
+                const colorClass = getCardColor(suitChar);
                 div.classList.add(colorClass);
                 
                 // Better internal layout
                 div.innerHTML = `
-                    <div class="absolute top-1 left-1 text-xs sm:text-sm leading-none">${rank}<br>${suit}</div>
-                    <div class="text-3xl sm:text-4xl">${suit === 'H'?'♥':suit==='D'?'♦':suit==='C'?'♣':'♠'}</div>
-                    <div class="absolute bottom-1 right-1 text-xs sm:text-sm leading-none rotate-180">${rank}<br>${suit}</div>
+                    <div class="absolute top-1 left-1 text-xs sm:text-sm leading-none flex flex-col items-center">
+                        <span>${rank}</span>
+                        <span class="text-xs">${suitSymbol}</span>
+                    </div>
+                    <div class="text-3xl sm:text-4xl select-none">${suitSymbol}</div>
+                    <div class="absolute bottom-1 right-1 text-xs sm:text-sm leading-none flex flex-col items-center rotate-180">
+                        <span>${rank}</span>
+                        <span class="text-xs">${suitSymbol}</span>
+                    </div>
                 `;
             }
             
