@@ -137,41 +137,63 @@
             gameId = crypto.randomUUID();
             window.history.replaceState({}, '', `?gameId=${gameId}`);
 
-            // Initialize minimal game state
+            // Initial levels
+            const p1Level = 10;
+            const p2Level = 10;
+
+            await startRound(gameId, [userId], { [userId]: { level: p1Level, isWinner: false, isRoundWinner: false } }, p1Level, p2Level);
+            joinGame();
+        }
+        
+        // Helper to deal and setup a round
+        async function startRound(gId, currentIds, playersData, p1Level, p2Level) {
             const initialDeck = shuffle(createDeck());
-            // Deal 10 to p1
-            const p1Slots = initialDeck.splice(0, 10).map(c => ({ card: c, revealed: false }));
             
-            // We wait for p2 to deal their own... OR we just setup the shell and P2 deals when they join?
-            // "Trash" requires full deal at start.
-            // Let's just deal for P1 now, and reserve P2 stuff.
-            // Actually, better to just create the record and wait for P2 to trigger "Start" or just deal 20 cards now?
-            // To keep it simple: We will deal for 2 players immediately.
-            const p2Slots = initialDeck.splice(0, 10).map(c => ({ card: c, revealed: false }));
+            // Deal based on level
+            const p1Slots = initialDeck.splice(0, p1Level).map(c => ({ card: c, revealed: false }));
+            const p2Slots = initialDeck.splice(0, p2Level).map(c => ({ card: c, revealed: false }));
+            
+            // If P2 doesn't exist in playersData yet (first game), we reserve their slots
+            // But if P2 exists, we update them.
+            
+            let updatedPlayers = { ...playersData };
+            let reserved = null;
+
+            // userId is always P1 creator in this context? No, care needed.
+            // Let's assume passed playersData has the structural skeleton.
+            // We just need to refill slots.
+            
+            Object.keys(updatedPlayers).forEach(pid => {
+                 updatedPlayers[pid].slots = initialDeck.splice(0, updatedPlayers[pid].level).map(c => ({ card: c, revealed: false }));
+                 updatedPlayers[pid].isRoundWinner = false;
+                 // Don't reset isWinner (Match winner)
+            });
+
+            // If we are starting fresh and only have 1 player ID known:
+            if (Object.keys(updatedPlayers).length === 1) {
+                 // The passed p1Level/p2Level might be useful but simpler to just set creator's slots 
+                 // and reserve P2's.
+                 const creatorId = currentIds[0];
+                 updatedPlayers[creatorId].slots = p1Slots;
+                 reserved = p2Slots; 
+            }
 
             const newGameState = {
                 deck: initialDeck,
                 discardPile: [],
-                turn: userId, // Creator goes first
+                turn: currentIds[0], // Winner of prev or creator starts? Let's say Round Loser starts? Or Winner? Rules vary. Winner starts usually.
+                // For MVP, just first ID starts.
                 phase: 'draw',
                 currentCard: null,
-                players: {
-                    [userId]: { slots: p1Slots, isWinner: false }
-                    // Second player will be added on join
-                },
-                playerIds: [userId],
-                lastUpdated: Date.now()
+                players: updatedPlayers,
+                playerIds: currentIds,
+                reserved_slots: reserved,
+                lastUpdated: Date.now(),
+                isMatchOver: false,
+                matchWinner: null
             };
             
-            // We store playing cards for "pending" player 2 in a temporary field or just deal them when P2 joins?
-            // Let's store them in 'pending_p2_slots' or similar to ensure same shuffle.
-            // Actually simplest: Data structure has `players` map.
-            // We can pre-fill a placeholder for P2? No, we don't know their ID.
-            // We'll put the extra cards in 'reserved_slots'
-            newGameState.reserved_slots = p2Slots;
-
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId), newGameState);
-            joinGame();
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', gId), newGameState);
         }
 
         function showMainMenu() {
@@ -189,11 +211,15 @@
         }
 
         async function createPlayer2Entry(data) {
-             // If we are the second player and not in the list yet
              if (data.playerIds.length < 2 && !data.players[userId]) {
                  const updatedPlayers = { ...data.players };
-                 // Take reserved slots
-                 updatedPlayers[userId] = { slots: data.reserved_slots, isWinner: false };
+                 // New player starts at level 10
+                 updatedPlayers[userId] = { 
+                     slots: data.reserved_slots, 
+                     level: 10,
+                     isRoundWinner: false,
+                     isMatchOver: false
+                 };
                  
                  const updatedIds = [...data.playerIds, userId];
                  
@@ -201,7 +227,7 @@
                      ...data,
                      players: updatedPlayers,
                      playerIds: updatedIds,
-                     reserved_slots: null // clear reserve
+                     reserved_slots: null
                  });
              }
         }
@@ -212,17 +238,15 @@
             gameListenerUnsubscribe = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId), (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    // Auto-join logic if needed
                     if (userId && !data.players[userId] && data.playerIds.length < 2) {
                         createPlayer2Entry(data);
-                        return; // Wait for the update to fire again
+                        return; 
                     }
-
                     gameState = data;
                     renderGame();
                 } else {
                     alert("Game deleted or doesn't exist.");
-                    window.location.href = window.location.pathname; // Reset
+                    window.location.href = window.location.pathname; 
                 }
             });
         }
@@ -230,7 +254,6 @@
         // --- Game Logic ---
 
         async function handleDraw(source) {
-            // Checks
             if (gameState.turn !== userId) return alert("Not your turn!");
             if (gameState.phase !== 'draw') return alert("You already have a card!");
             
@@ -240,18 +263,16 @@
 
             if (source === 'deck') {
                 if (newDeck.length === 0) {
-                    // Reshuffle discard if deck empty
                     if (newDiscard.length === 0) return alert("No cards left!");
                     newDeck = shuffle(newDiscard);
                     newDiscard = [];
                 }
-                card = newDeck.shift(); // Remove from start (top)
+                card = newDeck.shift(); 
             } else {
                 if (newDiscard.length === 0) return alert("Discard empty!");
-                card = newDiscard.pop(); // Remove from end (top)
+                card = newDiscard.pop(); 
             }
 
-            // Update State
             await updateGameState({
                 deck: newDeck,
                 discardPile: newDiscard,
@@ -273,8 +294,11 @@
             const targetSlot = mySlots[slotIndex];
 
             // Validation
-            // Index 0 = Ace (1), Index 9 = 10 (10)
-            // Wild (J) can go anywhere unrevealed
+            // Logic change: ACE=1, but if you have fewer than 10 cards?
+            // "1-9 in second game". So slots are 1..Level.
+            // If Level=9, card '10' is unplayable? Yes.
+            // Logic: expectedVal = slotIndex + 1. If expectedVal > Level, impossible (shouldn't render anyway).
+            
             const expectedVal = slotIndex + 1;
             
             let validMove = false;
@@ -285,35 +309,35 @@
             }
 
             if (validMove) {
-                // Swap
                 const oldCard = targetSlot.card;
                 targetSlot.card = card;
                 targetSlot.revealed = true;
                 
-                // New current card is the one we picked up
                 const newCurrentCard = oldCard;
                 
-                // Check win (all revealed)
-                const isWinner = mySlots.every(s => s.revealed);
+                // Check Round Win
+                const isRoundWinner = mySlots.every(s => s.revealed);
                 
-                // Construct updated players object
                 const updatedPlayers = {
                     ...gameState.players,
                     [userId]: {
                         ...gameState.players[userId],
                         slots: mySlots,
-                        isWinner: isWinner
+                        isRoundWinner: isRoundWinner
                     }
                 };
 
+                // If round won, we don't end game, we enable "Next Round"
+                // Actually if round won, turn end?
+                // Usually play continues until turn finish, but if you fill your board, you shout "Pop Trash" -> "Trash!"
+                // Then other player gets one last turn?
+                // Simplification for MVP: Instant win of round.
+                
                 await updateGameState({
                     players: updatedPlayers,
                     currentCard: newCurrentCard,
-                    // If winner, we might want to flag the game as inactive?
-                    // For now, modal handles it locally.
                 }); 
             } else {
-                // Invalid move visual feedback?
                 console.log("Invalid move");
             }
         }
@@ -324,10 +348,7 @@
             
             const card = gameState.currentCard;
             const newDiscard = [...gameState.discardPile, card];
-            
-            // Switch turn
             const otherPlayer = gameState.playerIds.find(id => id !== userId);
-            // If solo, switch to self? No, needs 2 players.
             const nextTurn = otherPlayer || userId; 
 
             await updateGameState({
@@ -337,24 +358,61 @@
                 turn: nextTurn
             });
         }
+        
+        async function triggerNextRound() {
+            // Calculate new levels
+            // Who won?
+            const winnerId = Object.keys(gameState.players).find(pid => gameState.players[pid].isRoundWinner);
+            if (!winnerId) return;
+
+            const nextPlayers = { ...gameState.players };
+            let matchWinner = null;
+            
+            Object.keys(nextPlayers).forEach(pid => {
+                const p = nextPlayers[pid];
+                if (p.isRoundWinner) {
+                    p.level -= 1;
+                    if (p.level === 0) matchWinner = pid;
+                }
+                // Loser level stays same
+            });
+
+            if (matchWinner) {
+                await updateGameState({
+                    isMatchOver: true,
+                    matchWinner: matchWinner,
+                    players: nextPlayers
+                });
+            } else {
+                // Determine start round
+                // We need to re-deal.
+                // We can reuse startRound logic but mapped to current object
+                // We'll do it inline to avoid complex prop passing
+                
+                const initialDeck = shuffle(createDeck());
+                
+                Object.keys(nextPlayers).forEach(pid => {
+                     const lvl = nextPlayers[pid].level;
+                     nextPlayers[pid].slots = initialDeck.splice(0, lvl).map(c => ({ card: c, revealed: false }));
+                     nextPlayers[pid].isRoundWinner = false;
+                });
+                
+                await updateGameState({
+                    deck: initialDeck,
+                    discardPile: [],
+                    currentCard: null,
+                    phase: 'draw',
+                    turn: winnerId, // Winner starts next round
+                    players: nextPlayers,
+                    isMatchOver: false,
+                    matchWinner: null
+                });
+            }
+        }
 
         async function updateGameState(updates, isDeep = false) {
-             // This is a naive merge
-             // For nested fields like `players.userId.slots`, it's tricky with simple spread.
-             // We'll reconstruct the whole object for safety in this mvp.
-             
              let nextState = { ...gameState, ...updates };
-             
-             // Handle the specific player slot update logic if passed
-             // (We passed flat keys in handleSlotClick but that won't work with spread)
-             // Let's fix handleSlotClick to pass full players object
-             if (updates['players_special_update']) {
-                 nextState.players = updates.players_special_update;
-                 delete nextState['players_special_update'];
-             }
-
              if (updates.deck) nextState.deck = updates.deck;
-             
              await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId), nextState);
         }
 
@@ -400,27 +458,55 @@
             const isMyTurn = gameState.turn === userId;
             const opponentId = gameState.playerIds.find(id => id !== userId);
             const myData = gameState.players[userId];
-            const amIWinner = myData ? myData.isWinner : false;
-            const opponentWinner = opponentId && gameState.players[opponentId] ? gameState.players[opponentId].isWinner : false;
+            
+            // Check Round/Match status
+            // We use flags in DB: isMatchOver, matchWinner, OR isRoundWinner checked dynamically locally if we want animation.
+            // gameState.matchWinner implies Game Over (Whole Match)
+            // gameState.players[x].isRoundWinner implies Round Over.
 
-            // Winner Modal Check
-            if (amIWinner || opponentWinner) {
-                const modal = document.getElementById('game-over-modal');
-                const title = document.getElementById('game-over-title');
-                const msg = document.getElementById('game-over-msg');
+            const modal = document.getElementById('game-over-modal');
+            const title = document.getElementById('game-over-title');
+            const msg = document.getElementById('game-over-msg');
+            const playAgainBtn = document.getElementById('play-again-btn');
+            const nextRoundBtn = document.getElementById('next-round-btn');
+
+            if (gameState.isMatchOver) {
                 modal.classList.remove('hidden');
+                nextRoundBtn.classList.add('hidden');
+                playAgainBtn.classList.remove('hidden');
                 
-                if (amIWinner) {
-                    title.textContent = "Victory!";
+                if (gameState.matchWinner === userId) {
+                    title.textContent = "MATCH WINNER!";
                     title.className = "text-4xl font-bold text-green-600 mb-4";
-                    msg.textContent = "You sorted all your trash! 🎉";
+                    msg.textContent = "You reduced your trash to 0! 🎉";
                 } else {
-                    title.textContent = "Defeat!";
+                    title.textContent = "Match Lost";
                     title.className = "text-4xl font-bold text-red-600 mb-4";
-                    msg.textContent = "Your opponent finished first.";
+                    msg.textContent = "Opponent won the match.";
                 }
-                statusTextElement.textContent = "Game Over";
-                return; // Stop rendering updates behind modal? Or keep them.
+                statusTextElement.textContent = "Match Over";
+            } 
+            else if (myData && (myData.isRoundWinner || (opponentId && gameState.players[opponentId].isRoundWinner))) {
+                // Round Over
+                modal.classList.remove('hidden');
+                // Only show Next Round button if I am the winner? Or anyone can click? 
+                // Any player clicking it can trigger the logic, usually we restrict to winner or show "Waiting for host".
+                // Simplest: Anyone allows next round.
+                playAgainBtn.classList.add('hidden');
+                nextRoundBtn.classList.remove('hidden');
+                
+                if (myData.isRoundWinner) {
+                    title.textContent = "Round Won!";
+                    title.className = "text-3xl font-bold text-green-600 mb-4";
+                    msg.textContent = `You advance to Level ${myData.level - 1}!`;
+                } else {
+                    title.textContent = "Round Lost";
+                    title.className = "text-3xl font-bold text-red-600 mb-4";
+                    msg.textContent = "Opponent won the round.";
+                }
+                statusTextElement.textContent = "Round Over";
+            } else {
+                modal.classList.add('hidden');
             }
 
             
@@ -428,7 +514,8 @@
                 <span class="${isMyTurn ? 'text-green-600 font-bold' : 'text-gray-600'}">
                     ${isMyTurn ? "Your Turn" : "Opponent's Turn"}
                 </span>
-                <span class="ml-4 text-xs text-gray-400 uppercase tracking-widest">${gameState.phase} PHASE</span>
+                <span class="ml-4 text-xs text-blue-600 font-bold">LVL ${myData ? myData.level : 10}</span>
+                <span class="ml-2 text-xs text-gray-400 uppercase tracking-widest">${gameState.phase}</span>
             `;
             
             // Determine active slot requirement for highlighting
@@ -447,9 +534,11 @@
                 hint.className = "text-xs text-center mt-2 font-bold text-blue-800 bg-blue-100 px-2 py-1 rounded shadow-sm";
                 hint.textContent = "Click to Discard";
                 
-                // If unplayable, show red invalid text?
                 const val = getCardValue(gameState.currentCard);
-                if (val === null) {
+                const myLvl = myData ? myData.level : 10;
+                
+                // Unplayable if null (K/Q) OR if value > current Level
+                if (val === null || (typeof val === 'number' && val > myLvl)) {
                     hint.textContent = "Unplayable (Discard)";
                     hint.className = "text-xs text-center mt-2 font-bold text-red-800 bg-red-100 px-2 py-1 rounded shadow-sm";
                 }
@@ -482,20 +571,24 @@
             
             // Render Me
             playerArea.innerHTML = '';
+            // Reset grid cols based on card count?
+            // "Two rows of 5" is for 10 cards.
+            // If < 5 cards, grid-cols-min(5, count)?
+            // Actually, kept simpler: Always grid-cols-5. 
+            // If Level 9: 5 on top, 4 on bottom. Slot 10 empty.
+            
             if (gameState.players[userId]) {
-                gameState.players[userId].slots.forEach((slot, idx) => {
+                const slots = gameState.players[userId].slots;
+                // If fewer than 5 cards, center them? Flex might be better for small hands, 
+                // but user asked for "two rows of 5" specifically for the layout.
+                // Let's keep the grid but maybe centered?
+                // grid-cols-5 implies 5 slots width.
+                
+                slots.forEach((slot, idx) => {
                     const slotContainer = document.createElement('div');
                     slotContainer.className = "flex flex-col items-center gap-1 relative";
                     
-                    // Highlight logic
                     const isTarget = isMyTurn && (idx === targetSlotIndex || (isWild && !slot.revealed));
-                    const canClick = isTarget && !slot.revealed; 
-                    // Wait, wild can go on unrevealed. Specific number goes on specific slot (even if revealed? No, usually you don't swap revealed unless it's a Wild you want to move? 
-                    // Rules: "If the card is A-10... place it in the corresponding slot... The card previously in that slot is revealed". 
-                    // If slot 5 is already revealed (e.g. holds a 5), you can't place a 5 there again. 
-                    // Impl logic: `!targetSlot.revealed` check in handleSlotClick handles this.
-                    // So we only highlight if NOT revealed.
-
                     const shouldHighlight = isTarget && !slot.revealed;
 
                     const cardView = renderCard(slot.card, slot.revealed, () => handleSlotClick(idx), shouldHighlight);
@@ -513,7 +606,8 @@
             // Render Opponent
             opponentArea.innerHTML = '';
             if (opponentId && gameState.players[opponentId]) {
-                gameState.players[opponentId].slots.forEach((slot, idx) => {
+                const slots = gameState.players[opponentId].slots;
+                slots.forEach((slot, idx) => {
                      const slotContainer = document.createElement('div');
                      slotContainer.className = "flex flex-col items-center gap-1";
                      const cardView = renderCard(slot.card, slot.revealed, null);
@@ -525,7 +619,7 @@
                      opponentArea.appendChild(slotContainer);
                 });
             } else {
-                opponentArea.innerHTML = `<div class="w-full text-center text-gray-500 italic py-8">Waiting for opponent to join...<br><span class="text-xs">Share the URL!</span></div>`;
+                opponentArea.innerHTML = `<div class="col-span-5 text-center text-gray-500 italic py-8">Waiting for opponent...</div>`;
             }
         }
 
@@ -607,7 +701,10 @@
             <h2 id="game-over-title" class="text-4xl font-bold mb-4">Game Over</h2>
             <p id="game-over-msg" class="text-gray-600 text-lg mb-8">You sorted your trash!</p>
             <div class="flex flex-col gap-3">
-                <button onclick="window.location.reload()" class="bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition shadow-lg">
+                <button id="next-round-btn" onclick="triggerNextRound()" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition shadow-lg hidden">
+                    Next Round (Start Game)
+                </button>
+                <button id="play-again-btn" onclick="window.location.reload()" class="bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition shadow-lg hidden">
                     Play Again
                 </button>
                 <button onclick="window.location.href = window.location.pathname" class="text-gray-500 hover:text-gray-800 text-sm">
