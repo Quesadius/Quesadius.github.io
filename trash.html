@@ -432,7 +432,8 @@
         function renderCard(cardString, isFaceUp, onClick = null, isHighlight = false) {
             const div = document.createElement('div');
             // Maintain layout dimensions and styling containers
-            div.className = `w-14 h-20 sm:w-20 sm:h-28 relative select-none transition-transform active:scale-95 ${isHighlight ? 'scale-105' : ''}`;
+            // Responsive: Mobile use vh for height to ensure fit. Desktop can be larger.
+            div.className = `h-[7.5vh] aspect-[2.5/3.5] md:h-28 md:w-20 relative select-none transition-transform active:scale-95 ${isHighlight ? 'scale-105' : ''}`;
             
             const img = document.createElement('img');
             img.className = `w-full h-full object-contain rounded-lg shadow-md ${isHighlight ? 'ring-2 ring-yellow-400' : ''}`;
@@ -632,7 +633,7 @@
                      opponentArea.appendChild(slotContainer);
                 });
             } else {
-                opponentArea.innerHTML = `<div class="col-span-5 text-center text-gray-500 italic py-8">Waiting for opponent...</div>`;
+                opponentArea.innerHTML = `<div class="col-span-5 text-center text-gray-500 italic py-4 text-xs">Waiting for opponent...</div>`;
             }
         }
 
@@ -648,7 +649,7 @@
 
     </script>
 </head>
-<body class="bg-green-100 min-h-screen font-sans overflow-x-hidden">
+<body class="bg-green-100 h-svh w-screen overflow-hidden font-sans flex flex-col">
 
     <!-- Main Menu -->
     <div id="main-menu" class="flex flex-col items-center justify-center min-h-screen p-4 space-y-6">
@@ -664,7 +665,7 @@
     </div>
 
     <!-- Game Board -->
-    <div id="game-board" class="hidden flex flex-col min-h-screen">
+    <div id="game-board" class="hidden flex-col h-full w-full">
         <!-- Header / Status -->
         <header class="bg-white px-4 py-2 shadow flex justify-between items-center z-10">
             <h2 class="font-bold text-green-700">Trash</h2>
@@ -676,32 +677,31 @@
         </header>
 
         <!-- Main Play Area -->
-        <main class="flex-grow flex flex-col justify-between py-4 select-none">
+        <main class="flex-grow flex flex-col justify-evenly py-2 select-none h-full">
             
             <!-- Opponent Slots -->
-            <div id="opponent-area" class="grid grid-cols-5 gap-2 px-2 sm:gap-4 max-w-4xl mx-auto">
+            <div id="opponent-area" class="grid grid-cols-5 gap-1 px-2 sm:gap-4 max-w-4xl mx-auto w-full justify-items-center">
                 <!-- Filled via JS -->
             </div>
 
-            <!-- Center Table (Deck, Discard, Current Action card) -->
-            <div class="flex justify-center items-center gap-8 py-4">
+            <div class="flex justify-center items-center gap-2 py-2">
                 <div id="deck" class="relative hover:scale-105 transition cursor-pointer">
                     <!-- Deck Graphic -->
-                    <div class="w-20 h-28 bg-blue-800 rounded-lg border-2 border-white shadow-lg flex items-center justify-center text-white">Deck</div>
+                    <div class="h-[7.5vh] aspect-[2.5/3.5] md:h-28 md:w-20 bg-blue-800 rounded-lg border-2 border-white shadow-lg flex items-center justify-center text-white text-xs">Deck</div>
                 </div>
                 
-                <div id="current-card-display" class="w-24 min-h-32 flex flex-col items-center justify-center border-2 border-yellow-400 rounded-xl bg-yellow-50 shadow-inner p-2 animate-pulse">
+                <div id="current-card-display" class="w-20 min-h-[9vh] flex flex-col items-center justify-center border-2 border-yellow-400 rounded-xl bg-yellow-50 shadow-inner p-1 animate-pulse">
                     <!-- The card you are holding -->
                 </div>
 
                 <div id="discard" class="hover:scale-105 transition cursor-pointer">
                      <!-- Discard Pile -->
-                     <div class="w-20 h-28 border-2 border-gray-300 border-dashed rounded-lg flex items-center justify-center text-gray-400">Discard</div>
+                     <div class="h-[7.5vh] aspect-[2.5/3.5] md:h-28 md:w-20 border-2 border-gray-300 border-dashed rounded-lg flex items-center justify-center text-gray-400 text-xs">Discard</div>
                 </div>
             </div>
 
             <!-- Player Slots -->
-            <div id="player-area" class="grid grid-cols-5 gap-2 px-2 sm:gap-4 max-w-4xl mx-auto">
+            <div id="player-area" class="grid grid-cols-5 gap-1 px-2 sm:gap-4 max-w-4xl mx-auto w-full justify-items-center">
                 <!-- Filled via JS -->
             </div>
 
