@@ -643,6 +643,43 @@
              await updateGameState(updates);
         }
 
+        async function handleCardSelectForThrow(index) {
+             if (selectedIndices.has(index)) {
+                 selectedIndices.delete(index);
+             } else {
+                 if (selectedIndices.size >= 2) return; // Max 2
+                 selectedIndices.add(index);
+             }
+             
+             // Update UI visually
+             const cardEl = document.getElementById(`card-${index}`);
+             if (cardEl) {
+                 if (selectedIndices.has(index)) {
+                     cardEl.classList.add('ring-4', 'ring-blue-500', '-translate-y-4');
+                 } else {
+                     cardEl.classList.remove('ring-4', 'ring-blue-500', '-translate-y-4');
+                 }
+             }
+             
+             // Update Button State
+             const btn = document.getElementById('action-btn');
+             if (btn) {
+                 if (selectedIndices.size === 2) {
+                     btn.disabled = false;
+                     btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                     btn.classList.add('hover:bg-blue-700', 'animate-pulse');
+                     btn.textContent = "Confirm Discard";
+                     btn.onclick = submitDiscard;
+                 } else {
+                     btn.disabled = true;
+                     btn.classList.add('opacity-50', 'cursor-not-allowed');
+                     btn.classList.remove('hover:bg-blue-700', 'animate-pulse');
+                     btn.textContent = `Select ${2 - selectedIndices.size} more`;
+                     btn.onclick = null;
+                 }
+             }
+        }
+
         async function checkEndOfPegging() {
              // Check if both hands are empty
              const allEmpty = gameState.playerIds.every(pid => gameState.players[pid].hand.length === 0);
@@ -947,6 +984,7 @@
                 btn.className = "bg-blue-600 text-white font-bold py-2 px-6 rounded-full shadow-lg opacity-50 cursor-not-allowed transition";
                 btn.textContent = "Select 2 to Discard";
                 btn.disabled = true;
+                btn.onclick = submitDiscard; // Attach initially, though disabled
                 actionContainer.appendChild(btn);
             } else if (gameState.phase === 'throw' && myPlayer.hasThrown) {
                  const msg = document.createElement('div');
