@@ -6,129 +6,84 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>US State High Points Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        climbed: '#10b981', // emerald-500
+                        unclimbed: '#cbd5e1', // slate-300
+                    }
+                }
+            }
+        }
+    </script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://d3js.org/topojson.v3.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f1f5f9;
-        }
-
-        .state {
-            stroke: #fff;
-            stroke-width: 1px;
-            transition: fill 0.3s ease;
-        }
-
-        .state:hover {
-            opacity: 0.7;
-        }
-
-        .tooltip {
-            position: absolute;
-            text-align: left;
-            padding: 12px;
-            font-size: 14px;
-            background: #2d3748;
-            color: #fff;
-            border: 0px;
-            border-radius: 8px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .climbed {
-            fill: #48bb78;
-            /* Green */
-        }
-
-        .unclimbed {
-            fill: #a0aec0;
-            /* Gray */
-        }
-
-        .loading-spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border-left-color: #09f;
-            animation: spin 1s ease infinite;
-        }
-
-        @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
-                transform: rotate(360deg);
-            }
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 
-<body class="bg-slate-100 text-slate-800">
+<body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-emerald-200 selection:text-emerald-900">
 
-    <div class="container mx-auto p-4 md:p-8">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-slate-900">U.S. State High Point Tracker</h1>
-            <!-- <p class="text-lg text-slate-600 mt-2">An interactive map of the highest point in each state.</p> -->
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight pb-2">U.S. State High Point Tracker</h1>
+            <p class="text-lg text-slate-500 mt-2 font-medium">An interactive map of the highest point in each state.</p>
         </header>
 
         <!-- Map and Legend Section -->
-        <div class="w-full max-w-6xl mx-auto bg-white p-4 sm:p-6 rounded-lg shadow-md">
-            <div id="map-container" class="relative min-h-[610px] flex items-center justify-center">
+        <div class="w-full mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100">
+            <div id="map-container" class="relative min-h-[610px] flex items-center justify-center bg-slate-50/50 rounded-xl border border-slate-100/50 overflow-hidden">
                 <!-- Loading indicator -->
-                <div id="loading" class="text-center">
-                    <div class="loading-spinner mx-auto"></div>
-                    <p class="mt-2 text-slate-500">Loading map and climb data...</p>
+                <div id="loading" class="text-center flex flex-col items-center">
+                    <div class="w-10 h-10 border-4 border-slate-200 border-l-emerald-500 rounded-full animate-spin"></div>
+                    <p class="mt-4 text-slate-500 font-medium animate-pulse">Loading map and climb data...</p>
                 </div>
             </div>
-            <div id="legend" class="flex items-center justify-center mt-4 space-x-6 text-sm" style="display: none;">
-                <div class="flex items-center">
-                    <div class="w-5 h-5 rounded-full mr-2" style="background-color: #48bb78;"></div>
-                    <span>Climbed</span>
+            <div id="legend" class="flex items-center justify-center mt-6 space-x-8 text-sm" style="display: none;">
+                <div class="flex items-center group cursor-default">
+                    <div class="w-4 h-4 rounded-full mr-2.5 bg-climbed shadow-sm shadow-emerald-500/20 group-hover:scale-110 transition-transform"></div>
+                    <span class="font-semibold text-slate-700">Climbed</span>
                 </div>
-                <div class="flex items-center">
-                    <div class="w-5 h-5 rounded-full mr-2" style="background-color: #a0aec0;"></div>
-                    <span>Not Climbed</span>
+                <div class="flex items-center group cursor-default">
+                    <div class="w-4 h-4 rounded-full mr-2.5 bg-unclimbed shadow-sm shadow-slate-400/20 group-hover:scale-110 transition-transform"></div>
+                    <span class="font-semibold text-slate-700">Not Climbed</span>
                 </div>
             </div>
+            
             <!-- Progress Bar -->
-            <div class="mt-6">
-                <div class="flex justify-between items-center mb-1">
-                    <span id="progressText" class="text-sm font-medium text-slate-700">Climbed 0 of 50 states</span>
-                    <span class="text-sm font-medium text-slate-700"><span id="progressPercentage">0</span>%</span>
+            <div class="mt-10 px-2">
+                <div class="flex justify-between items-end mb-2">
+                    <span id="progressText" class="text-sm font-semibold text-slate-600 uppercase tracking-wider">Climbed 0 of 50 states</span>
+                    <span class="text-2xl font-bold text-slate-800 tabular-nums leading-none"><span id="progressPercentage">0</span>%</span>
                 </div>
-                <div class="w-full bg-slate-200 rounded-full h-4">
+                <div class="w-full bg-slate-100 rounded-full h-4 shadow-inner overflow-hidden">
                     <div id="progressBar"
-                        class="bg-green-500 h-4 rounded-full text-xs font-medium text-white text-center p-0.5 leading-none"
+                        class="bg-gradient-to-r from-emerald-400 to-emerald-500 h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(52,211,153,0.4)]"
                         style="width: 0%"></div>
                 </div>
             </div>
 
             <!-- Total Stats -->
-            <div class="grid grid-cols-2 gap-4 mt-6 border-t pt-6 border-slate-100">
-                <div class="text-center">
-                    <div class="text-3xl font-bold text-slate-800" id="totalMiles">0</div>
-                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1">Miles Hiked</div>
+            <div class="grid grid-cols-2 gap-6 mt-10 border-t pt-8 border-slate-100 px-2">
+                <div class="text-center p-4 rounded-2xl bg-slate-50 transition-colors hover:bg-slate-100/80">
+                    <div class="text-4xl md:text-5xl font-extrabold text-slate-800 tabular-nums tracking-tight" id="totalMiles">0</div>
+                    <div class="text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest mt-2">Miles Hiked</div>
                 </div>
-                <div class="text-center">
-                    <div class="text-3xl font-bold text-slate-800" id="totalElevation">0</div>
-                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mt-1">Elevation Gained (ft)
-                    </div>
+                <div class="text-center p-4 rounded-2xl bg-slate-50 transition-colors hover:bg-slate-100/80">
+                    <div class="text-4xl md:text-5xl font-extrabold text-slate-800 tabular-nums tracking-tight" id="totalElevation">0</div>
+                    <div class="text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest mt-2">Elevation Gained (ft)</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="tooltip" class="tooltip"></div>
+    <div id="tooltip" class="absolute text-left p-4 text-sm bg-slate-900/95 backdrop-blur-sm text-slate-50 border border-slate-700/50 rounded-xl pointer-events-none opacity-0 shadow-2xl z-50 min-w-[200px]"></div>
 
     <script>
         // --- Static Data Section ---
@@ -211,7 +166,8 @@
             const svg = mapContainer.append("svg")
                 .attr("viewBox", `0 0 ${width} ${height}`)
                 .style("width", "100%")
-                .style("height", "auto");
+                .style("height", "auto")
+                .attr("class", "drop-shadow-sm");
 
             const projection = d3.geoAlbersUsa().scale(1300).translate([width / 2, height / 2]);
             const path = d3.geoPath().projection(projection);
@@ -224,39 +180,44 @@
                 .attr("class", d => {
                     const stateName = d.properties.name;
                     const data = finalHighPointsData[stateName];
-                    return data && data.date ? 'state climbed' : 'state unclimbed';
+                    const baseClass = "stroke-white stroke-[1.5px] transition-all duration-300 hover:opacity-80 hover:stroke-2 cursor-pointer";
+                    return data && data.date ? `fill-climbed ${baseClass}` : `fill-unclimbed ${baseClass}`;
                 })
                 .on("mouseover", function (event, d) {
                     const stateName = d.properties.name;
                     const data = finalHighPointsData[stateName];
 
-                    d3.select(this).raise().style('opacity', 0.7);
+                    d3.select(this).raise().classed('opacity-80 stroke-2', true);
 
-                    tooltip.transition().duration(200).style("opacity", .95);
-                    let tooltipContent = `<div class="font-bold text-lg">${stateName}</div>`;
+                    tooltip.transition().duration(200).style("opacity", 1);
+                    
+                    let tooltipContent = `<div class="font-extrabold text-lg border-b border-slate-700/80 pb-2 mb-2">${stateName}</div>`;
                     if (data) {
-                        tooltipContent += `<div><strong>High Point:</strong> ${data.name}</div>`;
-                        tooltipContent += `<div><strong>Elevation:</strong> ${data.elevation.toLocaleString()} ft</div>`;
+                        tooltipContent += `<div class="space-y-1">`;
+                        tooltipContent += `<div class="flex justify-between gap-4"><strong class="text-slate-400 font-medium">High Point:</strong> <span class="text-right">${data.name}</span></div>`;
+                        tooltipContent += `<div class="flex justify-between gap-4"><strong class="text-slate-400 font-medium">Elevation:</strong> <span class="text-right font-semibold text-emerald-400">${data.elevation.toLocaleString()} ft</span></div>`;
                         if (data.date) {
-                            tooltipContent += `<div><strong>Climbed:</strong> ${new Date(data.date).toLocaleDateString()}</div>`;
+                            tooltipContent += `<div class="flex justify-between gap-4"><strong class="text-slate-400 font-medium">Climbed:</strong> <span class="text-right text-emerald-300">${new Date(data.date).toLocaleDateString()}</span></div>`;
                             if (data.miles) {
-                                tooltipContent += `<div><strong>Miles Hiked:</strong> ${data.miles}</div>`;
+                                tooltipContent += `<div class="flex justify-between gap-4"><strong class="text-slate-400 font-medium">Miles Hiked:</strong> <span class="text-right">${data.miles}</span></div>`;
                             }
                             if (data.elevationGain) {
-                                tooltipContent += `<div><strong>Elevation Gained:</strong> ${data.elevationGain} ft</div>`;
+                                tooltipContent += `<div class="flex justify-between gap-4"><strong class="text-slate-400 font-medium">Elevation Gain:</strong> <span class="text-right">${data.elevationGain} ft</span></div>`;
                             }
                         } else {
-                            tooltipContent += `<div><strong>Status:</strong> Not Climbed</div>`;
+                            tooltipContent += `<div class="mt-2 text-slate-400 italic text-sm text-center bg-slate-800/50 rounded py-1 px-2">Not Climbed Yet</div>`;
                         }
+                        tooltipContent += `</div>`;
                     } else {
-                        tooltipContent += `<div>No data available</div>`;
+                        tooltipContent += `<div class="text-slate-400 italic">No data available</div>`;
                     }
+                    
                     tooltip.html(tooltipContent)
                         .style("left", (event.pageX + 15) + "px")
                         .style("top", (event.pageY - 28) + "px");
                 })
                 .on("mouseout", function () {
-                    d3.select(this).style('opacity', 1);
+                    d3.select(this).classed('opacity-80 stroke-2', false);
                     tooltip.transition().duration(500).style("opacity", 0);
                 });
 
@@ -288,7 +249,7 @@
             // Handle errors, e.g., if the Google Sheet URL is wrong
             console.error("Error loading data:", error);
             d3.select("#loading")
-                .html(`<p class="text-red-500">Failed to load data. Please check the Google Sheet URL and make sure it's published correctly.</p>`);
+                .html(`<p class="text-red-500 font-medium bg-red-50 p-4 rounded-lg border border-red-200">Failed to load data. Please check the Google Sheet URL and make sure it's published correctly.</p>`);
         });
 
         // --- Progress Bar Functions ---
@@ -297,14 +258,21 @@
             const roundedPercentage = Math.round(progressPercentage);
 
             d3.select("#progressBar")
-                .style("width", progressPercentage + "%")
-                .text(roundedPercentage > 5 ? roundedPercentage + "%" : ""); // Only show text if > 5%
+                .style("width", progressPercentage + "%");
 
             d3.select("#progressText")
                 .text(`Climbed ${climbedStates} of ${totalStates} states`);
 
+            // Animate percentage text
             d3.select("#progressPercentage")
-                .text(roundedPercentage);
+                .transition()
+                .duration(1000)
+                .tween("text", function() {
+                    const i = d3.interpolateRound(0, roundedPercentage);
+                    return function(t) {
+                        this.textContent = i(t);
+                    };
+                });
         }
     </script>
 </body>
