@@ -121,7 +121,7 @@
 
     <!-- Board -->
     <div class="board-wrap mb-4">
-      <svg id="board-svg" class="board-svg" viewBox="0 0 660 220" preserveAspectRatio="xMidYMid meet"></svg>
+      <svg id="board-svg" class="board-svg" viewBox="0 0 740 280" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
 
     <!-- Score bar -->
@@ -167,11 +167,13 @@
 
     <!-- Breakdown overlay -->
     <div id="breakdown-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-5">
-        <h3 id="breakdown-title" class="text-xl font-bold mb-3"></h3>
-        <div id="breakdown-cards" class="flex flex-wrap gap-1 mb-3"></div>
-        <div id="breakdown-items" class="text-sm text-stone-700 mb-4"></div>
-        <div id="breakdown-continue-status" class="text-xs text-stone-500 mb-2"></div>
+      <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-xl font-bold mb-1">Hand complete</h3>
+        <div class="text-xs text-stone-500 mb-3">Starter:
+          <span id="breakdown-starter-card" class="inline-block align-middle ml-1"></span>
+        </div>
+        <div id="breakdown-sections" class="space-y-3"></div>
+        <div id="breakdown-continue-status" class="text-xs text-stone-500 my-3"></div>
         <button id="breakdown-continue-btn"
           class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-400 text-white font-semibold py-2 rounded-lg">
           Continue
@@ -634,10 +636,10 @@ async function joinExistingGame(id){
     data.playerIds = [...data.playerIds, userId];
     data.scores[userId] = 0;
     data.prevScores[userId] = 0;
-    // Now start the first hand
-    data.dealer = data.player1.uid;  // P1 deals first
-    data.pone = userId;
-    startNewHand(data);
+    // First dealer is decided by cut: lowest card deals.
+    data.phase = 'cut_for_deal';
+    data.cutForDeal = {};
+    data.cutForDealTies = 0;
     await setDoc(ref, data);
   }
   attachListener(id);
@@ -703,6 +705,42 @@ function startNewHand(gs){
 function sortCardsByOrder(a,b){ return orderOf(a) - orderOf(b); }
 
 /* Actions during play */
+
+async function actCutForDeal(){
+  if (!G || G.phase !== 'cut_for_deal') return;
+  if (G.cutForDeal && G.cutForDeal[userId]) return;  // already cut
+  const gs = clone(G);
+  gs.cutForDeal = gs.cutForDeal || {};
+  // Draw one card not already held by the opponent
+  const taken = Object.values(gs.cutForDeal);
+  const deck = makeDeck().filter(c => !taken.includes(c));
+  shuffleInPlace(deck);
+  gs.cutForDeal[userId] = deck[0];
+  const allCut = gs.playerIds.every(uid => gs.cutForDeal[uid]);
+  if (allCut){
+    const [u1, u2] = gs.playerIds;
+    const c1 = gs.cutForDeal[u1], c2 = gs.cutForDeal[u2];
+    if (orderOf(c1) === orderOf(c2)){
+      // Tie — clear, both must cut again
+      gs.cutForDeal = {};
+      gs.cutForDealTies = (gs.cutForDealTies || 0) + 1;
+    } else {
+      gs.dealer = orderOf(c1) < orderOf(c2) ? u1 : u2;
+      gs.firstDealerUid = gs.dealer;
+      gs.phase = 'cut_for_deal_done';
+    }
+  }
+  await pushState(gs);
+}
+
+async function actStartFirstHand(){
+  if (!G || G.phase !== 'cut_for_deal_done') return;
+  const gs = clone(G);
+  delete gs.cutForDeal;
+  delete gs.cutForDealTies;
+  startNewHand(gs);
+  await pushState(gs);
+}
 
 async function actDiscardToCrib(cards){
   console.log('[cribbage] actDiscardToCrib called with', cards, 'userId=', userId, 'phase=', G && G.phase);
@@ -858,73 +896,52 @@ function opponentInGame(gs, uid){
 }
 
 function enterCounting(gs){
-  // Reconstruct hands for counting: peggingHistory tells us what each played.
-  // Each player's "hand for counting" = their 4 cards. We saved them in hands prior to
-  // pegging being depleted. We need to remember them. Store in gs.handsForCount when
-  // the cut happens (already done implicitly here — re-derive from history).
-  // Actually we depleted gs.hands during pegging. So save handsForCount at pegging start.
-  // — Since we didn't save them, we must reconstruct from history.
+  // Reconstruct each player's 4-card hand from pegging history.
   gs.handsForCount = {};
   for (const uid of gs.playerIds){
     gs.handsForCount[uid] = gs.peggingHistory.filter(p => p.uid === uid).map(p => p.card).sort(sortCardsByOrder);
   }
-  gs.phase = 'count_pone';
+  gs.phase = 'count';
   gs.countAcks = [];
-  // Compute pone's count immediately
-  const ponePts = scoreHand(gs.handsForCount[gs.pone], gs.starter, false);
+
+  const pone = gs.pone, dealer = gs.dealer;
+  const ponePts   = scoreHand(gs.handsForCount[pone], gs.starter, false);
+  const dealerPts = scoreHand(gs.handsForCount[dealer], gs.starter, false);
+  const cribPts   = scoreHand(gs.crib, gs.starter, true);
+
+  // Pone counts first; if pone hits 121, game ends and dealer doesn't count.
+  addScore(gs, pone, ponePts.total);
+  updateBest(gs, pone, 'hand', ponePts.total);
+  if (!checkGameOver(gs)){
+    addScore(gs, dealer, dealerPts.total);
+    updateBest(gs, dealer, 'hand', dealerPts.total);
+  }
+  if (!checkGameOver(gs)){
+    addScore(gs, dealer, cribPts.total);
+    updateBest(gs, dealer, 'crib', cribPts.total);
+  }
+
   gs.countBreakdown = {
-    uid: gs.pone, source: 'hand',
-    cards: gs.handsForCount[gs.pone], starter: gs.starter,
-    items: ponePts.items, total: ponePts.total
+    starter: gs.starter,
+    pone:   { uid: pone,   cards: gs.handsForCount[pone],   items: ponePts.items,   total: ponePts.total },
+    dealer: { uid: dealer, cards: gs.handsForCount[dealer], items: dealerPts.items, total: dealerPts.total },
+    crib:   { uid: dealer, cards: gs.crib,                  items: cribPts.items,   total: cribPts.total }
   };
-  addScore(gs, gs.pone, ponePts.total);
-  updateBest(gs, gs.pone, 'hand', ponePts.total);
 }
 
 async function actContinueCount(){
-  if (!G) return;
-  if (!['count_pone','count_dealer','count_crib','hand_done'].includes(G.phase)) return;
+  if (!G || G.phase !== 'count') return;
   const gs = clone(G);
   if (!gs.countAcks.includes(userId)) gs.countAcks.push(userId);
-  if (gs.countAcks.length < gs.playerIds.length) {
+  if (gs.countAcks.length < gs.playerIds.length){
     await pushState(gs);
     return;
   }
-  // Both clicked — advance phase
-  if (checkGameOver(gs)){
-    await pushState(gs);
-    return;
-  }
-  if (gs.phase === 'count_pone'){
-    gs.phase = 'count_dealer';
-    gs.countAcks = [];
-    const pts = scoreHand(gs.handsForCount[gs.dealer], gs.starter, false);
-    gs.countBreakdown = {
-      uid: gs.dealer, source: 'hand',
-      cards: gs.handsForCount[gs.dealer], starter: gs.starter,
-      items: pts.items, total: pts.total
-    };
-    addScore(gs, gs.dealer, pts.total);
-    updateBest(gs, gs.dealer, 'hand', pts.total);
-  } else if (gs.phase === 'count_dealer'){
-    gs.phase = 'count_crib';
-    gs.countAcks = [];
-    const pts = scoreHand(gs.crib, gs.starter, true);
-    gs.countBreakdown = {
-      uid: gs.dealer, source: 'crib',
-      cards: gs.crib, starter: gs.starter,
-      items: pts.items, total: pts.total
-    };
-    addScore(gs, gs.dealer, pts.total);
-    updateBest(gs, gs.dealer, 'crib', pts.total);
-  } else if (gs.phase === 'count_crib'){
-    // After crib count, start next hand immediately (no extra click required).
-    gs.countAcks = [];
-    gs.countBreakdown = null;
-    if (checkGameOver(gs)){ await pushState(gs); return; }
-    startNewHand(gs);
-  }
+  // Both clicked — advance to next hand (or game-over already set).
+  gs.countAcks = [];
+  gs.countBreakdown = null;
   if (checkGameOver(gs)){ await pushState(gs); return; }
+  startNewHand(gs);
   await pushState(gs);
 }
 
@@ -1070,6 +1087,19 @@ function renderStatus(){
   const dealerName = nameOf(G.dealer);
   const meIsDealer = G.dealer === userId;
   switch (G.phase){
+    case 'cut_for_deal': {
+      const cut = (G.cutForDeal || {})[userId];
+      if (!cut) el.textContent = `Cut the deck to decide who deals — lowest card deals first.`;
+      else el.textContent = `You cut ${labelOf(cut)}${SUIT_GLYPH[suitOf(cut)]}. Waiting for ${nameOf(opponentOf(userId))} to cut…`;
+      if (G.cutForDealTies) el.textContent += `  (Tied ${G.cutForDealTies}×, recut)`;
+      break;
+    }
+    case 'cut_for_deal_done': {
+      const me = G.cutForDeal[userId], opp = G.cutForDeal[opponentOf(userId)];
+      const dealerName = nameOf(G.dealer);
+      el.textContent = `${nameOf(userId)} cut ${labelOf(me)}${SUIT_GLYPH[suitOf(me)]}, ${nameOf(opponentOf(userId))} cut ${labelOf(opp)}${SUIT_GLYPH[suitOf(opp)]}. ${dealerName} deals first.`;
+      break;
+    }
     case 'discard': {
       const myHand = G.hands[userId] || [];
       const need = myHand.length - 4;
@@ -1085,14 +1115,8 @@ function renderStatus(){
       if (G.peggingTurn === userId) el.textContent = `Your play. Running total: ${G.peggingTotal}.`;
       else el.textContent = `${nameOf(G.peggingTurn)} to play. Running total: ${G.peggingTotal}.`;
       break;
-    case 'count_pone':
-      el.textContent = `Counting ${nameOf(G.pone)}'s hand.`;
-      break;
-    case 'count_dealer':
-      el.textContent = `Counting ${nameOf(G.dealer)}'s hand.`;
-      break;
-    case 'count_crib':
-      el.textContent = `Counting the crib (${nameOf(G.dealer)}'s).`;
+    case 'count':
+      el.textContent = `Hand complete — review the scores and click Continue.`;
       break;
     case 'hand_done':
       el.textContent = `Hand complete. Next dealer: ${nameOf(opponentInGame(G, G.dealer))}.`;
@@ -1118,107 +1142,156 @@ function renderScoreBar(){
         <div class="font-semibold">${escapeHTML(nameOf(uid))} ${isMine?'<span class="text-xs text-emerald-700">(you)</span>':''}</div>
         <div class="text-2xl font-bold tabular-nums">${G.scores[uid] || 0}</div>
       </div>
-      <div class="text-xs text-stone-500 mt-0.5">${isDealer?'• Dealer':'• Pone'}</div>`;
+      <div class="text-xs text-stone-500 mt-0.5">${isDealer?'• Dealer':'&nbsp;'}</div>`;
     el.appendChild(div);
   }
 }
 
 /* ---- Cribbage board ---- */
-// Layout: 660 wide x 200 tall. Two players stacked. Each player track = 4 rows of 30 holes
-// (in serpentine: row 1→ row 2← row 3→ row 4←) for 120 + game hole = 121.
+// Classic three-straight, two-curve racetrack. Each straight has both players' rows
+// of holes immediately adjacent so positions are easy to compare at a glance.
+//   Straight 1 → curve right → Straight 2 ← curve left → Straight 3 → game hole.
 function renderBoard(){
   if (!G || !G.playerIds.length) return;
   const svg = $('board-svg');
-  const W = 660, H = 200;
-  const margin = 20;
-  const trackH = 80;
-  const gapBetween = 12;
-  const trackW = W - margin*2;
-  const holeSize = 4.2;
+  const W = 740, H = 280;
+  const xStart = 100, xEnd = 660;
+  const xRange = xEnd - xStart;
+  const holesPerRow = 40;                       // 40 × 3 + 1 game hole = 121
+  const dx = xRange / (holesPerRow - 1);
+  const rowYs = [55, 140, 225];                 // y of each straight's centerline
+  const lane = 10;                              // ± offset between the two players' rows
+  const holeR = 4.2;
 
-  // Compute hole positions for a single player track: returns array length 122
-  // (index 0 = start "S", 1..121 = scoring holes)
-  function holePositions(yTop){
-    const positions = [];
-    // start
-    positions.push({ x: margin - 8, y: yTop + trackH/2 });
-    const rows = 4;
-    const holesPerRow = 30;
-    const rowH = trackH / rows;
-    // place 120 holes in serpentine, then game hole at end of row 4 (rightmost) — actually
-    // game hole is conventionally at the start of the board's centerline (final position).
-    // We'll just append a 121st hole just outside the last row's end.
-    let holeIdx = 0;
-    for (let r = 0; r < rows; r++){
-      const y = yTop + rowH*(r+0.5);
-      // groups of 5 with small gap
+  // Build hole-position arrays (length 122: index 0 = start, 1..121 = scoring).
+  function trackPositions(yOff){
+    const pos = [];
+    pos.push({ x: xStart - 26, y: rowYs[0] + yOff });          // 0: start hole
+    for (let r = 0; r < 3; r++){
+      const y = rowYs[r] + yOff;
       for (let i = 0; i < holesPerRow; i++){
-        const groupIx = Math.floor(i/5);
-        const intra = i % 5;
-        const xUnit = trackW / (holesPerRow + 5*0.6); // 5 gaps of .6 width
-        const x = margin + xUnit*(i + groupIx*0.6) + xUnit*0.3;
-        const xPos = (r % 2 === 0) ? x : (margin + trackW - (x - margin));
-        positions.push({ x: xPos, y });
-        holeIdx++;
+        const x = (r % 2 === 0) ? xStart + i*dx : xEnd - i*dx;
+        pos.push({ x, y });
       }
     }
-    // 121st hole = game hole, place just left of start (centered above start)
-    positions.push({ x: margin - 8, y: yTop + trackH/2 - 14 });
-    return positions;
+    pos.push({ x: xEnd + 26, y: rowYs[2] + yOff });            // 121: game hole
+    return pos;
   }
+  const p1 = trackPositions(-lane);
+  const p2 = trackPositions(+lane);
 
-  const yTop1 = 24;
-  const yTop2 = yTop1 + trackH + gapBetween + 18;
-
-  const p1Holes = holePositions(yTop1);
-  const p2Holes = holePositions(yTop2);
+  // Helper: hole position for a logical track index, used to draw skunk lines.
+  function indexX(i){
+    // i = 1..120 lives in a straight
+    if (i < 1 || i > 120) return null;
+    const r = Math.floor((i-1) / holesPerRow);
+    const k = (i-1) % holesPerRow;
+    return (r % 2 === 0) ? xStart + k*dx : xEnd - k*dx;
+  }
+  function indexY(i){
+    if (i < 1 || i > 120) return null;
+    const r = Math.floor((i-1) / holesPerRow);
+    return rowYs[r];
+  }
 
   let html = '';
-  // Background panels
-  html += `<rect x="6" y="${yTop1-6}" width="${W-12}" height="${trackH+12}" rx="8" fill="#7a4a22" stroke="#3e2613"/>`;
-  html += `<rect x="6" y="${yTop2-6}" width="${W-12}" height="${trackH+12}" rx="8" fill="#7a4a22" stroke="#3e2613"/>`;
 
-  // Player labels and "skunk" markers
-  function drawTrack(holes, yTop, pegFront, pegBack, label){
-    let h = '';
-    h += `<text x="${margin}" y="${yTop-8}" font-size="11" fill="#fde68a" font-weight="700">${escapeXML(label)}</text>`;
+  // --- Background plank ---
+  html += `<rect x="4" y="4" width="${W-8}" height="${H-8}" rx="14"
+              fill="#7a4a22" stroke="#3e2613" stroke-width="3"/>`;
+  // Wood grain hint
+  html += `<rect x="4" y="4" width="${W-8}" height="${H-8}" rx="14"
+              fill="url(#wood-grain)" opacity="0.18"/>`;
+  // Inner darker frame around the hole region
+  html += `<rect x="22" y="22" width="${W-44}" height="${H-44}" rx="10"
+              fill="none" stroke="#3e2613" stroke-width="1.2" opacity="0.6"/>`;
 
-    // Skunk line at hole 90 (double-skunk at 60)
-    const skunk90 = holes[90];
-    const skunk60 = holes[60];
-    if (skunk90) h += `<line x1="${skunk90.x}" y1="${yTop-2}" x2="${skunk90.x}" y2="${yTop+trackH+2}" stroke="#c0392b" stroke-width="1.2" stroke-dasharray="3 2"/>`;
-    if (skunk60) h += `<line x1="${skunk60.x}" y1="${yTop-2}" x2="${skunk60.x}" y2="${yTop+trackH+2}" stroke="#c0392b" stroke-width=".6" stroke-dasharray="2 3"/>`;
+  // --- Decorative curves on the right (between straights 1 & 2) and left (2 & 3) ---
+  // Right curve: arcs sweeping out past the right edge.
+  function rightCurve(yA, yB, offset){
+    const r = (yB - yA)/2 + offset + 6;
+    const cy = (yA + yB)/2;
+    return `<path d="M ${xEnd},${yA - offset - 2} C ${xEnd + r*1.1},${yA - offset - 2} ${xEnd + r*1.1},${yB + offset + 2} ${xEnd},${yB + offset + 2}"
+              fill="none" stroke="#3e2613" stroke-width="2" opacity="0.85"/>`;
+  }
+  function leftCurve(yA, yB, offset){
+    const r = (yB - yA)/2 + offset + 6;
+    return `<path d="M ${xStart},${yA - offset - 2} C ${xStart - r*1.1},${yA - offset - 2} ${xStart - r*1.1},${yB + offset + 2} ${xStart},${yB + offset + 2}"
+              fill="none" stroke="#3e2613" stroke-width="2" opacity="0.85"/>`;
+  }
+  html += rightCurve(rowYs[0], rowYs[1], lane);
+  html += leftCurve(rowYs[1], rowYs[2], lane);
 
-    // Holes
-    for (let i = 0; i <= 121; i++){
-      const p = holes[i];
-      const skunky = (i===60 || i===90);
-      h += `<circle class="hole ${skunky?'hole-skunk':''}" cx="${p.x}" cy="${p.y}" r="${holeSize}" />`;
+  // --- Skunk markers on holes 60 (double-skunk, faint dashed) and 90 (skunk, bold dashed) ---
+  for (const [n, width] of [[60, 1.0], [90, 1.8]]){
+    const x = indexX(n), y = indexY(n);
+    if (x != null){
+      html += `<line x1="${x}" y1="${y - lane - 8}" x2="${x}" y2="${y + lane + 8}"
+                stroke="#c0392b" stroke-width="${width}" stroke-dasharray="3 2"/>`;
     }
-    return h;
   }
 
-  html += drawTrack(p1Holes, yTop1, 'peg-front-1', 'peg-back-1', nameOf(G.playerIds[0]));
-  html += drawTrack(p2Holes, yTop2, 'peg-front-2', 'peg-back-2', nameOf(G.playerIds[1] || ''));
+  // --- Group divider notches every 5 holes (visual flourish) ---
+  for (let r = 0; r < 3; r++){
+    const y = rowYs[r];
+    for (let g = 5; g < holesPerRow; g += 5){
+      const k = g - 0.5;
+      const x = (r % 2 === 0) ? xStart + k*dx : xEnd - k*dx;
+      html += `<line x1="${x}" y1="${y - lane - 4}" x2="${x}" y2="${y + lane + 4}"
+                stroke="#4a2e18" stroke-width="0.6" opacity="0.6"/>`;
+    }
+  }
 
-  // Pegs
-  function drawPegs(holes, pegFrontClass, pegBackClass, scoreNow, scorePrev){
-    let h = '';
-    // back peg = scorePrev (the previous position); front peg = scoreNow
+  // --- Start (S) and game-hole (121) labels ---
+  html += `<text x="${xStart - 26}" y="${rowYs[0] - lane - 14}" text-anchor="middle"
+            font-size="11" fill="#fde68a" font-weight="700">S</text>`;
+  html += `<text x="${xEnd + 26}" y="${rowYs[2] + lane + 22}" text-anchor="middle"
+            font-size="11" fill="#fde68a" font-weight="700">121</text>`;
+
+  // --- Holes ---
+  function drawHoles(positions){
+    let s = '';
+    for (let i = 0; i <= 121; i++){
+      const p = positions[i];
+      s += `<circle cx="${p.x}" cy="${p.y}" r="${holeR}"
+              fill="#2a1a0d" stroke="#4a2e18" stroke-width="0.4"/>`;
+    }
+    return s;
+  }
+  html += drawHoles(p1);
+  html += drawHoles(p2);
+
+  // --- Player name labels in the empty space to the left of the start hole ---
+  const u1 = G.playerIds[0], u2 = G.playerIds[1];
+  html += `<text x="34" y="${rowYs[0] - lane + 3}" font-size="11"
+              fill="#fde68a" font-weight="700">${escapeXML(nameOf(u1))}</text>`;
+  if (u2) html += `<text x="34" y="${rowYs[0] + lane + 4}" font-size="11"
+              fill="#fde68a" font-weight="700">${escapeXML(nameOf(u2))}</text>`;
+
+  // --- Pegs ---
+  function drawPegs(positions, classFront, classBack, scoreNow, scorePrev){
+    let s = '';
     const back = clamp(scorePrev, 0, 121);
     const front = clamp(scoreNow, 0, 121);
-    const bp = holes[back];
-    const fp = holes[front];
-    if (bp) h += `<circle class="peg peg-move ${pegBackClass}"  cx="${bp.x}" cy="${bp.y}" r="${holeSize+1.2}" />`;
-    if (fp) h += `<circle class="peg peg-move ${pegFrontClass}" cx="${fp.x}" cy="${fp.y}" r="${holeSize+1.2}" />`;
-    return h;
+    const bp = positions[back];
+    const fp = positions[front];
+    if (bp) s += `<circle class="peg peg-move ${classBack}"  cx="${bp.x}" cy="${bp.y}" r="${holeR+1.6}"/>`;
+    if (fp) s += `<circle class="peg peg-move ${classFront}" cx="${fp.x}" cy="${fp.y}" r="${holeR+1.6}"/>`;
+    return s;
   }
-  const u1 = G.playerIds[0], u2 = G.playerIds[1];
-  html += drawPegs(p1Holes, 'peg-front-1', 'peg-back-1', G.scores[u1]||0, G.prevScores[u1]||0);
-  if (u2) html += drawPegs(p2Holes, 'peg-front-2', 'peg-back-2', G.scores[u2]||0, G.prevScores[u2]||0);
+  html += drawPegs(p1, 'peg-front-1', 'peg-back-1', G.scores[u1]||0, G.prevScores[u1]||0);
+  if (u2) html += drawPegs(p2, 'peg-front-2', 'peg-back-2', G.scores[u2]||0, G.prevScores[u2]||0);
 
-  svg.innerHTML = html;
-  svg.setAttribute('viewBox', `0 0 ${W} 220`);
+  // --- Defs for wood grain (subtle horizontal striations) ---
+  const defs = `<defs>
+    <pattern id="wood-grain" patternUnits="userSpaceOnUse" width="20" height="6">
+      <rect width="20" height="6" fill="#7a4a22"/>
+      <line x1="0" y1="3" x2="20" y2="3" stroke="#5a3618" stroke-width="0.4" opacity="0.6"/>
+    </pattern>
+  </defs>`;
+
+  svg.innerHTML = defs + html;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 }
 
 function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
@@ -1233,8 +1306,8 @@ function renderHands(){
   const oppId = opponentOf(userId);
 
   // Labels
-  $('player-label').textContent = `You — ${nameOf(userId)} ${G.dealer===userId?'(Dealer)':'(Pone)'}`;
-  $('opponent-label').textContent = `Opponent — ${oppId?nameOf(oppId):'(waiting)'} ${oppId? (G.dealer===oppId?'(Dealer)':'(Pone)') : ''}`;
+  $('player-label').textContent = `You — ${nameOf(userId)}${G.dealer===userId?' (Dealer)':''}`;
+  $('opponent-label').textContent = `Opponent — ${oppId?nameOf(oppId):'(waiting)'}${oppId && G.dealer===oppId ? ' (Dealer)' : ''}`;
 
   if (!G.hands || !G.hands[userId]) return;
 
@@ -1286,7 +1359,7 @@ function renderCrib(){
   $('crib-label').textContent = `Crib (${G.dealer ? nameOf(G.dealer)+"'s" : ''})`;
   const cribCards = G.crib || [];
   // During the game, crib is hidden until counted.
-  const showFaces = (G.phase === 'count_crib') || (G.phase === 'game_done');
+  const showFaces = (G.phase === 'count') || (G.phase === 'game_done');
   for (let i=0;i<cribCards.length;i++){
     const el2 = document.createElement('div');
     el2.className = 'card';
@@ -1301,6 +1374,26 @@ function renderCrib(){
 function renderStarter(){
   const el = $('starter-area');
   el.innerHTML = '';
+  if (G.phase === 'cut_for_deal' || G.phase === 'cut_for_deal_done'){
+    const wrap = document.createElement('div');
+    wrap.className = 'flex items-center gap-3';
+    for (const uid of G.playerIds){
+      const col = document.createElement('div');
+      col.className = 'flex flex-col items-center gap-1';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'text-xs text-emerald-100/80 font-semibold';
+      nameEl.textContent = nameOf(uid);
+      col.appendChild(nameEl);
+      const cardEl = document.createElement('div');
+      cardEl.className = 'card';
+      const c = G.cutForDeal && G.cutForDeal[uid];
+      cardEl.innerHTML = c ? renderCardSVG(c, {w:44,h:62}) : renderBackSVG(44,62);
+      col.appendChild(cardEl);
+      wrap.appendChild(col);
+    }
+    el.appendChild(wrap);
+    return;
+  }
   if (G.phase === 'cut' && userId === G.pone){
     // Render the cut UI
     const wrap = document.createElement('div');
@@ -1354,6 +1447,30 @@ function renderActions(){
   const el = $('action-area');
   el.innerHTML = '';
   if (!G.player2) return;
+  if (G.phase === 'cut_for_deal'){
+    const meCut = G.cutForDeal && G.cutForDeal[userId];
+    if (!meCut){
+      const btn = document.createElement('button');
+      btn.className = 'bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-lg';
+      btn.textContent = 'Cut deck';
+      btn.addEventListener('click', actCutForDeal);
+      el.appendChild(btn);
+    } else {
+      const wait = document.createElement('div');
+      wait.className = 'text-emerald-100/80 italic text-sm';
+      wait.textContent = `Waiting for ${nameOf(opponentOf(userId))}…`;
+      el.appendChild(wait);
+    }
+    return;
+  }
+  if (G.phase === 'cut_for_deal_done'){
+    const btn = document.createElement('button');
+    btn.className = 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg';
+    btn.textContent = `Start hand — ${nameOf(G.dealer)} deals`;
+    btn.addEventListener('click', actStartFirstHand);
+    el.appendChild(btn);
+    return;
+  }
   if (G.phase === 'discard'){
     const myHand = G.hands[userId] || [];
     if (myHand.length > 4){
@@ -1394,59 +1511,54 @@ function renderActions(){
   }
 }
 
-/* ---- Breakdown modal: scoring display + dual-continue gating ---- */
+/* ---- Breakdown modal: combined scoring display + dual-continue gating ---- */
 function renderBreakdownModal(){
   const modal = $('breakdown-modal');
-  const phases = ['count_pone','count_dealer','count_crib'];
-  if (!phases.includes(G.phase) || !G.countBreakdown){
+  if (G.phase !== 'count' || !G.countBreakdown){
     modal.classList.add('hidden');
     return;
   }
   modal.classList.remove('hidden');
   const cb = G.countBreakdown;
-  const ownerName = nameOf(cb.uid);
-  const sourceLabel = cb.source === 'crib' ? "crib" : "hand";
-  $('breakdown-title').innerHTML =
-    `${escapeHTML(ownerName)}'s ${sourceLabel} — <span class="text-emerald-600">${cb.total} pts</span>`;
 
-  // Cards
-  const cardsEl = $('breakdown-cards');
-  cardsEl.innerHTML = '';
-  for (const c of cb.cards){
-    const d = document.createElement('div');
-    d.className = 'card';
-    d.innerHTML = renderCardSVG(c, {w:42,h:60});
-    cardsEl.appendChild(d);
-  }
-  // starter beside (only for hand counts; crib counting also uses starter)
-  if (cb.starter){
-    const d = document.createElement('div');
-    d.className = 'card ml-1';
-    d.innerHTML = renderCardSVG(cb.starter, {w:42,h:60});
-    d.title = 'Starter';
-    cardsEl.appendChild(d);
-  }
+  // Starter
+  $('breakdown-starter-card').innerHTML = cb.starter ? renderCardSVG(cb.starter, {w:32,h:46}) : '';
 
-  // Breakdown items
-  const ib = $('breakdown-items');
-  if (cb.items.length === 0){
-    ib.innerHTML = '<div class="text-stone-500 italic">No points scored.</div>';
-  } else {
-    ib.innerHTML = cb.items.map(it => `
-      <div class="breakdown-item">
-        <span>${escapeHTML(it.name)}${it.cards?'  <span class="text-stone-400 text-xs">'+it.cards.map(labelOf).join('-')+'</span>':''}</span>
-        <span class="font-semibold">${it.pts}</span>
-      </div>
-    `).join('') + `<div class="breakdown-item"><span>Total</span><span>${cb.total}</span></div>`;
-  }
+  // Sections: pone hand, dealer hand, crib
+  const sections = [
+    { key:'pone',   label:`${nameOf(cb.pone.uid)} — hand`,   block: cb.pone },
+    { key:'dealer', label:`${nameOf(cb.dealer.uid)} — hand`, block: cb.dealer },
+    { key:'crib',   label:`${nameOf(cb.crib.uid)}'s crib`,   block: cb.crib }
+  ];
 
-  // Continue button + status
+  const out = sections.map(s => {
+    const cardsHtml = s.block.cards.map(c =>
+      `<div class="card inline-block">${renderCardSVG(c, {w:36,h:52})}</div>`
+    ).join('');
+    const itemsHtml = s.block.items.length === 0
+      ? `<div class="text-stone-400 italic text-sm">No points.</div>`
+      : s.block.items.map(it => `
+          <div class="breakdown-item">
+            <span>${escapeHTML(it.name)}${it.cards?' <span class="text-stone-400 text-xs">'+it.cards.map(labelOf).join('-')+'</span>':''}</span>
+            <span class="font-semibold">${it.pts}</span>
+          </div>`).join('');
+    return `
+      <div class="border border-stone-200 rounded-lg p-3">
+        <div class="flex items-baseline justify-between mb-2">
+          <div class="font-semibold">${escapeHTML(s.label)}</div>
+          <div class="text-emerald-700 font-bold">+${s.block.total}</div>
+        </div>
+        <div class="flex flex-wrap gap-1 mb-2">${cardsHtml}</div>
+        <div class="text-sm text-stone-700">${itemsHtml}</div>
+      </div>`;
+  }).join('');
+  $('breakdown-sections').innerHTML = out;
+
   const btn = $('breakdown-continue-btn');
   const meAcked = G.countAcks.includes(userId);
   btn.disabled = meAcked;
   btn.textContent = meAcked ? 'Waiting for opponent…' : 'Continue';
-  $('breakdown-continue-status').textContent =
-    `${G.countAcks.length}/${G.playerIds.length} players ready`;
+  $('breakdown-continue-status').textContent = `${G.countAcks.length}/${G.playerIds.length} players ready`;
   btn.onclick = actContinueCount;
 }
 
