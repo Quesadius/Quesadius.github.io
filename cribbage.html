@@ -663,10 +663,17 @@ async function joinExistingGame(id){
     data.playerIds = [...data.playerIds, userId];
     data.scores[userId] = 0;
     data.prevScores[userId] = 0;
-    // First dealer is decided by cut: lowest card deals.
-    data.phase = 'cut_for_deal';
-    data.cutForDeal = {};
-    data.cutForDealTies = 0;
+    // First dealer is decided by cut: draw two distinct-rank cards atomically.
+    const deck = shuffleInPlace(makeDeck());
+    let c1 = deck[0], c2 = deck[1], idx = 2;
+    while (orderOf(c1) === orderOf(c2) && idx < deck.length - 1){
+      c1 = deck[idx]; c2 = deck[idx+1]; idx += 2;
+    }
+    const u1 = data.player1.uid, u2 = userId;
+    data.cutForDeal = { [u1]: c1, [u2]: c2 };
+    data.dealer = orderOf(c1) < orderOf(c2) ? u1 : u2;
+    data.firstDealerUid = data.dealer;
+    data.phase = 'cut_for_deal_done';
     await setDoc(ref, data);
   }
   attachListener(id);
