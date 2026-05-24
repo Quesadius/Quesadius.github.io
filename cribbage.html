@@ -207,7 +207,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc,
-         collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp
+         collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp,
+         runTransaction
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 /* ========================================================================
@@ -574,6 +575,32 @@ function gameRef(uuid){ return doc(db, `${GAMES_PATH}/${gameDocId(uuid)}`); }
 function historyRef(uuid){ return doc(db, `${GAMES_PATH}/${historyDocId(uuid)}`); }
 function playerRef(uid){ return doc(db, `${GAMES_PATH}/${playerDocId(uid)}`); }
 
+// Atomic read-modify-write helper for any action where both players can act concurrently.
+// modifyFn(fresh) may mutate `fresh` and return it, or return false to abort.
+async function txUpdate(modifyFn){
+  if (!gameId){
+    console.error('[cribbage] txUpdate with null gameId');
+    alert('Internal error: gameId not set. Reload the page.');
+    throw new Error('gameId null');
+  }
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(gameRef(gameId));
+      if (!snap.exists()) return;
+      const fresh = snap.data();
+      const result = modifyFn(fresh);
+      if (result === false) return;
+      const out = result || fresh;
+      out.lastUpdated = Date.now();
+      tx.set(gameRef(gameId), out);
+    });
+  } catch(e){
+    console.error('Transaction failed:', e);
+    alert(`Sync failed: ${e.code || e.message}. Check your network and reload.`);
+    throw e;
+  }
+}
+
 async function pushState(gs){
   if (!gameId){
     console.error('[cribbage] pushState with null gameId; aborting');
@@ -708,59 +735,65 @@ function sortCardsByOrder(a,b){ return orderOf(a) - orderOf(b); }
 
 async function actCutForDeal(){
   if (!G || G.phase !== 'cut_for_deal') return;
-  if (G.cutForDeal && G.cutForDeal[userId]) return;  // already cut
-  const gs = clone(G);
-  gs.cutForDeal = gs.cutForDeal || {};
-  // Draw one card not already held by the opponent
-  const taken = Object.values(gs.cutForDeal);
-  const deck = makeDeck().filter(c => !taken.includes(c));
-  shuffleInPlace(deck);
-  gs.cutForDeal[userId] = deck[0];
-  const allCut = gs.playerIds.every(uid => gs.cutForDeal[uid]);
-  if (allCut){
-    const [u1, u2] = gs.playerIds;
-    const c1 = gs.cutForDeal[u1], c2 = gs.cutForDeal[u2];
-    if (orderOf(c1) === orderOf(c2)){
-      // Tie — clear, both must cut again
-      gs.cutForDeal = {};
-      gs.cutForDealTies = (gs.cutForDealTies || 0) + 1;
-    } else {
-      gs.dealer = orderOf(c1) < orderOf(c2) ? u1 : u2;
-      gs.firstDealerUid = gs.dealer;
-      gs.phase = 'cut_for_deal_done';
+  if (G.cutForDeal && G.cutForDeal[userId]) return;
+  await txUpdate((fresh) => {
+    if (fresh.phase !== 'cut_for_deal') return false;
+    if (fresh.cutForDeal && fresh.cutForDeal[userId]) return false;
+    fresh.cutForDeal = fresh.cutForDeal || {};
+    const taken = Object.values(fresh.cutForDeal);
+    const deck = makeDeck().filter(c => !taken.includes(c));
+    shuffleInPlace(deck);
+    fresh.cutForDeal[userId] = deck[0];
+    const allCut = fresh.playerIds.every(uid => fresh.cutForDeal[uid]);
+    if (allCut){
+      const [u1, u2] = fresh.playerIds;
+      const c1 = fresh.cutForDeal[u1], c2 = fresh.cutForDeal[u2];
+      if (orderOf(c1) === orderOf(c2)){
+        fresh.cutForDeal = {};
+        fresh.cutForDealTies = (fresh.cutForDealTies || 0) + 1;
+      } else {
+        fresh.dealer = orderOf(c1) < orderOf(c2) ? u1 : u2;
+        fresh.firstDealerUid = fresh.dealer;
+        fresh.phase = 'cut_for_deal_done';
+      }
     }
-  }
-  await pushState(gs);
+    return fresh;
+  });
 }
 
 async function actStartFirstHand(){
   if (!G || G.phase !== 'cut_for_deal_done') return;
-  const gs = clone(G);
-  delete gs.cutForDeal;
-  delete gs.cutForDealTies;
-  startNewHand(gs);
-  await pushState(gs);
+  await txUpdate((fresh) => {
+    if (fresh.phase !== 'cut_for_deal_done') return false;
+    delete fresh.cutForDeal;
+    delete fresh.cutForDealTies;
+    startNewHand(fresh);
+    return fresh;
+  });
 }
 
 async function actDiscardToCrib(cards){
-  console.log('[cribbage] actDiscardToCrib called with', cards, 'userId=', userId, 'phase=', G && G.phase);
+  console.log('[cribbage] actDiscardToCrib called with', cards, 'userId=', userId);
   if (!G){ alert('Game state not loaded.'); return; }
   if (G.phase !== 'discard'){ alert(`Cannot discard in phase: ${G.phase}`); return; }
-  const gs = clone(G);
-  const myHand = gs.hands && gs.hands[userId];
-  if (!myHand){ alert(`Your hand isn't dealt yet. (uid=${userId})`); return; }
-  for (const c of cards){
-    const ix = myHand.indexOf(c);
-    if (ix < 0){
-      alert(`Card ${c} not in your hand: [${myHand.join(', ')}]`);
-      return;
+  await txUpdate((fresh) => {
+    if (fresh.phase !== 'discard') return false;
+    const myHand = fresh.hands && fresh.hands[userId];
+    if (!myHand){ alert(`Your hand isn't dealt yet.`); return false; }
+    if (myHand.length <= 4) return false;  // already discarded
+    for (const c of cards){
+      const ix = myHand.indexOf(c);
+      if (ix < 0){
+        alert(`Card ${c} not in your hand: [${myHand.join(', ')}]`);
+        return false;
+      }
+      myHand.splice(ix,1);
     }
-    myHand.splice(ix,1);
-  }
-  gs.crib.push(...cards);
-  const allDone = gs.playerIds.every(uid => gs.hands[uid].length === 4);
-  if (allDone) gs.phase = 'cut';
-  await pushState(gs);
+    fresh.crib.push(...cards);
+    const allDone = fresh.playerIds.every(uid => fresh.hands[uid].length === 4);
+    if (allDone) fresh.phase = 'cut';
+    return fresh;
+  });
 }
 
 async function actCutDeck(position){
@@ -931,18 +964,17 @@ function enterCounting(gs){
 
 async function actContinueCount(){
   if (!G || G.phase !== 'count') return;
-  const gs = clone(G);
-  if (!gs.countAcks.includes(userId)) gs.countAcks.push(userId);
-  if (gs.countAcks.length < gs.playerIds.length){
-    await pushState(gs);
-    return;
-  }
-  // Both clicked — advance to next hand (or game-over already set).
-  gs.countAcks = [];
-  gs.countBreakdown = null;
-  if (checkGameOver(gs)){ await pushState(gs); return; }
-  startNewHand(gs);
-  await pushState(gs);
+  await txUpdate((fresh) => {
+    if (fresh.phase !== 'count') return false;
+    if (!fresh.countAcks) fresh.countAcks = [];
+    if (!fresh.countAcks.includes(userId)) fresh.countAcks.push(userId);
+    if (fresh.countAcks.length < fresh.playerIds.length) return fresh;
+    fresh.countAcks = [];
+    fresh.countBreakdown = null;
+    if (checkGameOver(fresh)) return fresh;
+    startNewHand(fresh);
+    return fresh;
+  });
 }
 
 /* ========================================================================
@@ -1095,9 +1127,14 @@ function renderStatus(){
       break;
     }
     case 'cut_for_deal_done': {
-      const me = G.cutForDeal[userId], opp = G.cutForDeal[opponentOf(userId)];
+      const cd = G.cutForDeal || {};
+      const me = cd[userId], opp = cd[opponentOf(userId)];
       const dealerName = nameOf(G.dealer);
-      el.textContent = `${nameOf(userId)} cut ${labelOf(me)}${SUIT_GLYPH[suitOf(me)]}, ${nameOf(opponentOf(userId))} cut ${labelOf(opp)}${SUIT_GLYPH[suitOf(opp)]}. ${dealerName} deals first.`;
+      if (me && opp){
+        el.textContent = `${nameOf(userId)} cut ${labelOf(me)}${SUIT_GLYPH[suitOf(me)]}, ${nameOf(opponentOf(userId))} cut ${labelOf(opp)}${SUIT_GLYPH[suitOf(opp)]}. ${dealerName} deals first.`;
+      } else {
+        el.textContent = `${dealerName} deals first.`;
+      }
       break;
     }
     case 'discard': {
