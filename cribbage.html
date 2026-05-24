@@ -573,8 +573,20 @@ function historyRef(uuid){ return doc(db, `${GAMES_PATH}/${historyDocId(uuid)}`)
 function playerRef(uid){ return doc(db, `${GAMES_PATH}/${playerDocId(uid)}`); }
 
 async function pushState(gs){
+  if (!gameId){
+    console.error('[cribbage] pushState with null gameId; aborting');
+    alert('Internal error: gameId not set. Reload the page.');
+    throw new Error('gameId null');
+  }
   gs.lastUpdated = Date.now();
-  await setDoc(gameRef(gameId), gs);
+  console.log('[cribbage] pushState writing to', gameDocId(gameId), 'phase=', gs.phase);
+  try {
+    await setDoc(gameRef(gameId), gs);
+  } catch(e){
+    console.error('Firestore write failed:', e);
+    alert(`Sync failed: ${e.code || e.message}. Check your network and reload.`);
+    throw e;
+  }
 }
 
 async function setupNewGame(){
@@ -693,21 +705,23 @@ function sortCardsByOrder(a,b){ return orderOf(a) - orderOf(b); }
 /* Actions during play */
 
 async function actDiscardToCrib(cards){
-  if (!G || G.phase !== 'discard') return;
+  console.log('[cribbage] actDiscardToCrib called with', cards, 'userId=', userId, 'phase=', G && G.phase);
+  if (!G){ alert('Game state not loaded.'); return; }
+  if (G.phase !== 'discard'){ alert(`Cannot discard in phase: ${G.phase}`); return; }
   const gs = clone(G);
-  const myHand = gs.hands[userId];
+  const myHand = gs.hands && gs.hands[userId];
+  if (!myHand){ alert(`Your hand isn't dealt yet. (uid=${userId})`); return; }
   for (const c of cards){
     const ix = myHand.indexOf(c);
-    if (ix < 0) return;
+    if (ix < 0){
+      alert(`Card ${c} not in your hand: [${myHand.join(', ')}]`);
+      return;
+    }
     myHand.splice(ix,1);
   }
   gs.crib.push(...cards);
-  // If both have discarded (each hand has 4), move to cut
   const allDone = gs.playerIds.every(uid => gs.hands[uid].length === 4);
-  if (allDone){
-    gs.phase = 'cut';
-    // Pone is the cutter
-  }
+  if (allDone) gs.phase = 'cut';
   await pushState(gs);
 }
 
@@ -1349,10 +1363,20 @@ function renderActions(){
       btn.disabled = localSelection.length !== need;
       btn.textContent = `Confirm discard (${localSelection.length}/${need})`;
       btn.addEventListener('click', async ()=>{
-        if (localSelection.length === need){
-          const sel = [...localSelection];
-          localSelection = [];
+        console.log('[cribbage] confirm-discard clicked; localSelection=', localSelection, 'need=', need);
+        if (localSelection.length !== need){
+          alert(`Select exactly ${need} card${need===1?'':'s'} (you have ${localSelection.length}).`);
+          return;
+        }
+        const sel = [...localSelection];
+        localSelection = [];
+        btn.disabled = true;
+        btn.textContent = 'Discarding…';
+        try {
           await actDiscardToCrib(sel);
+        } catch(e){
+          console.error('Discard threw:', e);
+          alert(`Discard threw: ${e.message || e}`);
         }
       });
       el.appendChild(btn);
