@@ -47,10 +47,41 @@
   @media (max-width: 640px) {
     .card svg { width: 50px !important; height: 72px !important; }
   }
+
+  /* Pegging scoring popup */
+  #peg-popup {
+    position: fixed;
+    top: 22%;
+    left: 50%;
+    z-index: 60;                  /* above the breakdown modal (z-50) */
+    transform: translate(-50%, 0);
+    background: rgba(17, 24, 39, 0.92);
+    color: #fde68a;
+    padding: 12px 22px;
+    border-radius: 14px;
+    font-size: 1.4rem;
+    font-weight: 600;
+    box-shadow: 0 12px 28px rgba(0,0,0,.4);
+    pointer-events: none;
+    opacity: 0;
+  }
+  #peg-popup .who { font-size: .9rem; font-weight: 500; opacity: .8; display:block; }
+  #peg-popup .pts { color: #34d399; font-weight: 800; }
+  .peg-popup-show { animation: peg-popup-anim 2.4s ease-out forwards; }
+  @keyframes peg-popup-anim {
+    0%   { opacity: 0; transform: translate(-50%, 12px) scale(.92); }
+    10%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    78%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -10px) scale(.96); }
+  }
+
+  /* Faded styling for cards from a just-completed pegging round */
+  .peg-round-done .card { opacity: 0.6; filter: grayscale(0.25); }
 </style>
 </head>
 <body class="bg-stone-100 min-h-screen text-stone-800">
 
+<div id="peg-popup"></div>
 <div id="app" class="max-w-6xl mx-auto p-3 sm:p-6">
 
   <!-- ============ MAIN MENU ============ -->
@@ -246,6 +277,7 @@ let G = null;              // last known game state (server snapshot)
 let localSelection = [];   // local UI: cards selected for crib
 let cutSliderPos = 20;     // 0..39 (slider over the 40 undealt cards)
 let lastRenderedPhase = null;
+let lastShownPegEventAt = 0;
 
 const LOCAL_NAME_KEY = 'cribbage_player_name';
 
@@ -728,6 +760,8 @@ function startNewHand(gs){
   gs.peggingTurn = null;
   gs.peggingGoes = [];
   gs.peggingDone = false;
+  gs.peggingRoundCompleted = false;
+  gs.lastPegEvent = null;
   gs.countBreakdown = null;
   gs.countAcks = [];
   gs.phase = 'discard';
@@ -828,6 +862,16 @@ async function actPlayCard(card){
   if (!G || G.phase !== 'pegging') return;
   if (G.peggingTurn !== userId) return;
   const gs = clone(G);
+
+  // If the previous round was just completed (after a 31 / go), defer the reset
+  // until now so the cards stayed visible. Reset before we add this new play.
+  if (gs.peggingRoundCompleted){
+    gs.peggingRound = [];
+    gs.peggingTotal = 0;
+    gs.peggingGoes = [];
+    gs.peggingRoundCompleted = false;
+  }
+
   const myHand = gs.hands[userId];
   const ix = myHand.indexOf(card);
   if (ix < 0) return;
@@ -842,7 +886,7 @@ async function actPlayCard(card){
   const { pts, items } = scorePeggingPlay(cards);
   if (pts > 0){
     addScore(gs, userId, pts);
-    gs.lastPegBreakdown = { uid: userId, items, total: pts };
+    gs.lastPegEvent = { uid: userId, items, total: pts, at: Date.now() };
     const runItem = items.find(i => i.name && i.name.startsWith('Run'));
     if (runItem){
       gs.bests[userId] = gs.bests[userId] || {};
@@ -857,15 +901,17 @@ async function actPlayCard(card){
   if (allEmpty){
     if (!hit31){
       addScore(gs, userId, 1);
-      gs.lastPegBreakdown = { uid: userId, items: [{name:'Last card', pts:1}], total: 1 };
+      // Combine the play's items (if any) with the +1 last-card so the popup shows both.
+      const lastItems = [...(pts>0?items:[]), {name:'Last card', pts:1}];
+      const lastTotal = (pts>0?pts:0) + 1;
+      gs.lastPegEvent = { uid: userId, items: lastItems, total: lastTotal, at: Date.now() };
       if (checkGameOver(gs)){ await pushState(gs); return; }
     }
+    gs.peggingRoundCompleted = true;   // keep cards on screen during count
     enterCounting(gs);
   } else if (hit31){
-    // Round resets. Next leader = opponent of last player.
-    gs.peggingRound = [];
-    gs.peggingTotal = 0;
-    gs.peggingGoes = [];
+    // Mark the round as completed — KEEP cards visible. They'll be cleared on the next play.
+    gs.peggingRoundCompleted = true;
     gs.peggingTurn = opponentInGame(gs, userId);
   } else {
     const opp = opponentInGame(gs, userId);
@@ -874,22 +920,20 @@ async function actPlayCard(card){
     if (oppCanPlay){
       gs.peggingTurn = opp;
     } else if (oppHandEmpty || gs.peggingGoes.includes(opp)){
-      // Opp out of cards or has already said go.
       const meCanPlayMore = gs.hands[userId].some(c => valueOf(c) + gs.peggingTotal <= 31);
       if (meCanPlayMore){
         gs.peggingTurn = userId;
       } else {
-        // Both stuck → end round; +1 last card to me.
+        // Both stuck → end round; +1 last card to me. Keep cards visible.
         addScore(gs, userId, 1);
-        gs.lastPegBreakdown = { uid: userId, items: [{name:'Last card', pts:1}], total:1 };
+        const lastItems = [...(pts>0?items:[]), {name:'Last card', pts:1}];
+        const lastTotal = (pts>0?pts:0) + 1;
+        gs.lastPegEvent = { uid: userId, items: lastItems, total: lastTotal, at: Date.now() };
         if (checkGameOver(gs)){ await pushState(gs); return; }
-        gs.peggingRound = [];
-        gs.peggingTotal = 0;
-        gs.peggingGoes = [];
+        gs.peggingRoundCompleted = true;
         gs.peggingTurn = opp;
       }
     } else {
-      // Opp can't play but hasn't said go yet — they'll click "Go" on their turn.
       gs.peggingTurn = opp;
     }
   }
@@ -910,16 +954,14 @@ async function actSayGo(){
   if (oppCanPlay){
     gs.peggingTurn = oppId;
   } else {
-    // Neither can play. Award +1 to last player.
+    // Neither can play. Award +1 to last player. Keep cards visible.
     const lastPlay = gs.peggingRound[gs.peggingRound.length-1];
     if (lastPlay){
       addScore(gs, lastPlay.uid, 1);
-      gs.lastPegBreakdown = { uid: lastPlay.uid, items: [{name:'Go', pts:1}], total:1 };
+      gs.lastPegEvent = { uid: lastPlay.uid, items: [{name:'Go', pts:1}], total:1, at: Date.now() };
       if (checkGameOver(gs)){ await pushState(gs); return; }
     }
-    gs.peggingRound = [];
-    gs.peggingTotal = 0;
-    gs.peggingGoes = [];
+    gs.peggingRoundCompleted = true;   // KEEP cards on screen until next play
     if (gs.playerIds.every(uid => gs.hands[uid].length === 0)){
       enterCounting(gs);
     } else if (lastPlay){
@@ -1105,6 +1147,7 @@ function render(){
   // Drop any local selections no longer present in our hand (new deal, etc.).
   const myHand = (G.hands && G.hands[userId]) || [];
   localSelection = localSelection.filter(c => myHand.includes(c));
+  maybeShowPegPopup();
   renderStatus();
   renderScoreBar();
   renderBoard();
@@ -1470,20 +1513,39 @@ function renderStarter(){
 function renderPegging(){
   const el = $('pegging-area');
   el.innerHTML = '';
-  $('pegging-total').textContent = (G.phase === 'pegging') ? `Total: ${G.peggingTotal}` : '';
-  if (G.phase !== 'pegging' || !G.peggingRound) {
-    if (G.lastPegBreakdown && (G.phase === 'pegging' || G.phase === 'count_pone')){
-      // Could show last play summary; skip for now.
-    }
-    return;
-  }
-  for (const p of G.peggingRound){
+  el.classList.toggle('peg-round-done', !!G.peggingRoundCompleted);
+  const inPegging = (G.phase === 'pegging');
+  $('pegging-total').textContent = inPegging
+    ? (G.peggingRoundCompleted ? `Total: ${G.peggingTotal} ✓` : `Total: ${G.peggingTotal}`)
+    : '';
+  // Keep showing the most recent round even after phase moved (so the last card stays visible).
+  const round = G.peggingRound || [];
+  if (round.length === 0) return;
+  for (const p of round){
     const c = document.createElement('div');
     c.className = 'card';
     c.title = `${nameOf(p.uid)} played`;
     c.innerHTML = renderCardSVG(p.card, {w:50,h:72});
     el.appendChild(c);
   }
+}
+
+/* Pegging scoring popup ("Fifteen for 2", etc.) — shows briefly on each new event. */
+function maybeShowPegPopup(){
+  if (!G || !G.lastPegEvent) return;
+  const at = G.lastPegEvent.at || 0;
+  if (at <= lastShownPegEventAt) return;
+  lastShownPegEventAt = at;
+  const popup = $('peg-popup');
+  if (!popup) return;
+  const ev = G.lastPegEvent;
+  const who = ev.uid === userId ? 'You' : nameOf(ev.uid);
+  const names = ev.items.map(i => i.name).join(' + ');
+  popup.innerHTML = `<span class="who">${escapeHTML(who)}</span>${escapeHTML(names)} for <span class="pts">${ev.total}</span>`;
+  // Restart the animation
+  popup.classList.remove('peg-popup-show');
+  void popup.offsetWidth;
+  popup.classList.add('peg-popup-show');
 }
 
 /* ---- Action area ---- */
