@@ -278,6 +278,7 @@ let localSelection = [];   // local UI: cards selected for crib
 let cutSliderPos = 20;     // 0..39 (slider over the 40 undealt cards)
 let lastRenderedPhase = null;
 let lastShownPegEventAt = 0;
+let pendingAction = null;   // 'discard' | 'continue' | ... — survives re-renders
 
 const LOCAL_NAME_KEY = 'cribbage_player_name';
 
@@ -609,25 +610,36 @@ function playerRef(uid){ return doc(db, `${GAMES_PATH}/${playerDocId(uid)}`); }
 
 // Atomic read-modify-write helper for any action where both players can act concurrently.
 // modifyFn(fresh) may mutate `fresh` and return it, or return false to abort.
-async function txUpdate(modifyFn){
+async function txUpdate(modifyFn, label){
+  const tag = label || 'tx';
   if (!gameId){
-    console.error('[cribbage] txUpdate with null gameId');
+    console.error(`[cribbage] ${tag} with null gameId`);
     alert('Internal error: gameId not set. Reload the page.');
     throw new Error('gameId null');
   }
+  console.log(`[cribbage] ${tag} starting`);
+  let attempts = 0;
   try {
-    await runTransaction(db, async (tx) => {
+    const txPromise = runTransaction(db, async (tx) => {
+      attempts++;
+      console.log(`[cribbage] ${tag} attempt #${attempts}`);
       const snap = await tx.get(gameRef(gameId));
-      if (!snap.exists()) return;
+      if (!snap.exists()){ console.log(`[cribbage] ${tag} doc missing`); return; }
       const fresh = snap.data();
       const result = modifyFn(fresh);
-      if (result === false) return;
+      if (result === false){ console.log(`[cribbage] ${tag} modifyFn aborted`); return; }
       const out = result || fresh;
       out.lastUpdated = Date.now();
       tx.set(gameRef(gameId), out);
+      console.log(`[cribbage] ${tag} attempt #${attempts} writing`);
     });
+    // 15s timeout so a hung transaction surfaces an error rather than spinning forever.
+    const timeoutPromise = new Promise((_, rej) =>
+      setTimeout(() => rej(new Error(`${tag} timed out after 15s`)), 15000));
+    await Promise.race([txPromise, timeoutPromise]);
+    console.log(`[cribbage] ${tag} done after ${attempts} attempt(s)`);
   } catch(e){
-    console.error('Transaction failed:', e);
+    console.error(`[cribbage] ${tag} failed:`, e);
     alert(`Sync failed: ${e.code || e.message}. Check your network and reload.`);
     throw e;
   }
@@ -810,7 +822,7 @@ async function actStartFirstHand(){
     delete fresh.cutForDealTies;
     startNewHand(fresh);
     return fresh;
-  });
+  }, 'startFirstHand');
 }
 
 async function actDiscardToCrib(cards){
@@ -834,7 +846,7 @@ async function actDiscardToCrib(cards){
     const allDone = fresh.playerIds.every(uid => fresh.hands[uid].length === 4);
     if (allDone) fresh.phase = 'cut';
     return fresh;
-  });
+  }, 'discard');
 }
 
 async function actCutDeck(position){
@@ -1023,7 +1035,7 @@ async function actContinueCount(){
     if (checkGameOver(fresh)) return fresh;
     startNewHand(fresh);
     return fresh;
-  });
+  }, 'continueCount');
 }
 
 /* ========================================================================
@@ -1571,9 +1583,18 @@ function renderActions(){
   }
   if (G.phase === 'cut_for_deal_done'){
     const btn = document.createElement('button');
-    btn.className = 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg';
-    btn.textContent = `Start hand — ${nameOf(G.dealer)} deals`;
-    btn.addEventListener('click', actStartFirstHand);
+    btn.className = 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-500 text-white font-semibold px-4 py-2 rounded-lg';
+    const isPending = (pendingAction === 'startHand');
+    btn.disabled = isPending;
+    btn.textContent = isPending ? 'Dealing…' : `Start hand — ${nameOf(G.dealer)} deals`;
+    btn.addEventListener('click', async ()=>{
+      if (pendingAction) return;
+      pendingAction = 'startHand';
+      render();
+      try { await actStartFirstHand(); }
+      catch(e){ console.error(e); }
+      finally { pendingAction = null; render(); }
+    });
     el.appendChild(btn);
     return;
   }
@@ -1583,9 +1604,11 @@ function renderActions(){
       const btn = document.createElement('button');
       btn.className = 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-500 text-white font-semibold px-4 py-2 rounded-lg';
       const need = myHand.length - 4;
-      btn.disabled = localSelection.length !== need;
-      btn.textContent = `Confirm discard (${localSelection.length}/${need})`;
+      const isPending = (pendingAction === 'discard');
+      btn.disabled = isPending || localSelection.length !== need;
+      btn.textContent = isPending ? 'Discarding…' : `Confirm discard (${localSelection.length}/${need})`;
       btn.addEventListener('click', async ()=>{
+        if (pendingAction) return;
         console.log('[cribbage] confirm-discard clicked; localSelection=', localSelection, 'need=', need);
         if (localSelection.length !== need){
           alert(`Select exactly ${need} card${need===1?'':'s'} (you have ${localSelection.length}).`);
@@ -1593,13 +1616,16 @@ function renderActions(){
         }
         const sel = [...localSelection];
         localSelection = [];
-        btn.disabled = true;
-        btn.textContent = 'Discarding…';
+        pendingAction = 'discard';
+        render();   // immediately reflect pending state
         try {
           await actDiscardToCrib(sel);
         } catch(e){
           console.error('Discard threw:', e);
           alert(`Discard threw: ${e.message || e}`);
+        } finally {
+          pendingAction = null;
+          render();
         }
       });
       el.appendChild(btn);
@@ -1662,10 +1688,18 @@ function renderBreakdownModal(){
 
   const btn = $('breakdown-continue-btn');
   const meAcked = G.countAcks.includes(userId);
-  btn.disabled = meAcked;
-  btn.textContent = meAcked ? 'Waiting for opponent…' : 'Continue';
+  const isPending = (pendingAction === 'continue');
+  btn.disabled = meAcked || isPending;
+  btn.textContent = isPending ? 'Continuing…' : (meAcked ? 'Waiting for opponent…' : 'Continue');
   $('breakdown-continue-status').textContent = `${G.countAcks.length}/${G.playerIds.length} players ready`;
-  btn.onclick = actContinueCount;
+  btn.onclick = async () => {
+    if (pendingAction) return;
+    pendingAction = 'continue';
+    render();
+    try { await actContinueCount(); }
+    catch(e){ console.error(e); }
+    finally { pendingAction = null; render(); }
+  };
 }
 
 function renderGameOverModal(){
