@@ -956,13 +956,13 @@ async function actSayGo(){
   if (!G || G.phase !== 'pegging') return;
   if (G.peggingTurn !== userId) return;
   const myHand = G.hands[userId];
-  const canPlay = myHand.some(c => valueOf(c) + G.peggingTotal <= 31);
+  const canPlay = myHand.some(c => valueOf(c) + effectivePegTotal(G) <= 31);
   if (canPlay) return;
   const gs = clone(G);
   if (!gs.peggingGoes.includes(userId)) gs.peggingGoes.push(userId);
   const oppId = opponentInGame(gs, userId);
   const oppHandEmpty = gs.hands[oppId].length === 0;
-  const oppCanPlay = !oppHandEmpty && gs.hands[oppId].some(c => valueOf(c) + gs.peggingTotal <= 31);
+  const oppCanPlay = !oppHandEmpty && gs.hands[oppId].some(c => valueOf(c) + effectivePegTotal(gs) <= 31);
   if (oppCanPlay){
     gs.peggingTurn = oppId;
   } else {
@@ -988,6 +988,14 @@ async function actSayGo(){
 function opponentInGame(gs, uid){
   return gs.playerIds.find(p => p !== uid);
 }
+
+// Effective running total for "can this player act?" decisions. Once a round is
+// completed (31 / go / both-stuck) the cards stay on screen until the next play,
+// but the running total no longer constrains the next leader — they're starting a
+// fresh round at 0. Using the raw peggingTotal here would trap the leader: every
+// card looks too big, so the UI offers only "Say Go", and each press re-awards the
+// go point to the last player. Display code still reads the raw peggingTotal.
+function effectivePegTotal(gs){ return gs.peggingRoundCompleted ? 0 : gs.peggingTotal; }
 
 function enterCounting(gs){
   // Reconstruct each player's 4-card hand from pegging history.
@@ -1418,7 +1426,7 @@ function renderHands(){
     const el = document.createElement('div');
     el.className = 'card card-btn';
     const selected = localSelection.includes(c);
-    const tooBig = inPegging && (valueOf(c) + G.peggingTotal > 31);
+    const tooBig = inPegging && (valueOf(c) + effectivePegTotal(G) > 31);
     const playable = inPegging && myTurn && !tooBig;
     if (selected) el.classList.add('card-selected');
     if (inPegging && (!myTurn || tooBig)) el.classList.add('card-disabled');
@@ -1632,7 +1640,7 @@ function renderActions(){
     }
   } else if (G.phase === 'pegging' && G.peggingTurn === userId){
     const myHand = G.hands[userId] || [];
-    const canPlay = myHand.some(c => valueOf(c) + G.peggingTotal <= 31);
+    const canPlay = myHand.some(c => valueOf(c) + effectivePegTotal(G) <= 31);
     if (!canPlay){
       const btn = document.createElement('button');
       btn.className = 'bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg';
