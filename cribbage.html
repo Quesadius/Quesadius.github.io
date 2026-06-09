@@ -1933,14 +1933,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       showMenu();
       // After they type a name and click "New Game", we'd lose context. Repurpose UI:
       // Replace "New Game" with "Join Game" temporarily.
-      const btn = $('new-game-btn');
+      // NOTE: the create-game handler above was attached with addEventListener, so we must
+      // physically drop it — otherwise a single click fires BOTH handlers (create a new
+      // orphan game AND join), and the joiner races into the wrong game, hanging both
+      // players on "Waiting for opponent…". Cloning the node discards its event listeners.
+      const oldBtn = $('new-game-btn');
+      const btn = oldBtn.cloneNode(true);
+      oldBtn.replaceWith(btn);
       btn.textContent = 'Join Game';
-      btn.onclick = async ()=>{
+      btn.addEventListener('click', async ()=>{
         const name = ($('name-input').value || '').trim();
         if (!name){ alert('Please enter your name.'); return; }
         localStorage.setItem(LOCAL_NAME_KEY, name);
         await joinExistingGame(urlGameId);
-      };
+      });
       return;
     }
     await joinExistingGame(urlGameId);
