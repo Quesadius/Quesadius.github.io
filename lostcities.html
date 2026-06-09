@@ -12,24 +12,24 @@
             display: flex;
             flex-direction: column;
             /* Arrange items vertically */
-            justify-content: center;
+            justify-content: flex-start;
             align-items: center;
             min-height: 100vh;
             background-color: #f0f0f0;
             margin: 0;
-            padding: 20px;
-            /* Add some padding around the content */
-            padding-top: 100px;
-            /* Add padding to the top to make space for the fixed scoreboard */
+            padding: 0 20px 20px;
+            /* No top padding needed: the scoreboard is sticky and flows in normal layout */
         }
 
         /* Styles for the fixed match scoreboard */
         #matchScoreboard {
-            position: fixed;
-            /* Keep the scoreboard visible when scrolling */
+            position: sticky;
+            /* Keep the scoreboard pinned to the top while scrolling, but flow in normal layout */
             top: 0;
-            left: 0;
-            right: 0;
+            /* Full-bleed bar: extend into the body's side padding */
+            width: calc(100% + 40px);
+            margin: 0 -20px;
+            box-sizing: border-box;
             background-color: #fff;
             padding: 10px 20px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -64,7 +64,7 @@
             align-items: center;
             justify-content: center;
             gap: 16px;
-            margin-top: 20px;
+            margin-top: 12px;
         }
 
         #gamesNav button {
