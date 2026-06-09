@@ -58,18 +58,63 @@
             background-color: #f2f2f2;
         }
 
-        /* Container for all grid rows to arrange them vertically */
-        #allGridsContainer {
+        /* Carousel navigation controls (below the fixed scoreboard) */
+        #gamesNav {
             display: flex;
-            flex-direction: column;
-            /* Stack rows of grids vertically */
-            gap: 40px;
-            /* Space between rows of grids */
-            justify-content: center;
             align-items: center;
-            /* Center the rows of grids */
+            justify-content: center;
+            gap: 16px;
             margin-top: 20px;
-            /* Add space below the fixed scoreboard */
+        }
+
+        #gamesNav button {
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            width: 44px;
+            height: 44px;
+            font-size: 1.3em;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        #gamesNav button:hover {
+            background-color: #45a049;
+        }
+
+        #gamesNav button:disabled {
+            background-color: #bdbdbd;
+            cursor: default;
+        }
+
+        #gameIndicator {
+            font-weight: bold;
+            font-size: 1.1em;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        /* Viewport that clips all but the current game; the track slides horizontally */
+        #allGridsContainer {
+            width: 100%;
+            max-width: 1600px;
+            overflow: hidden;
+            margin-top: 20px;
+            /* Add space below the carousel controls */
+        }
+
+        #gamesTrack {
+            display: flex;
+            transition: transform 0.3s ease;
+        }
+
+        /* Each game occupies one full-width slide */
+        #gamesTrack > .grid-row-container {
+            flex: 0 0 100%;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 0 8px;
         }
 
         /* Container for a row of grids to arrange them side-by-side */
@@ -319,41 +364,49 @@
         </table>
     </div>
 
+    <div id="gamesNav">
+        <button id="prevGameBtn" aria-label="Previous game">&#9664;</button>
+        <span id="gameIndicator">Game 1 of 3</span>
+        <button id="nextGameBtn" aria-label="Next game">&#9654;</button>
+    </div>
+
     <div id="allGridsContainer">
-        <div class="grid-row-container">
-            <div class="grid-section">
-                <h3 class="grid-title player1-name">Player 1</h3>
-                <div id="checkboxGridContainer1" class="checkbox-grid-container"></div>
-                <div id="totalScore1" class="total-score">0</div>
+        <div id="gamesTrack">
+            <div class="grid-row-container">
+                <div class="grid-section">
+                    <h3 class="grid-title player1-name">Player 1</h3>
+                    <div id="checkboxGridContainer1" class="checkbox-grid-container"></div>
+                    <div id="totalScore1" class="total-score">0</div>
+                </div>
+                <div class="grid-section">
+                    <h3 class="grid-title player2-name">Player 2</h3>
+                    <div id="checkboxGridContainer2" class="checkbox-grid-container"></div>
+                    <div id="totalScore2" class="total-score">0</div>
+                </div>
             </div>
-            <div class="grid-section">
-                <h3 class="grid-title player2-name">Player 2</h3>
-                <div id="checkboxGridContainer2" class="checkbox-grid-container"></div>
-                <div id="totalScore2" class="total-score">0</div>
+            <div class="grid-row-container">
+                <div class="grid-section">
+                    <h3 class="grid-title player1-name">Player 1</h3>
+                    <div id="checkboxGridContainer3" class="checkbox-grid-container"></div>
+                    <div id="totalScore3" class="total-score">0</div>
+                </div>
+                <div class="grid-section">
+                    <h3 class="grid-title player2-name">Player 2</h3>
+                    <div id="checkboxGridContainer4" class="checkbox-grid-container"></div>
+                    <div id="totalScore4" class="total-score">0</div>
+                </div>
             </div>
-        </div>
-        <div class="grid-row-container">
-            <div class="grid-section">
-                <h3 class="grid-title player1-name">Player 1</h3>
-                <div id="checkboxGridContainer3" class="checkbox-grid-container"></div>
-                <div id="totalScore3" class="total-score">0</div>
-            </div>
-            <div class="grid-section">
-                <h3 class="grid-title player2-name">Player 2</h3>
-                <div id="checkboxGridContainer4" class="checkbox-grid-container"></div>
-                <div id="totalScore4" class="total-score">0</div>
-            </div>
-        </div>
-        <div class="grid-row-container">
-            <div class="grid-section">
-                <h3 class="grid-title player1-name">Player 1</h3>
-                <div id="checkboxGridContainer5" class="checkbox-grid-container"></div>
-                <div id="totalScore5" class="total-score">0</div>
-            </div>
-            <div class="grid-section">
-                <h3 class="grid-title player2-name">Player 2</h3>
-                <div id="checkboxGridContainer6" class="checkbox-grid-container"></div>
-                <div id="totalScore6" class="total-score">0</div>
+            <div class="grid-row-container">
+                <div class="grid-section">
+                    <h3 class="grid-title player1-name">Player 1</h3>
+                    <div id="checkboxGridContainer5" class="checkbox-grid-container"></div>
+                    <div id="totalScore5" class="total-score">0</div>
+                </div>
+                <div class="grid-section">
+                    <h3 class="grid-title player2-name">Player 2</h3>
+                    <div id="checkboxGridContainer6" class="checkbox-grid-container"></div>
+                    <div id="totalScore6" class="total-score">0</div>
+                </div>
             </div>
         </div>
     </div>
@@ -699,6 +752,30 @@
                 // Hide Modal
                 modal.style.display = 'none';
             });
+
+            // --- Game carousel navigation ---
+            const totalGames = 3;
+            let currentGameIndex = 0;
+            const track = document.getElementById('gamesTrack');
+            const indicator = document.getElementById('gameIndicator');
+            const prevBtn = document.getElementById('prevGameBtn');
+            const nextBtn = document.getElementById('nextGameBtn');
+
+            function updateGameCarousel() {
+                track.style.transform = `translateX(-${currentGameIndex * 100}%)`;
+                indicator.textContent = `Game ${currentGameIndex + 1} of ${totalGames}`;
+                prevBtn.disabled = currentGameIndex === 0;
+                nextBtn.disabled = currentGameIndex === totalGames - 1;
+            }
+
+            prevBtn.addEventListener('click', () => {
+                if (currentGameIndex > 0) { currentGameIndex--; updateGameCarousel(); }
+            });
+            nextBtn.addEventListener('click', () => {
+                if (currentGameIndex < totalGames - 1) { currentGameIndex++; updateGameCarousel(); }
+            });
+
+            updateGameCarousel();
         });
 
         // --- How to use the function ---
