@@ -168,6 +168,18 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
         }
 
+        .card.stock {
+            background:
+                repeating-linear-gradient(45deg,
+                    #3b6fb5 0 6px, #2c5a99 6px 12px);
+            border: 4px solid #fff;
+            padding: 0;
+        }
+
+        .card.stock:hover {
+            transform: translateY(-4px);
+        }
+
         .card.selected {
             transform: translateY(-8px);
             box-shadow: 0 0 0 3px #f0c040, 0 6px 10px rgba(0, 0, 0, 0.5);
@@ -251,11 +263,14 @@
 
     <details id="rules">
         <summary>How to play</summary>
-        <p>All 52 cards are dealt in a single row. A pile may be placed on the pile
-            <strong>one position</strong> or <strong>three positions</strong> to its left when the two top
-            cards match in <strong>suit or rank</strong>. The row closes up after each move.</p>
-        <p>Tap a card to select it (its legal destinations light up blue), then tap a destination to move.
-            You win by squeezing the whole deck into a single pile; the game ends when no moves remain.</p>
+        <p>The row starts empty. Tap the face-down stock at the end of the row to draw the next card
+            into the open spot — you can draw at any time, and make as many moves as you like between draws.</p>
+        <p>A pile may be placed on the pile <strong>one position</strong> or <strong>three positions</strong>
+            to its left when the two top cards match in <strong>suit or rank</strong>. The row closes up
+            after each move. Tap a card to select it (its legal destinations light up blue), then tap a
+            destination to move.</p>
+        <p>You win by squeezing the whole deck into a single pile; the game is over when the stock is
+            empty and no moves remain.</p>
     </details>
 
     <script type="module">
@@ -272,6 +287,7 @@
 
         // Each pile is an array of cards; the last element is the visible top card.
         let piles = [];
+        let stock = []; // face-down draw pile; cards are drawn from the end
         let history = [];
         let selected = null; // index of the selected pile, or null
         let moveCount = 0;
@@ -287,7 +303,8 @@
                 const j = Math.floor(Math.random() * (i + 1));
                 [deck[i], deck[j]] = [deck[j], deck[i]];
             }
-            piles = deck.map(card => [card]);
+            piles = [];
+            stock = deck;
             history = [];
             selected = null;
             moveCount = 0;
@@ -315,8 +332,12 @@
             return piles.some((_, i) => targetsOf(i).length > 0);
         }
 
+        function snapshot() {
+            history.push({ piles: piles.map(pile => pile.slice()), stock: stock.slice(), moveCount });
+        }
+
         function doMove(from, to) {
-            history.push(piles.map(pile => pile.slice()));
+            snapshot();
             piles[to] = piles[to].concat(piles[from]);
             piles.splice(from, 1);
             moveCount++;
@@ -324,10 +345,17 @@
             render();
         }
 
+        function drawCard() {
+            if (stock.length === 0) return;
+            snapshot();
+            piles.push([stock.pop()]);
+            selected = null;
+            render();
+        }
+
         function undo() {
             if (history.length === 0) return;
-            piles = history.pop();
-            moveCount--;
+            ({ piles, stock, moveCount } = history.pop());
             selected = null;
             render();
         }
@@ -389,17 +417,31 @@
                 board.appendChild(el);
             });
 
-            status.textContent = `Piles: ${piles.length} · Moves: ${moveCount}`;
+            if (stock.length > 0) {
+                const stockEl = document.createElement('div');
+                stockEl.className = 'card stock';
+                stockEl.title = 'Draw the next card';
+                if (stock.length >= 2) stockEl.classList.add('stack2');
+                if (stock.length >= 3) stockEl.classList.add('stack3');
+                const count = document.createElement('div');
+                count.className = 'count';
+                count.textContent = stock.length;
+                stockEl.appendChild(count);
+                stockEl.addEventListener('click', drawCard);
+                board.appendChild(stockEl);
+            }
+
+            status.textContent = `Stock: ${stock.length} · Piles: ${piles.length} · Moves: ${moveCount}`;
             undoBtn.disabled = history.length === 0;
             hintBtn.disabled = !anyMoveExists();
 
             message.className = '';
-            if (piles.length === 1) {
+            if (stock.length === 0 && piles.length === 1) {
                 message.classList.add('win');
                 message.textContent = '🎉 You won! The whole deck is in one pile.';
-            } else if (!anyMoveExists()) {
+            } else if (stock.length === 0 && !anyMoveExists()) {
                 message.classList.add('lose');
-                message.textContent = `No moves left — ${piles.length} piles remaining.`;
+                message.textContent = `Stock empty and no moves left — ${piles.length} piles remaining.`;
             } else {
                 message.textContent = '';
             }
