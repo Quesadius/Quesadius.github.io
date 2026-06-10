@@ -54,6 +54,12 @@
             text-align: center;
         }
 
+        /* Buttons wrap as one group on narrow screens, never individually */
+        #controls {
+            display: flex;
+            gap: 10px;
+        }
+
         header button {
             background: #f0c040;
             color: #333;
@@ -74,16 +80,39 @@
             filter: brightness(1.08);
         }
 
+        /* Cards are placed explicitly via grid-row/column so the snake layout
+           can reverse alternate rows; column count is computed in JS on render. */
         #board {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: flex-start;
-            align-content: flex-start;
+            display: grid;
+            justify-content: center;
             gap: 10px;
+            grid-auto-rows: var(--card-h);
             padding: 20px;
             max-width: 1000px;
             width: 100%;
             box-sizing: border-box;
+        }
+
+        #optionsPanel {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 12px 18px;
+            margin: 16px 20px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.95em;
+        }
+
+        #optionsPanel[hidden] {
+            display: none;
+        }
+
+        #optionsPanel label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
         }
 
         .card {
@@ -180,6 +209,35 @@
             transform: translateY(-4px);
         }
 
+        .card.stock.blocked {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .card.stock.blocked:hover {
+            transform: none;
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                translate: 0;
+            }
+
+            25% {
+                translate: -5px;
+            }
+
+            75% {
+                translate: 5px;
+            }
+        }
+
+        .card.shake {
+            animation: shake 0.3s;
+        }
+
         .card.selected {
             transform: translateY(-8px);
             box-shadow: 0 0 0 3px #f0c040, 0 6px 10px rgba(0, 0, 0, 0.5);
@@ -253,10 +311,22 @@
     <header>
         <h1>Accordion Solitaire</h1>
         <div id="status"></div>
-        <button id="undoBtn">Undo</button>
-        <button id="hintBtn">Hint</button>
-        <button id="newBtn">New Game</button>
+        <div id="controls">
+            <button id="undoBtn">Undo</button>
+            <button id="hintBtn">Hint</button>
+            <button id="newBtn">New Game</button>
+            <button id="optionsBtn" title="Options">⚙</button>
+        </div>
     </header>
+
+    <div id="optionsPanel" hidden>
+        <label><input type="checkbox" data-opt="requireMove">
+            Must make a move when one is available (drawing is blocked)</label>
+        <label><input type="checkbox" data-opt="hideTargets">
+            Don't highlight where a selected card can move</label>
+        <label><input type="checkbox" data-opt="snake">
+            Snake layout (each row builds in the opposite direction)</label>
+    </div>
 
     <div id="board"></div>
     <div id="message"></div>
@@ -284,6 +354,27 @@
         const undoBtn = document.getElementById('undoBtn');
         const hintBtn = document.getElementById('hintBtn');
         const newBtn = document.getElementById('newBtn');
+        const optionsBtn = document.getElementById('optionsBtn');
+        const optionsPanel = document.getElementById('optionsPanel');
+
+        const DEFAULT_OPTIONS = { requireMove: false, hideTargets: false, snake: true };
+        let options = { ...DEFAULT_OPTIONS };
+        try {
+            options = { ...DEFAULT_OPTIONS, ...JSON.parse(localStorage.getItem('accordionOptions') || '{}') };
+        } catch { /* corrupt stored options: fall back to defaults */ }
+
+        for (const input of optionsPanel.querySelectorAll('input[data-opt]')) {
+            input.checked = options[input.dataset.opt];
+            input.addEventListener('change', () => {
+                options[input.dataset.opt] = input.checked;
+                localStorage.setItem('accordionOptions', JSON.stringify(options));
+                render();
+            });
+        }
+
+        optionsBtn.addEventListener('click', () => {
+            optionsPanel.hidden = !optionsPanel.hidden;
+        });
 
         // Each pile is an array of cards; the last element is the visible top card.
         let piles = [];
@@ -347,6 +438,13 @@
 
         function drawCard() {
             if (stock.length === 0) return;
+            if (options.requireMove && anyMoveExists()) {
+                const stockEl = board.querySelector('.stock');
+                stockEl.classList.remove('shake');
+                void stockEl.offsetWidth; // restart the animation if mid-shake
+                stockEl.classList.add('shake');
+                return;
+            }
             snapshot();
             piles.push([stock.pop()]);
             selected = null;
@@ -381,8 +479,26 @@
             render();
         }
 
+        function gridColumns() {
+            const style = getComputedStyle(board);
+            const width = board.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+            const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w'));
+            const gap = parseFloat(style.columnGap);
+            return Math.max(1, Math.floor((width + gap) / (cardW + gap)));
+        }
+
+        function placeInGrid(el, i, cols) {
+            const row = Math.floor(i / cols);
+            let col = i % cols;
+            if (options.snake && row % 2 === 1) col = cols - 1 - col;
+            el.style.gridRowStart = row + 1;
+            el.style.gridColumnStart = col + 1;
+        }
+
         function render() {
             board.innerHTML = '';
+            const cols = gridColumns();
+            board.style.gridTemplateColumns = `repeat(${cols}, var(--card-w))`;
             piles.forEach((pile, i) => {
                 const card = top(pile);
                 const el = document.createElement('div');
@@ -390,7 +506,8 @@
                 if (pile.length === 2) el.classList.add('stack2');
                 if (pile.length >= 3) el.classList.add('stack3');
                 if (selected === i) el.classList.add('selected');
-                if (selected !== null && canMove(selected, i)) el.classList.add('target');
+                if (!options.hideTargets && selected !== null && canMove(selected, i)) el.classList.add('target');
+                placeInGrid(el, i, cols);
 
                 const label = RANKS[card.rank] + '\n' + SUITS[card.suit];
                 const cornerTop = document.createElement('div');
@@ -423,17 +540,23 @@
                 stockEl.title = 'Draw the next card';
                 if (stock.length >= 2) stockEl.classList.add('stack2');
                 if (stock.length >= 3) stockEl.classList.add('stack3');
+                if (options.requireMove && anyMoveExists()) stockEl.classList.add('blocked');
                 const count = document.createElement('div');
                 count.className = 'count';
                 count.textContent = stock.length;
                 stockEl.appendChild(count);
                 stockEl.addEventListener('click', drawCard);
+                placeInGrid(stockEl, piles.length, cols);
                 board.appendChild(stockEl);
             }
 
             status.textContent = `Stock: ${stock.length} · Piles: ${piles.length} · Moves: ${moveCount}`;
             undoBtn.disabled = history.length === 0;
-            hintBtn.disabled = !anyMoveExists();
+            // With targets hidden, the hint button's enabled state must not leak
+            // whether a move exists — keep it enabled while the game is live.
+            hintBtn.disabled = options.hideTargets
+                ? (stock.length === 0 && !anyMoveExists())
+                : !anyMoveExists();
 
             message.className = '';
             if (stock.length === 0 && piles.length === 1) {
@@ -450,6 +573,7 @@
         undoBtn.addEventListener('click', undo);
         hintBtn.addEventListener('click', showHint);
         newBtn.addEventListener('click', newGame);
+        window.addEventListener('resize', () => render());
 
         newGame();
     </script>

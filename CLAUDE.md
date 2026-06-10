@@ -28,7 +28,7 @@ Then open `http://localhost:8765/<page>.html`. Any equivalent static server (e.g
 | `highpoints.html` | US state high-points tracker, choropleth map | Tailwind, D3 v7, TopoJSON v3, Google Fonts | none (in-memory) |
 | `nationalparks.html` | National Park visit tracker on a map | Leaflet 1.9.4 | none |
 | `lostcities.html` | Scorecard for the Lost Cities card game | (vanilla CSS/JS) | none |
-| `accordion.html` | Single-player Accordion solitaire | (vanilla CSS/JS) | none |
+| `accordion.html` | Single-player Accordion solitaire | (vanilla CSS/JS) | `localStorage` (options) |
 
 ## Shared Firebase project (important)
 
