@@ -39,14 +39,30 @@
   .breakdown-item:last-child { border-bottom:0; font-weight:700; }
   .scrollbox { max-height: 60vh; overflow-y:auto; }
 
-  /* Cut deck */
-  .cut-deck { position: relative; height: 130px; display:flex; align-items:center; justify-content:center; }
-  .cut-deck .card-back-stack { position:absolute; }
-  .cut-slider { width:80%; max-width:300px; }
-
   @media (max-width: 640px) {
     .card svg { width: 50px !important; height: 72px !important; }
   }
+
+  /* ===== Responsive game layout: board left on wide screens, stacked on narrow ===== */
+  #game-layout { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 1rem; align-items: start; }
+  @media (max-width: 899px) {
+    #game-layout { grid-template-columns: 1fr; }
+  }
+
+  /* Fanned deck picker */
+  .fan { position: relative; height: 108px; width: 100%; }
+  .fan .fan-card {
+    position: absolute; top: 4px;
+    transition: transform .12s ease, filter .12s ease;
+    border-radius: 6px;
+  }
+  .fan.fan-active .fan-card { cursor: pointer; }
+  .fan.fan-active .fan-card:hover { transform: translateY(-12px); filter: brightness(1.15); z-index: 30 !important; }
+  .fan.fan-disabled .fan-card { cursor: default; opacity: .82; }
+
+  /* Compact score table (under the board) */
+  .score-row { display:flex; align-items:center; gap:.5rem; padding:.4rem .6rem; }
+  .score-dot { width:.8rem; height:.8rem; border-radius:9999px; flex:none; border:1px solid rgba(0,0,0,.35); }
 
   /* Pegging scoring popup */
   #peg-popup {
@@ -137,11 +153,6 @@
       </div>
     </header>
 
-    <!-- Status bar -->
-    <div id="status-bar" class="mb-3 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm sm:text-base">
-      Waiting…
-    </div>
-
     <!-- Invite link panel (revealed on Copy Invite Link click) -->
     <div id="invite-panel" class="hidden mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm flex items-center gap-2">
       <input id="invite-url" readonly class="flex-1 bg-white border border-blue-300 rounded px-2 py-1 text-xs" />
@@ -150,50 +161,69 @@
       <span id="invite-status" class="text-xs text-emerald-700"></span>
     </div>
 
-    <!-- Board -->
-    <div class="board-wrap mb-4">
-      <svg id="board-svg" class="board-svg" viewBox="0 0 740 280" preserveAspectRatio="xMidYMid meet"></svg>
-    </div>
+    <div id="game-layout">
 
-    <!-- Score bar -->
-    <div id="score-bar" class="grid grid-cols-2 gap-3 mb-4"></div>
-
-    <!-- Felt area: opponent, middle, you -->
-    <div class="felt rounded-2xl shadow-inner p-3 sm:p-5 space-y-4 text-white">
-
-      <!-- Opponent zone -->
-      <div>
-        <div class="text-sm uppercase tracking-wide text-emerald-100/80 mb-1" id="opponent-label">Opponent</div>
-        <div id="opponent-hand" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
-      </div>
-
-      <!-- Middle: crib + starter + pegging -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="bg-black/20 rounded-xl p-3">
-          <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1" id="crib-label">Crib</div>
-          <div id="crib-area" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
+      <!-- Board + scores (left on desktop, top on mobile) -->
+      <aside id="board-aside" class="min-w-0">
+        <div class="board-wrap">
+          <svg id="board-svg" class="board-svg" viewBox="0 0 232 660" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
-        <div class="bg-black/20 rounded-xl p-3">
-          <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">Starter / Cut</div>
-          <div id="starter-area" class="flex items-center justify-center min-h-[80px]"></div>
+        <div id="score-bar" class="bg-white rounded-xl shadow mt-3 divide-y divide-stone-200 overflow-hidden"></div>
+      </aside>
+
+      <!-- Main column: status + felt -->
+      <div id="main-col" class="min-w-0">
+
+        <!-- Status bar -->
+        <div id="status-bar" class="mb-3 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm sm:text-base">
+          Waiting…
         </div>
-        <div class="bg-black/20 rounded-xl p-3">
-          <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">
-            Pegging <span id="pegging-total" class="text-white font-bold ml-2"></span>
+
+        <!-- Felt area: opponent, middle, you -->
+        <div class="felt rounded-2xl shadow-inner p-3 sm:p-5 space-y-4 text-white">
+
+          <!-- Opponent zone -->
+          <div>
+            <div class="text-sm uppercase tracking-wide text-emerald-100/80 mb-1" id="opponent-label">Opponent</div>
+            <div id="opponent-hand" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
           </div>
-          <div id="pegging-area" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
+
+          <!-- Fan zone: deck spread for cut-for-deal and starter cut -->
+          <div id="fan-zone" class="hidden bg-black/20 rounded-xl p-3">
+            <div id="fan-picks" class="flex items-end justify-center gap-6 mb-3 min-h-[20px]"></div>
+            <div id="fan-container" class="fan"></div>
+            <div id="fan-caption" class="text-center text-xs text-emerald-100/80 mt-2"></div>
+          </div>
+
+          <!-- Middle: crib + starter + pegging -->
+          <div id="middle-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="bg-black/20 rounded-xl p-3">
+              <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1" id="crib-label">Crib</div>
+              <div id="crib-area" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
+            </div>
+            <div class="bg-black/20 rounded-xl p-3">
+              <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">Starter</div>
+              <div id="starter-area" class="flex items-center justify-center min-h-[80px]"></div>
+            </div>
+            <div class="bg-black/20 rounded-xl p-3">
+              <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">
+                Pegging <span id="pegging-total" class="text-white font-bold ml-2"></span>
+              </div>
+              <div id="pegging-area" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
+            </div>
+          </div>
+
+          <!-- Your zone -->
+          <div>
+            <div class="text-sm uppercase tracking-wide text-emerald-100/80 mb-1" id="player-label">You</div>
+            <div id="player-hand" class="flex flex-wrap gap-1.5 min-h-[110px]"></div>
+          </div>
+
+          <!-- Action area -->
+          <div id="action-area" class="flex flex-wrap items-center gap-2 justify-center pt-2"></div>
+
         </div>
       </div>
-
-      <!-- Your zone -->
-      <div>
-        <div class="text-sm uppercase tracking-wide text-emerald-100/80 mb-1" id="player-label">You</div>
-        <div id="player-hand" class="flex flex-wrap gap-1.5 min-h-[110px]"></div>
-      </div>
-
-      <!-- Action area -->
-      <div id="action-area" class="flex flex-wrap items-center gap-2 justify-center pt-2"></div>
-
     </div>
 
     <!-- Breakdown overlay -->
@@ -275,7 +305,6 @@ let gameId = null;
 let unsub = null;          // game listener unsubscribe
 let G = null;              // last known game state (server snapshot)
 let localSelection = [];   // local UI: cards selected for crib
-let cutSliderPos = 20;     // 0..39 (slider over the 40 undealt cards)
 let lastRenderedPhase = null;
 let lastShownPegEventAt = 0;
 let pendingAction = null;   // 'discard' | 'continue' | ... — survives re-renders
@@ -563,11 +592,11 @@ function newGameState(creatorUid, creatorName){
     player1: { uid: creatorUid, name: creatorName },
     player2: null,
     playerIds: [creatorUid],
-    phase: 'waiting',            // 'waiting'|'discard'|'cut'|'pegging'|'count_pone'|'count_dealer'|'count_crib'|'hand_done'|'game_done'
+    phase: 'waiting',            // 'waiting'|'cut_for_deal'|'cut_for_deal_done'|'discard'|'cut'|'pegging'|'count'|'game_done'
     scores: { [creatorUid]: 0 },
     prevScores: { [creatorUid]: 0 },   // for back-peg display (last position)
-    dealer: creatorUid,                // creator deals first hand
-    firstDealerUid: creatorUid,
+    dealer: null,                      // set by the cut-for-deal
+    firstDealerUid: null,
     pone: null,
     handNumber: 0,
     hands: {},                         // [uid]: cards array (private — opponent sees backs)
@@ -707,17 +736,14 @@ async function joinExistingGame(id){
     data.playerIds = [...data.playerIds, userId];
     data.scores[userId] = 0;
     data.prevScores[userId] = 0;
-    // First dealer is decided by cut: draw two distinct-rank cards atomically.
-    const deck = shuffleInPlace(makeDeck());
-    let c1 = deck[0], c2 = deck[1], idx = 2;
-    while (orderOf(c1) === orderOf(c2) && idx < deck.length - 1){
-      c1 = deck[idx]; c2 = deck[idx+1]; idx += 2;
-    }
-    const u1 = data.player1.uid, u2 = userId;
-    data.cutForDeal = { [u1]: c1, [u2]: c2 };
-    data.dealer = orderOf(c1) < orderOf(c2) ? u1 : u2;
-    data.firstDealerUid = data.dealer;
-    data.phase = 'cut_for_deal_done';
+    // First dealer decided by cut: each player picks a card from the spread deck.
+    // The deck order is fixed here so both clients see the same fan; picks are
+    // per-player fields so concurrent picks can't clobber each other.
+    data.phase = 'cut_for_deal';
+    data.cutDeck = shuffleInPlace(makeDeck());
+    data.cutForDeal = {};
+    data.cutForDealPicks = {};
+    data.cutForDealTies = 0;
     await setDoc(ref, data);
   }
   attachListener(id);
@@ -786,23 +812,29 @@ function sortCardsByOrder(a,b){ return orderOf(a) - orderOf(b); }
 
 /* Actions during play */
 
-async function actCutForDeal(){
+async function actPickCutForDeal(index){
   if (!G || G.phase !== 'cut_for_deal') return;
   if (G.cutForDeal && G.cutForDeal[userId]) return;
   await txUpdate((fresh) => {
     if (fresh.phase !== 'cut_for_deal') return false;
-    if (fresh.cutForDeal && fresh.cutForDeal[userId]) return false;
     fresh.cutForDeal = fresh.cutForDeal || {};
-    const taken = Object.values(fresh.cutForDeal);
-    const deck = makeDeck().filter(c => !taken.includes(c));
-    shuffleInPlace(deck);
-    fresh.cutForDeal[userId] = deck[0];
+    fresh.cutForDealPicks = fresh.cutForDealPicks || {};
+    if (fresh.cutForDeal[userId]) return false;
+    const deck = fresh.cutDeck || shuffleInPlace(makeDeck());
+    const takenIdx = new Set(Object.values(fresh.cutForDealPicks));
+    let ix = Math.max(0, Math.min(deck.length - 1, index|0));
+    while (takenIdx.has(ix)) ix = (ix + 1) % deck.length;  // concurrent same-card pick → next card
+    fresh.cutForDeal[userId] = deck[ix];
+    fresh.cutForDealPicks[userId] = ix;
     const allCut = fresh.playerIds.every(uid => fresh.cutForDeal[uid]);
     if (allCut){
       const [u1, u2] = fresh.playerIds;
       const c1 = fresh.cutForDeal[u1], c2 = fresh.cutForDeal[u2];
       if (orderOf(c1) === orderOf(c2)){
+        // Tie — both pick again from a fresh shuffle.
         fresh.cutForDeal = {};
+        fresh.cutForDealPicks = {};
+        fresh.cutDeck = shuffleInPlace(makeDeck());
         fresh.cutForDealTies = (fresh.cutForDealTies || 0) + 1;
       } else {
         fresh.dealer = orderOf(c1) < orderOf(c2) ? u1 : u2;
@@ -811,7 +843,7 @@ async function actCutForDeal(){
       }
     }
     return fresh;
-  });
+  }, 'pickCutForDeal');
 }
 
 async function actStartFirstHand(){
@@ -819,6 +851,8 @@ async function actStartFirstHand(){
   await txUpdate((fresh) => {
     if (fresh.phase !== 'cut_for_deal_done') return false;
     delete fresh.cutForDeal;
+    delete fresh.cutForDealPicks;
+    delete fresh.cutDeck;
     delete fresh.cutForDealTies;
     startNewHand(fresh);
     return fresh;
@@ -1174,6 +1208,7 @@ function render(){
   renderHands();
   renderCrib();
   renderStarter();
+  renderFanZone();
   renderPegging();
   renderActions();
   renderBreakdownModal();
@@ -1191,9 +1226,9 @@ function renderStatus(){
   switch (G.phase){
     case 'cut_for_deal': {
       const cut = (G.cutForDeal || {})[userId];
-      if (!cut) el.textContent = `Cut the deck to decide who deals — lowest card deals first.`;
-      else el.textContent = `You cut ${labelOf(cut)}${SUIT_GLYPH[suitOf(cut)]}. Waiting for ${nameOf(opponentOf(userId))} to cut…`;
-      if (G.cutForDealTies) el.textContent += `  (Tied ${G.cutForDealTies}×, recut)`;
+      if (!cut) el.textContent = `Pick a card to decide who deals — lowest card deals first.`;
+      else el.textContent = `You picked ${labelOf(cut)}${SUIT_GLYPH[suitOf(cut)]}. Waiting for ${nameOf(opponentOf(userId))} to pick…`;
+      if (G.cutForDealTies) el.textContent += `  (Tied ${G.cutForDealTies}×, pick again)`;
       break;
     }
     case 'cut_for_deal_done': {
@@ -1239,121 +1274,138 @@ function renderStatus(){
 function renderScoreBar(){
   const el = $('score-bar');
   el.innerHTML = '';
-  for (const uid of G.playerIds){
+  const pegColors = ['#d4af37', '#c0c0c0'];   // matches .peg-front-1 / .peg-front-2
+  G.playerIds.forEach((uid, ix) => {
     const isMine = uid === userId;
     const isDealer = uid === G.dealer;
     const div = document.createElement('div');
-    div.className = `rounded-xl p-3 ${isMine?'bg-emerald-100 border border-emerald-400':'bg-stone-100 border border-stone-300'}`;
+    div.className = `score-row ${isMine ? 'bg-emerald-50' : ''}`;
     div.innerHTML = `
-      <div class="flex items-baseline justify-between">
-        <div class="font-semibold">${escapeHTML(nameOf(uid))} ${isMine?'<span class="text-xs text-emerald-700">(you)</span>':''}</div>
-        <div class="text-2xl font-bold tabular-nums">${G.scores[uid] || 0}</div>
-      </div>
-      <div class="text-xs text-stone-500 mt-0.5">${isDealer?'• Dealer':'&nbsp;'}</div>`;
+      <span class="score-dot" style="background:${pegColors[ix] || '#888'}"></span>
+      <span class="font-semibold text-sm truncate">${escapeHTML(nameOf(uid))}${isMine?' <span class="text-[10px] text-emerald-700">(you)</span>':''}</span>
+      ${isDealer ? '<span class="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 rounded px-1 py-0.5 flex-none">Dealer</span>' : ''}
+      <span class="ml-auto text-lg font-bold tabular-nums">${G.scores[uid] || 0}</span>`;
     el.appendChild(div);
-  }
+  });
 }
 
 /* ---- Cribbage board ---- */
-// Classic three-straight, two-curve racetrack. Each straight has both players' rows
-// of holes immediately adjacent so positions are easy to compare at a glance.
-//   Straight 1 → curve right → Straight 2 ← curve left → Straight 3 → game hole.
+// Classic three-straight, two-curve racetrack. Both players' hole rows run
+// immediately adjacent within each straight so relative position is obvious.
+// Desktop (≥900px): vertical board beside the felt. Narrow: horizontal above it.
+function boardOrientation(){
+  return window.matchMedia('(min-width: 900px)').matches ? 'vertical' : 'horizontal';
+}
+let lastBoardOrientation = null;
+
 function renderBoard(){
   if (!G || !G.playerIds.length) return;
   const svg = $('board-svg');
-  const W = 740, H = 280;
-  const xStart = 100, xEnd = 660;
-  const xRange = xEnd - xStart;
-  const holesPerRow = 40;                       // 40 × 3 + 1 game hole = 121
-  const dx = xRange / (holesPerRow - 1);
-  const rowYs = [55, 140, 225];                 // y of each straight's centerline
-  const lane = 10;                              // ± offset between the two players' rows
+  const orient = boardOrientation();
+  lastBoardOrientation = orient;
+  const holesPerRow = 40;             // 40 × 3 + 1 game hole = 121
   const holeR = 4.2;
+  const lane = 10;                    // ± offset between the two players' rows
 
-  // Build hole-position arrays (length 122: index 0 = start, 1..121 = scoring).
-  function trackPositions(yOff){
+  // Geometry abstraction: "m" = coordinate along a straight, "c" = cross-axis
+  // centerline of that straight. Horizontal: (m,c) = (x,y). Vertical: (m,c) = (y,x),
+  // with m running bottom → top so pegs climb the board.
+  let W, H, rowCs, mStart, mEnd;
+  if (orient === 'vertical'){
+    W = 232; H = 660;
+    rowCs = [48, 116, 184];
+    mStart = 606; mEnd = 64;
+  } else {
+    W = 740; H = 280;
+    rowCs = [55, 140, 225];
+    mStart = 100; mEnd = 660;
+  }
+  const toXY = (orient === 'vertical')
+    ? (m, c) => ({ x: c, y: m })
+    : (m, c) => ({ x: m, y: c });
+  const dm = (mEnd - mStart) / (holesPerRow - 1);
+  const capOff = Math.sign(mEnd - mStart) * 26;
+  const startCapM = mStart - capOff;
+  const endCapM   = mEnd + capOff;
+
+  function holeM(i){                  // main-axis coordinate of track index i (1..120)
+    const r = Math.floor((i-1) / holesPerRow);
+    const k = (i-1) % holesPerRow;
+    return (r % 2 === 0) ? mStart + k*dm : mEnd - k*dm;
+  }
+  function holeRow(i){ return Math.floor((i-1) / holesPerRow); }
+
+  // Hole-position arrays (length 122: index 0 = start, 1..121 = scoring).
+  function trackPositions(laneOff){
     const pos = [];
-    pos.push({ x: xStart - 26, y: rowYs[0] + yOff });          // 0: start hole
-    for (let r = 0; r < 3; r++){
-      const y = rowYs[r] + yOff;
-      for (let i = 0; i < holesPerRow; i++){
-        const x = (r % 2 === 0) ? xStart + i*dx : xEnd - i*dx;
-        pos.push({ x, y });
-      }
+    pos.push(toXY(startCapM, rowCs[0] + laneOff));            // 0: start hole
+    for (let i = 1; i <= 120; i++){
+      pos.push(toXY(holeM(i), rowCs[holeRow(i)] + laneOff));
     }
-    pos.push({ x: xEnd + 26, y: rowYs[2] + yOff });            // 121: game hole
+    pos.push(toXY(endCapM, rowCs[2] + laneOff));              // 121: game hole
     return pos;
   }
   const p1 = trackPositions(-lane);
   const p2 = trackPositions(+lane);
 
-  // Helper: hole position for a logical track index, used to draw skunk lines.
-  function indexX(i){
-    // i = 1..120 lives in a straight
-    if (i < 1 || i > 120) return null;
-    const r = Math.floor((i-1) / holesPerRow);
-    const k = (i-1) % holesPerRow;
-    return (r % 2 === 0) ? xStart + k*dx : xEnd - k*dx;
-  }
-  function indexY(i){
-    if (i < 1 || i > 120) return null;
-    const r = Math.floor((i-1) / holesPerRow);
-    return rowYs[r];
-  }
-
   let html = '';
 
-  // --- Background plank ---
+  // --- Background plank + wood grain + inner frame ---
   html += `<rect x="4" y="4" width="${W-8}" height="${H-8}" rx="14"
               fill="#7a4a22" stroke="#3e2613" stroke-width="3"/>`;
-  // Wood grain hint
   html += `<rect x="4" y="4" width="${W-8}" height="${H-8}" rx="14"
               fill="url(#wood-grain)" opacity="0.18"/>`;
-  // Inner darker frame around the hole region
-  html += `<rect x="22" y="22" width="${W-44}" height="${H-44}" rx="10"
+  html += `<rect x="16" y="16" width="${W-32}" height="${H-32}" rx="10"
               fill="none" stroke="#3e2613" stroke-width="1.2" opacity="0.6"/>`;
 
-  // --- Decorative curves on the right (between straights 1 & 2) and left (2 & 3) ---
-  // Right curve: arcs sweeping out past the right edge.
-  function rightCurve(yA, yB, offset){
-    const r = (yB - yA)/2 + offset + 6;
-    const cy = (yA + yB)/2;
-    return `<path d="M ${xEnd},${yA - offset - 2} C ${xEnd + r*1.1},${yA - offset - 2} ${xEnd + r*1.1},${yB + offset + 2} ${xEnd},${yB + offset + 2}"
+  // --- Decorative curves joining straights 1→2 (far end) and 2→3 (near end) ---
+  function curveAt(m, cA, cB, dir){
+    const r = (cB - cA)/2 + lane + 6;
+    const bulge = m + dir * r * 1.1;
+    const a = toXY(m, cA - lane - 2), b = toXY(m, cB + lane + 2);
+    const ca = toXY(bulge, cA - lane - 2), cb = toXY(bulge, cB + lane + 2);
+    return `<path d="M ${a.x},${a.y} C ${ca.x},${ca.y} ${cb.x},${cb.y} ${b.x},${b.y}"
               fill="none" stroke="#3e2613" stroke-width="2" opacity="0.85"/>`;
   }
-  function leftCurve(yA, yB, offset){
-    const r = (yB - yA)/2 + offset + 6;
-    return `<path d="M ${xStart},${yA - offset - 2} C ${xStart - r*1.1},${yA - offset - 2} ${xStart - r*1.1},${yB + offset + 2} ${xStart},${yB + offset + 2}"
-              fill="none" stroke="#3e2613" stroke-width="2" opacity="0.85"/>`;
-  }
-  html += rightCurve(rowYs[0], rowYs[1], lane);
-  html += leftCurve(rowYs[1], rowYs[2], lane);
+  const dirFar = Math.sign(mEnd - mStart);
+  html += curveAt(mEnd, rowCs[0], rowCs[1], dirFar);
+  html += curveAt(mStart, rowCs[1], rowCs[2], -dirFar);
 
-  // --- Skunk markers on holes 60 (double-skunk, faint dashed) and 90 (skunk, bold dashed) ---
+  // --- Skunk markers on holes 60 (faint dashed) and 90 (bold dashed) ---
   for (const [n, width] of [[60, 1.0], [90, 1.8]]){
-    const x = indexX(n), y = indexY(n);
-    if (x != null){
-      html += `<line x1="${x}" y1="${y - lane - 8}" x2="${x}" y2="${y + lane + 8}"
-                stroke="#c0392b" stroke-width="${width}" stroke-dasharray="3 2"/>`;
-    }
+    const m = holeM(n), c = rowCs[holeRow(n)];
+    const a = toXY(m, c - lane - 8), b = toXY(m, c + lane + 8);
+    html += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"
+              stroke="#c0392b" stroke-width="${width}" stroke-dasharray="3 2"/>`;
   }
 
-  // --- Group divider notches every 5 holes (visual flourish) ---
+  // --- Group divider notches every 5 holes ---
   for (let r = 0; r < 3; r++){
-    const y = rowYs[r];
     for (let g = 5; g < holesPerRow; g += 5){
-      const k = g - 0.5;
-      const x = (r % 2 === 0) ? xStart + k*dx : xEnd - k*dx;
-      html += `<line x1="${x}" y1="${y - lane - 4}" x2="${x}" y2="${y + lane + 4}"
+      const m = (r % 2 === 0) ? mStart + (g - 0.5)*dm : mEnd - (g - 0.5)*dm;
+      const a = toXY(m, rowCs[r] - lane - 4), b = toXY(m, rowCs[r] + lane + 4);
+      html += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"
                 stroke="#4a2e18" stroke-width="0.6" opacity="0.6"/>`;
     }
   }
 
-  // --- Start (S) and game-hole (121) labels ---
-  html += `<text x="${xStart - 26}" y="${rowYs[0] - lane - 14}" text-anchor="middle"
-            font-size="11" fill="#fde68a" font-weight="700">S</text>`;
-  html += `<text x="${xEnd + 26}" y="${rowYs[2] + lane + 22}" text-anchor="middle"
-            font-size="11" fill="#fde68a" font-weight="700">121</text>`;
+  // --- Start (S) / game-hole (121) labels + player names (horizontal only) ---
+  const u1 = G.playerIds[0], u2 = G.playerIds[1];
+  if (orient === 'vertical'){
+    html += `<text x="${rowCs[0] - lane - 14}" y="${startCapM + 4}" text-anchor="middle"
+              font-size="11" fill="#fde68a" font-weight="700">S</text>`;
+    html += `<text x="${rowCs[2] + lane + 18}" y="${endCapM + 4}" text-anchor="middle"
+              font-size="11" fill="#fde68a" font-weight="700">121</text>`;
+  } else {
+    html += `<text x="${startCapM}" y="${rowCs[0] - lane - 14}" text-anchor="middle"
+              font-size="11" fill="#fde68a" font-weight="700">S</text>`;
+    html += `<text x="${endCapM}" y="${rowCs[2] + lane + 22}" text-anchor="middle"
+              font-size="11" fill="#fde68a" font-weight="700">121</text>`;
+    html += `<text x="34" y="${rowCs[0] - lane + 3}" font-size="11"
+                fill="#fde68a" font-weight="700">${escapeXML(nameOf(u1))}</text>`;
+    if (u2) html += `<text x="34" y="${rowCs[0] + lane + 4}" font-size="11"
+                fill="#fde68a" font-weight="700">${escapeXML(nameOf(u2))}</text>`;
+  }
 
   // --- Holes ---
   function drawHoles(positions){
@@ -1367,13 +1419,6 @@ function renderBoard(){
   }
   html += drawHoles(p1);
   html += drawHoles(p2);
-
-  // --- Player name labels in the empty space to the left of the start hole ---
-  const u1 = G.playerIds[0], u2 = G.playerIds[1];
-  html += `<text x="34" y="${rowYs[0] - lane + 3}" font-size="11"
-              fill="#fde68a" font-weight="700">${escapeXML(nameOf(u1))}</text>`;
-  if (u2) html += `<text x="34" y="${rowYs[0] + lane + 4}" font-size="11"
-              fill="#fde68a" font-weight="700">${escapeXML(nameOf(u2))}</text>`;
 
   // --- Pegs ---
   function drawPegs(positions, classFront, classBack, scoreNow, scorePrev){
@@ -1389,7 +1434,7 @@ function renderBoard(){
   html += drawPegs(p1, 'peg-front-1', 'peg-back-1', G.scores[u1]||0, G.prevScores[u1]||0);
   if (u2) html += drawPegs(p2, 'peg-front-2', 'peg-back-2', G.scores[u2]||0, G.prevScores[u2]||0);
 
-  // --- Defs for wood grain (subtle horizontal striations) ---
+  // --- Defs for wood grain (subtle striations) ---
   const defs = `<defs>
     <pattern id="wood-grain" patternUnits="userSpaceOnUse" width="20" height="6">
       <rect width="20" height="6" fill="#7a4a22"/>
@@ -1481,52 +1526,86 @@ function renderCrib(){
 function renderStarter(){
   const el = $('starter-area');
   el.innerHTML = '';
-  if (G.phase === 'cut_for_deal' || G.phase === 'cut_for_deal_done'){
-    const wrap = document.createElement('div');
-    wrap.className = 'flex items-center gap-3';
-    for (const uid of G.playerIds){
-      const col = document.createElement('div');
-      col.className = 'flex flex-col items-center gap-1';
-      const nameEl = document.createElement('div');
-      nameEl.className = 'text-xs text-emerald-100/80 font-semibold';
-      nameEl.textContent = nameOf(uid);
-      col.appendChild(nameEl);
-      const cardEl = document.createElement('div');
-      cardEl.className = 'card';
-      const c = G.cutForDeal && G.cutForDeal[uid];
-      cardEl.innerHTML = c ? renderCardSVG(c, {w:44,h:62}) : renderBackSVG(44,62);
-      col.appendChild(cardEl);
-      wrap.appendChild(col);
-    }
-    el.appendChild(wrap);
-    return;
-  }
-  if (G.phase === 'cut' && userId === G.pone){
-    // Render the cut UI
-    const wrap = document.createElement('div');
-    wrap.className = 'flex flex-col items-center gap-2';
-    wrap.innerHTML = `
-      <div class="text-xs text-emerald-100/70">Drag to choose cut position</div>
-      <input id="cut-slider" type="range" min="0" max="${(G._cutDeck && G._cutDeck.length-1) || 39}"
-        value="${cutSliderPos}" class="cut-slider"/>
-      <button id="cut-btn" class="bg-amber-500 hover:bg-amber-600 text-white text-sm px-3 py-1 rounded">Cut Here</button>`;
-    el.appendChild(wrap);
-    setTimeout(()=>{
-      const slider = $('cut-slider');
-      if (slider){
-        slider.addEventListener('input', e => { cutSliderPos = parseInt(e.target.value,10); });
-        $('cut-btn').addEventListener('click', ()=> actCutDeck(cutSliderPos));
-      }
-    }, 0);
-  } else if (G.phase === 'cut'){
-    el.innerHTML = `<div class="text-xs text-emerald-100/60">Waiting for cut…</div>`;
-  } else if (G.starter){
+  if (G.starter){
     const c = document.createElement('div');
     c.className = 'card';
     c.innerHTML = renderCardSVG(G.starter, {w:60,h:86});
     el.appendChild(c);
   } else {
     el.innerHTML = `<div class="text-xs text-emerald-100/60">—</div>`;
+  }
+}
+
+/* ---- Fan zone: spread-out deck for cut-for-deal and the starter cut ---- */
+function renderFanZone(){
+  const zone = $('fan-zone');
+  const grid = $('middle-grid');
+  const fanPhases = ['cut_for_deal', 'cut_for_deal_done', 'cut'];
+  if (!G.player2 || !fanPhases.includes(G.phase)){
+    zone.classList.add('hidden');
+    grid.classList.remove('hidden');
+    return;
+  }
+  zone.classList.remove('hidden');
+  grid.classList.add('hidden');
+
+  const picksEl = $('fan-picks');
+  const fanEl = $('fan-container');
+  const captionEl = $('fan-caption');
+  picksEl.innerHTML = '';
+
+  if (G.phase === 'cut_for_deal' || G.phase === 'cut_for_deal_done'){
+    // Picked cards face-up above the fan
+    for (const uid of G.playerIds){
+      const c = (G.cutForDeal || {})[uid];
+      const col = document.createElement('div');
+      col.className = 'flex flex-col items-center gap-1';
+      col.innerHTML = `<div class="text-xs text-emerald-100/80 font-semibold">${escapeHTML(nameOf(uid))}</div>
+        <div class="card">${c ? renderCardSVG(c, {w:48,h:68}) : renderBackSVG(48,68)}</div>`;
+      picksEl.appendChild(col);
+    }
+    if (G.phase === 'cut_for_deal'){
+      const iPicked = !!(G.cutForDeal && G.cutForDeal[userId]);
+      const deckLen = (G.cutDeck || []).length || 52;
+      const pickedIdx = new Set(Object.values(G.cutForDealPicks || {}));
+      buildFan(fanEl, deckLen, pickedIdx, !iPicked, (ix) => actPickCutForDeal(ix));
+      captionEl.textContent = iPicked
+        ? `Waiting for ${nameOf(opponentOf(userId))} to pick…`
+        : 'Pick a card — lowest card deals first.' + (G.cutForDealTies ? ` (Tied ${G.cutForDealTies}×, pick again)` : '');
+    } else {
+      fanEl.innerHTML = '';
+      fanEl.style.height = '0px';
+      captionEl.textContent = `${nameOf(G.dealer)} deals first.`;
+    }
+  } else if (G.phase === 'cut'){
+    const deckLen = (G._cutDeck || []).length || 40;
+    const myCut = userId === G.pone;
+    buildFan(fanEl, deckLen, new Set(), myCut, (ix) => actCutDeck(ix));
+    captionEl.textContent = myCut
+      ? 'Cut the deck — pick a card to reveal the starter.'
+      : `${nameOf(G.pone)} is cutting the deck…`;
+  }
+}
+
+function buildFan(container, count, pickedIdxSet, interactive, onPick){
+  container.style.height = '';
+  container.classList.toggle('fan-active', interactive);
+  container.classList.toggle('fan-disabled', !interactive);
+  const cardW = 64, cardH = 92;
+  // The fan zone was just unhidden by the caller, so clientWidth is current.
+  const cw = container.clientWidth || 600;
+  const span = Math.max(0, cw - cardW - 8);
+  const step = count > 1 ? span / (count - 1) : 0;
+  container.innerHTML = '';
+  for (let i = 0; i < count; i++){
+    if (pickedIdxSet.has(i)) continue;         // gap where a card was taken
+    const d = document.createElement('div');
+    d.className = 'fan-card';
+    d.style.left = `${4 + i*step}px`;
+    d.style.zIndex = i;
+    d.innerHTML = renderBackSVG(cardW, cardH);
+    if (interactive) d.addEventListener('click', () => onPick(i));
+    container.appendChild(d);
   }
 }
 
@@ -1573,22 +1652,6 @@ function renderActions(){
   const el = $('action-area');
   el.innerHTML = '';
   if (!G.player2) return;
-  if (G.phase === 'cut_for_deal'){
-    const meCut = G.cutForDeal && G.cutForDeal[userId];
-    if (!meCut){
-      const btn = document.createElement('button');
-      btn.className = 'bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2 rounded-lg';
-      btn.textContent = 'Cut deck';
-      btn.addEventListener('click', actCutForDeal);
-      el.appendChild(btn);
-    } else {
-      const wait = document.createElement('div');
-      wait.className = 'text-emerald-100/80 italic text-sm';
-      wait.textContent = `Waiting for ${nameOf(opponentOf(userId))}…`;
-      el.appendChild(wait);
-    }
-    return;
-  }
   if (G.phase === 'cut_for_deal_done'){
     const btn = document.createElement('button');
     btn.className = 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-500 text-white font-semibold px-4 py-2 rounded-lg';
@@ -1910,6 +1973,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('copy-link-btn').addEventListener('click', copyLink);
   $('leave-game-btn').addEventListener('click', leaveGame);
   $('invite-close').addEventListener('click', ()=> $('invite-panel').classList.add('hidden'));
+
+  // Re-render on resize: board flips orientation at 900px and the fan re-spaces.
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (G) render(); }, 120);
+  });
   $('invite-copy-again').addEventListener('click', async ()=>{
     const url = $('invite-url').value;
     const ok = await tryCopy(url);
