@@ -81,14 +81,14 @@
         }
 
         /* Cards are placed explicitly via grid-row/column so the snake layout
-           can reverse alternate rows; column count is computed in JS on render. */
+           can reverse alternate rows; column count and card size are computed
+           in JS on render to fill the viewport. */
         #board {
             display: grid;
             justify-content: center;
             gap: 10px;
             grid-auto-rows: var(--card-h);
             padding: 20px;
-            max-width: 1000px;
             width: 100%;
             box-sizing: border-box;
         }
@@ -119,6 +119,8 @@
             position: relative;
             width: var(--card-w);
             height: var(--card-h);
+            /* Type scales with the card; 62px-wide card ≈ the original 15px */
+            font-size: calc(var(--card-w) * 0.24);
             background: #fff;
             border-radius: 7px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
@@ -294,11 +296,6 @@
         }
 
         @media (max-width: 520px) {
-            :root {
-                --card-w: 50px;
-                --card-h: 72px;
-            }
-
             #board {
                 gap: 8px;
                 padding: 14px;
@@ -479,12 +476,32 @@
             render();
         }
 
-        function gridColumns() {
+        const CARD_RATIO = 88 / 62;
+        const MIN_CARD_W = 48;  // below this, let the board scroll instead
+        const MAX_CARD_W = 130; // keep cards sane on very large monitors
+        const MAX_CELLS = 52;   // size for the worst case so the board never rescales mid-game
+
+        // Pick the card size that lets all 52 potential piles fill the area
+        // between the header and the message line, then fill the width with
+        // as many columns as fit at that size. Returns the column count.
+        function computeLayout() {
             const style = getComputedStyle(board);
-            const width = board.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-            const cardW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w'));
             const gap = parseFloat(style.columnGap);
-            return Math.max(1, Math.floor((width + gap) / (cardW + gap)));
+            const availW = board.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+            const availH = window.innerHeight - document.querySelector('header').offsetHeight
+                - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - 56;
+            let w = 0;
+            for (let cols = 1; cols <= MAX_CELLS; cols++) {
+                const rows = Math.ceil(MAX_CELLS / cols);
+                const fit = Math.min(
+                    (availW - (cols - 1) * gap) / cols,
+                    (availH - (rows - 1) * gap) / rows / CARD_RATIO);
+                if (fit > w) w = fit;
+            }
+            w = Math.max(MIN_CARD_W, Math.min(MAX_CARD_W, Math.floor(w)));
+            document.documentElement.style.setProperty('--card-w', w + 'px');
+            document.documentElement.style.setProperty('--card-h', Math.round(w * CARD_RATIO) + 'px');
+            return Math.max(1, Math.min(MAX_CELLS, Math.floor((availW + gap) / (w + gap))));
         }
 
         function placeInGrid(el, i, cols) {
@@ -497,7 +514,7 @@
 
         function render() {
             board.innerHTML = '';
-            const cols = gridColumns();
+            const cols = computeLayout();
             board.style.gridTemplateColumns = `repeat(${cols}, var(--card-w))`;
             piles.forEach((pile, i) => {
                 const card = top(pile);
