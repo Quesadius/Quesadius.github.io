@@ -480,6 +480,7 @@
         const MIN_CARD_W = 48;  // below this, let the board scroll instead
         const MAX_CARD_W = 100; // keep cards sane on very large monitors
         const MAX_CELLS = 52;   // size for the worst case so the board never rescales mid-game
+        const MAX_COLS = 13;    // never span edge to edge on wide screens
 
         // Pick the card size that lets all 52 potential piles fill the area
         // between the header and the message line, then fill the width with
@@ -491,7 +492,7 @@
             const availH = window.innerHeight - document.querySelector('header').offsetHeight
                 - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - 56;
             let w = 0;
-            for (let cols = 1; cols <= MAX_CELLS; cols++) {
+            for (let cols = 1; cols <= MAX_COLS; cols++) {
                 const rows = Math.ceil(MAX_CELLS / cols);
                 const fit = Math.min(
                     (availW - (cols - 1) * gap) / cols,
@@ -501,7 +502,7 @@
             w = Math.max(MIN_CARD_W, Math.min(MAX_CARD_W, Math.floor(w)));
             document.documentElement.style.setProperty('--card-w', w + 'px');
             document.documentElement.style.setProperty('--card-h', Math.round(w * CARD_RATIO) + 'px');
-            return Math.max(1, Math.min(MAX_CELLS, Math.floor((availW + gap) / (w + gap))));
+            return Math.max(1, Math.min(MAX_COLS, Math.floor((availW + gap) / (w + gap))));
         }
 
         function placeInGrid(el, i, cols) {
