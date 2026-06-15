@@ -46,7 +46,11 @@
             </div>
             <div id="legend" class="flex items-center justify-center mt-6 space-x-8 text-sm" style="display: none;">
                 <div class="flex items-center group cursor-default">
-                    <div class="w-4 h-4 rounded-full mr-2.5 bg-climbed shadow-sm shadow-emerald-500/20 group-hover:scale-110 transition-transform"></div>
+                    <div class="flex items-center mr-2.5">
+                        <span class="text-[10px] font-semibold text-slate-400 mr-1.5">low</span>
+                        <div class="w-12 h-4 rounded-full shadow-sm shadow-emerald-500/20 group-hover:scale-105 transition-transform" style="background: linear-gradient(to right, #a7f3d0, #34d399, #065f46);"></div>
+                        <span class="text-[10px] font-semibold text-slate-400 ml-1.5">high</span>
+                    </div>
                     <span class="font-semibold text-slate-700">Climbed</span>
                 </div>
                 <div class="flex items-center group cursor-default">
@@ -70,13 +74,26 @@
 
             <!-- Total Stats -->
             <div class="grid grid-cols-2 gap-6 mt-10 border-t pt-8 border-slate-100 px-2">
-                <div class="text-center p-4 rounded-2xl bg-slate-50 transition-colors hover:bg-slate-100/80">
-                    <div class="text-4xl md:text-5xl font-extrabold text-slate-800 tabular-nums tracking-tight" id="totalMiles">0</div>
-                    <div class="text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest mt-2">Miles Hiked</div>
+                <div class="relative overflow-hidden text-center p-4 rounded-2xl bg-slate-50 transition-colors hover:bg-slate-100/80">
+                    <div class="absolute inset-0 flex items-center justify-center text-slate-200 pointer-events-none" aria-hidden="true">
+                        <svg class="w-28 h-28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="6" cy="19" r="2.4" fill="currentColor" stroke="none" />
+                            <path d="M8.4 19h7.6a3.4 3.4 0 0 0 0-6.8H7.2a3.4 3.4 0 0 1 0-6.8H16" />
+                            <circle cx="18" cy="5.4" r="2.4" fill="currentColor" stroke="none" />
+                        </svg>
+                    </div>
+                    <div class="relative text-4xl md:text-5xl font-extrabold text-slate-800 tabular-nums tracking-tight" id="totalMiles">0</div>
+                    <div class="relative text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest mt-2">Miles Hiked</div>
                 </div>
-                <div class="text-center p-4 rounded-2xl bg-slate-50 transition-colors hover:bg-slate-100/80">
-                    <div class="text-4xl md:text-5xl font-extrabold text-slate-800 tabular-nums tracking-tight" id="totalElevation">0</div>
-                    <div class="text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest mt-2">Elevation Gained (ft)</div>
+                <div class="relative overflow-hidden text-center p-4 rounded-2xl bg-slate-50 transition-colors hover:bg-slate-100/80">
+                    <div class="absolute inset-0 flex items-center justify-center text-slate-200 pointer-events-none" aria-hidden="true">
+                        <svg class="w-28 h-28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 20 L9.5 8 L13 14 L16.5 5 L21 20 Z" />
+                            <path d="M16.5 5 V2.4 M16.5 2.6 h3 l-0.9 1.05 0.9 1.05 h-3" />
+                        </svg>
+                    </div>
+                    <div class="relative text-4xl md:text-5xl font-extrabold text-slate-800 tabular-nums tracking-tight" id="totalElevation">0</div>
+                    <div class="relative text-xs md:text-sm font-bold text-slate-400 uppercase tracking-widest mt-2">Elevation Gained (ft)</div>
                 </div>
             </div>
         </div>
@@ -115,11 +132,39 @@
             'Wisconsin': { name: 'Timms Hill', elevation: 1951 }, 'Wyoming': { name: 'Gannett Peak', elevation: 13804 }
         };
 
+        // High-point summit coordinates [lat, lon], used to place the benchmark marks.
+        // Approximate (well-known public summit locations); verify if precise placement matters.
+        const highPointCoords = {
+            'Alabama': [33.4858, -85.8092], 'Alaska': [63.0692, -151.0070], 'Arizona': [35.3464, -111.6780],
+            'Arkansas': [35.1672, -93.6443], 'California': [36.5785, -118.2920], 'Colorado': [39.1178, -106.4454],
+            'Connecticut': [42.0498, -73.4836], 'Delaware': [39.8362, -75.5294], 'Florida': [30.9852, -86.2818],
+            'Georgia': [34.8741, -83.8110], 'Hawaii': [19.8207, -155.4681], 'Idaho': [44.1374, -113.7811],
+            'Illinois': [42.5044, -90.2407], 'Indiana': [40.0006, -84.8510], 'Iowa': [43.4608, -95.7079],
+            'Kansas': [39.0222, -102.0372], 'Kentucky': [36.9140, -82.8939], 'Louisiana': [32.4247, -92.8946],
+            'Maine': [45.9044, -68.9216], 'Maryland': [39.2386, -79.4869], 'Massachusetts': [42.6376, -73.1665],
+            'Michigan': [46.7556, -88.1558], 'Minnesota': [47.8973, -90.5601], 'Mississippi': [34.7882, -88.2417],
+            'Missouri': [37.5722, -90.7285], 'Montana': [45.1633, -109.8077], 'Nebraska': [41.0040, -104.0259],
+            'Nevada': [37.8460, -118.3514], 'New Hampshire': [44.2706, -71.3033], 'New Jersey': [41.3208, -74.6615],
+            'New Mexico': [36.5570, -105.4170], 'New York': [44.1126, -73.9237], 'North Carolina': [35.7648, -82.2652],
+            'North Dakota': [46.3864, -103.2966], 'Ohio': [40.3699, -83.7203], 'Oklahoma': [36.9319, -102.9971],
+            'Oregon': [45.3736, -121.6960], 'Pennsylvania': [39.7867, -79.1769], 'Rhode Island': [41.8499, -71.7775],
+            'South Carolina': [35.0647, -82.7774], 'South Dakota': [43.8658, -103.5314], 'Tennessee': [35.5628, -83.4985],
+            'Texas': [31.8911, -104.8606], 'Utah': [40.7763, -110.3728], 'Vermont': [44.5437, -72.8143],
+            'Virginia': [36.6595, -81.5444], 'Washington': [46.8523, -121.7603], 'West Virginia': [38.6998, -79.5331],
+            'Wisconsin': [45.4516, -90.1968], 'Wyoming': [43.1842, -109.6542]
+        };
+
         // --- D3 Map Drawing ---
         const width = 975;
         const height = 610;
         const mapContainer = d3.select("#map-container");
         const tooltip = d3.select("#tooltip");
+
+        // Climbed states are tinted by their high point's elevation (light = low, deep = high).
+        const tintScale = d3.scaleLinear().domain([300, 4000, 14500]).range(['#a7f3d0', '#34d399', '#065f46']).clamp(true);
+        // Benchmark marks are sized by elevation (sqrt keeps the small hills from disappearing).
+        const markerSize = d3.scalePow().exponent(0.5).domain([345, 20310]).range([3.2, 12]).clamp(true);
+        function benchmarkTriangle(s) { const h = s * 1.7, w = s * 1.6; return `M0 ${-h} L ${w} ${h * 0.72} L ${-w} ${h * 0.72} Z`; }
 
         // !!! IMPORTANT !!!
         // Replace this URL with the one you got from publishing your Google Sheet.
@@ -176,11 +221,10 @@
                 .data(topojson.feature(us, us.objects.states).features)
                 .enter().append("path")
                 .attr("d", path)
-                .attr("class", d => {
-                    const stateName = d.properties.name;
-                    const data = finalHighPointsData[stateName];
-                    const baseClass = "stroke-white stroke-[1.5px] transition-all duration-300 hover:opacity-80 hover:stroke-2 cursor-pointer";
-                    return data && data.date ? `fill-climbed ${baseClass}` : `fill-unclimbed ${baseClass}`;
+                .attr("class", "stroke-white stroke-[1.5px] transition-all duration-300 hover:opacity-80 hover:stroke-2 cursor-pointer")
+                .attr("fill", d => {
+                    const data = finalHighPointsData[d.properties.name];
+                    return data && data.date ? tintScale(data.elevation) : '#cbd5e1';
                 })
                 .on("mouseover", function (event, d) {
                     const stateName = d.properties.name;
@@ -219,6 +263,27 @@
                     d3.select(this).classed('opacity-80 stroke-2', false);
                     tooltip.transition().duration(500).style("opacity", 0);
                 });
+
+            // --- High-point benchmark marks (sized by elevation) ---
+            // Decorative layer; pointer-events disabled so the state tooltips still fire underneath.
+            // White body keeps the mark legible on both the slate "unclimbed" fill and the deep-green tints.
+            const markerLayer = svg.append("g").attr("pointer-events", "none");
+            for (const stateName in finalHighPointsData) {
+                const data = finalHighPointsData[stateName];
+                const coords = highPointCoords[stateName];
+                if (!coords) continue;
+                const point = projection([coords[1], coords[0]]);
+                if (!point) continue;
+                const climbed = !!data.date;
+                const s = markerSize(data.elevation);
+                const color = climbed ? '#047857' : '#64748b'; // emerald-700 / slate-500
+                const mark = markerLayer.append("g").attr("transform", `translate(${point[0]}, ${point[1]})`);
+                mark.append("path")
+                    .attr("d", benchmarkTriangle(s))
+                    .attr("fill", "#ffffff").attr("fill-opacity", 0.92)
+                    .attr("stroke", color).attr("stroke-width", 1.3).attr("stroke-linejoin", "round");
+                mark.append("circle").attr("r", Math.max(1.1, s * 0.3)).attr("fill", color);
+            }
 
             // --- Progress Bar Update ---
             const totalStates = Object.keys(finalHighPointsData).length;
