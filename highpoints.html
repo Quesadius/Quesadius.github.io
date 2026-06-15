@@ -163,7 +163,7 @@
         // Climbed states are tinted by their high point's elevation (light = low, deep = high).
         const tintScale = d3.scaleLinear().domain([300, 4000, 14500]).range(['#a7f3d0', '#34d399', '#065f46']).clamp(true);
         // Benchmark marks are sized by elevation (sqrt keeps the small hills from disappearing).
-        const markerSize = d3.scalePow().exponent(0.5).domain([345, 20310]).range([3.2, 12]).clamp(true);
+        const markerSize = d3.scalePow().exponent(0.5).domain([345, 20310]).range([2.4, 8.5]).clamp(true);
         function benchmarkTriangle(s) { const h = s * 1.7, w = s * 1.6; return `M0 ${-h} L ${w} ${h * 0.72} L ${-w} ${h * 0.72} Z`; }
 
         // !!! IMPORTANT !!!
@@ -266,7 +266,7 @@
 
             // --- High-point benchmark marks (sized by elevation) ---
             // Decorative layer; pointer-events disabled so the state tooltips still fire underneath.
-            // White body keeps the mark legible on both the slate "unclimbed" fill and the deep-green tints.
+            // Marks echo their state's colour so they read as quiet detail rather than overlay pins.
             const markerLayer = svg.append("g").attr("pointer-events", "none");
             for (const stateName in finalHighPointsData) {
                 const data = finalHighPointsData[stateName];
@@ -276,13 +276,15 @@
                 if (!point) continue;
                 const climbed = !!data.date;
                 const s = markerSize(data.elevation);
-                const color = climbed ? '#047857' : '#64748b'; // emerald-700 / slate-500
+                // Completed marks take their state's elevation tint; the rest a soft slate (lighter than
+                // the slate-500 we started with). A faint white body keeps the shape readable on any fill.
+                const color = climbed ? tintScale(data.elevation) : '#94a3b8'; // slate-400
                 const mark = markerLayer.append("g").attr("transform", `translate(${point[0]}, ${point[1]})`);
                 mark.append("path")
                     .attr("d", benchmarkTriangle(s))
-                    .attr("fill", "#ffffff").attr("fill-opacity", 0.92)
-                    .attr("stroke", color).attr("stroke-width", 1.3).attr("stroke-linejoin", "round");
-                mark.append("circle").attr("r", Math.max(1.1, s * 0.3)).attr("fill", color);
+                    .attr("fill", "#ffffff").attr("fill-opacity", 0.55)
+                    .attr("stroke", color).attr("stroke-width", 1).attr("stroke-linejoin", "round");
+                mark.append("circle").attr("r", Math.max(1, s * 0.28)).attr("fill", color);
             }
 
             // --- Progress Bar Update ---
