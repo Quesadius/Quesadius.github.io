@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Mahjong for Two</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { --tile-w: 46px; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #1c7a4a 0%, #0f5733 45%, #0a3f25 100%);
+    color: #f4f7f2;
+    min-height: 100svh;
+  }
+  .hidden { display: none !important; }
+
+  /* ----- Tiles ----- */
+  .tile {
+    width: var(--tile-w);
+    aspect-ratio: 3 / 4;
+    border-radius: 7px;
+    background: linear-gradient(#fffef6, #efe7d2);
+    box-shadow: 0 2px 3px rgba(0,0,0,.4),
+                inset 0 -3px 0 rgba(0,0,0,.13),
+                inset 0 2px 0 rgba(255,255,255,.75);
+    display: flex; align-items: center; justify-content: center;
+    padding: 3px; box-sizing: border-box;
+    position: relative; flex: 0 0 auto;
+  }
+  .tile img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; display: block; }
+  .tile .glyph { font-size: calc(var(--tile-w) * 0.62); line-height: 1; color: #1a1a1a; }
+  .tile.back {
+    background: repeating-linear-gradient(45deg, #14693d, #14693d 6px, #0f5733 6px, #0f5733 12px);
+    box-shadow: 0 2px 3px rgba(0,0,0,.4), inset 0 0 0 2px rgba(255,255,255,.12);
+  }
+  .tile.back::after {
+    content: ""; position: absolute; inset: 4px; border-radius: 4px;
+    border: 1.5px solid rgba(255,255,255,.28);
+  }
+  .tile.selectable { cursor: pointer; transition: transform .08s ease; }
+  .tile.selectable:hover { transform: translateY(-5px); }
+  .tile.selected { transform: translateY(-12px); outline: 3px solid #f5c542; }
+  .tile.claimable { outline: 3px solid #f5c542; box-shadow: 0 0 0 3px rgba(245,197,66,.4), 0 2px 4px rgba(0,0,0,.4); }
+  .tile.mini { width: 30px; }
+  .tile.tiny { width: 22px; }
+
+  .tile-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: flex-end; }
+
+  .meld {
+    display: inline-flex; gap: 3px; padding: 4px 5px; border-radius: 9px;
+    background: rgba(0,0,0,.18); margin: 0 5px 5px 0;
+  }
+
+  .felt {
+    background: rgba(7, 48, 28, 0.55);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 16px;
+  }
+
+  .btn {
+    border: none; border-radius: 10px; padding: 9px 16px; font-weight: 700;
+    cursor: pointer; font-size: 14px; transition: filter .1s ease, opacity .1s ease;
+  }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn:not(:disabled):hover { filter: brightness(1.08); }
+  .btn-primary { background: #f5c542; color: #1a2e1f; }
+  .btn-go { background: #2fb36b; color: #06231479; color: #062314; }
+  .btn-win { background: #e0457b; color: #fff; box-shadow: 0 0 14px rgba(224,69,123,.6); }
+  .btn-ghost { background: rgba(255,255,255,.12); color: #f4f7f2; }
+  .btn-claim { background: #4aa3df; color: #08233a; }
+
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(3,18,11,.72);
+    display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50;
+  }
+  .modal-card {
+    background: #13402a; border: 1px solid rgba(255,255,255,.12); border-radius: 18px;
+    max-width: 640px; width: 100%; max-height: 88vh; overflow: auto; padding: 22px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+
+  /* Hand-reference chips */
+  .hchip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    background: rgba(255,255,255,.1); border: 1.5px solid rgba(255,255,255,.18);
+    margin: 2px;
+  }
+  .hchip b { font-weight: 800; opacity: .85; font-size: 11px; }
+  .role-A { background: rgba(74,163,223,.22); border-color: #4aa3df; }
+  .role-B { background: rgba(47,179,107,.22); border-color: #2fb36b; }
+  .role-C { background: rgba(245,160,66,.22); border-color: #f5a042; }
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .04em;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 6px;
+    background: rgba(245,197,66,.2); color: #f5c542; border: 1px solid rgba(245,197,66,.5);
+  }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    background: #1a2e1f; color: #fff; padding: 10px 18px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.14); box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    z-index: 80; opacity: 0; transition: opacity .2s ease; pointer-events: none; font-weight: 600;
+  }
+  #toast.show { opacity: 1; }
+
+  @media (max-width: 640px) { :root { --tile-w: 38px; } }
+</style>
+</head>
+<body>
+
+<div id="app" class="max-w-5xl mx-auto px-3 py-4">
+
+  <!-- ===================== MAIN MENU ===================== -->
+  <section id="main-menu" class="hidden">
+    <div class="text-center mt-6 mb-6">
+      <h1 class="text-4xl font-black tracking-tight">🀄 Mahjong for Two</h1>
+      <p class="text-emerald-100/80 mt-2">American-style two-player Mahjong · play a friend over a shared link</p>
+    </div>
+    <div class="felt max-w-md mx-auto p-6">
+      <label class="block text-sm font-semibold mb-1 text-emerald-100/90">Your name</label>
+      <input id="name-input" maxlength="20" placeholder="e.g. Jordan"
+             class="w-full rounded-lg px-3 py-2 text-emerald-950 font-semibold outline-none" />
+      <button id="primary-btn" class="btn btn-primary w-full mt-4">New Game</button>
+      <p id="join-hint" class="text-center text-emerald-100/70 text-sm mt-3 hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button id="rules-btn" class="btn btn-ghost flex-1">How to play</button>
+        <button id="hands-btn" class="btn btn-ghost flex-1">Winning hands</button>
+      </div>
+    </div>
+    <p class="text-center text-[11px] text-emerald-100/50 mt-6 max-w-md mx-auto">
+      Not affiliated with, sponsored by, or endorsed by the National Mah Jongg League or
+      Siamese Mah Jongg®. The winning hands here are an original set, not the NMJL card.
+    </p>
+  </section>
+
+  <!-- ===================== GAME SCREEN ===================== -->
+  <section id="game-screen" class="hidden">
+    <div class="flex items-center gap-2 mb-3 flex-wrap">
+      <h1 class="text-xl font-black mr-auto">🀄 Mahjong for Two</h1>
+      <button id="copy-link-btn" class="btn btn-ghost">Copy invite link</button>
+      <button id="g-hands-btn" class="btn btn-ghost">Hands</button>
+      <button id="leave-btn" class="btn btn-ghost">Leave</button>
+    </div>
+
+    <div id="invite-panel" class="felt p-3 mb-3 hidden">
+      <p class="text-sm font-semibold mb-2">Send this link to your opponent:</p>
+      <div class="flex gap-2">
+        <input id="invite-url" readonly class="flex-1 rounded-lg px-3 py-2 text-emerald-950 text-sm" />
+        <button id="invite-copy" class="btn btn-primary">Copy</button>
+      </div>
+      <p id="invite-status" class="text-xs text-emerald-100/70 mt-1"></p>
+    </div>
+
+    <!-- Opponent -->
+    <div class="felt p-3 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <span id="opp-name" class="font-bold"></span>
+        <span id="opp-meta" class="text-xs text-emerald-100/70"></span>
+      </div>
+      <div id="opp-exposures" class="tile-row mb-2"></div>
+      <div id="opp-hand" class="tile-row"></div>
+    </div>
+
+    <!-- Center / table -->
+    <div class="felt p-3 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <span id="status-text" class="font-semibold text-emerald-50"></span>
+        <span id="wall-count" class="text-xs text-emerald-100/70"></span>
+      </div>
+      <div class="text-[11px] uppercase tracking-wide text-emerald-100/50 mb-1">Discards</div>
+      <div id="discard-pile" class="tile-row" style="min-height: calc(var(--tile-w) * 1.34);"></div>
+    </div>
+
+    <!-- You -->
+    <div class="felt p-3">
+      <div class="flex items-center justify-between mb-2">
+        <span id="you-name" class="font-bold"></span>
+        <span id="you-meta" class="text-xs text-emerald-100/70"></span>
+      </div>
+      <div id="you-exposures" class="tile-row mb-2"></div>
+      <div id="you-hand" class="tile-row mb-3"></div>
+      <div id="action-area" class="flex gap-2 flex-wrap items-center"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+<div id="gameover-modal" class="modal-bg hidden">
+  <div class="modal-card text-center">
+    <h2 id="go-title" class="text-3xl font-black mb-2"></h2>
+    <p id="go-detail" class="text-emerald-100/90 mb-5"></p>
+    <div id="go-hand" class="mb-5"></div>
+    <div class="flex gap-2 justify-center">
+      <button id="go-rematch" class="btn btn-primary">Rematch</button>
+      <button id="go-leave" class="btn btn-ghost">Back to Menu</button>
+    </div>
+  </div>
+</div>
+
+<div id="hands-modal" class="modal-bg hidden">
+  <div class="modal-card">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-2xl font-black">Winning Hands</h2>
+      <button id="hands-close" class="btn btn-ghost">Close</button>
+    </div>
+    <p class="text-sm text-emerald-100/80 mb-3">
+      Complete <b>any one</b> of these 14-tile hands to win.
+      <span class="hchip role-A">A</span><span class="hchip role-B">B</span><span class="hchip role-C">C</span>
+      mark <b>three different suits</b> (bams / craks / dots) — you choose which.
+      Jokers are wild in pungs (3), kongs (4) and quints (5), but never in a pair or single.
+      Flowers are interchangeable. A <span class="badge">concealed</span> hand must have no exposed melds.
+    </p>
+    <div id="hands-list"></div>
+  </div>
+</div>
+
+<div id="rules-modal" class="modal-bg hidden">
+  <div class="modal-card">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-2xl font-black">How to play</h2>
+      <button id="rules-close" class="btn btn-ghost">Close</button>
+    </div>
+    <div class="text-sm text-emerald-100/90 space-y-2 leading-relaxed">
+      <p><b>Goal.</b> Be the first to arrange your tiles into one of the listed winning hands.</p>
+      <p><b>Deal.</b> The host (East) starts with 14 tiles, the guest with 13, drawn from a shared 152-tile wall. East discards first.</p>
+      <p><b>Your turn.</b> When it's your turn you either <b>draw</b> the next wall tile, or <b>claim</b> the tile your opponent just discarded to form a <b>Pung</b> (3 of a kind) or <b>Kong</b> (4 of a kind), exposing that meld face-up. Then you <b>discard</b> one tile.</p>
+      <p><b>Jokers</b> are wild inside a pung, kong, or quint — never in a pair or a single. <b>Flowers</b> are all interchangeable. The white dragon doubles as "soap".</p>
+      <p><b>Winning.</b> Complete a listed hand and press <b>Mahjong</b> — either after drawing/claiming on your own turn, or by claiming the exact discard that finishes your hand. A jokerless win scores double. If the wall runs out, the hand is a draw.</p>
+      <p class="text-emerald-100/60 text-xs pt-2">This is a two-player adaptation in the spirit of "Siamese" Mahjong, with an original hand set. It is not affiliated with the NMJL or Siamese Mah Jongg®.</p>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, onSnapshot, setDoc, getDoc, deleteDoc, runTransaction }
+  from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+/* ============================================================= *
+ * 1. Firebase config (shared project; see CLAUDE.md)            *
+ * ============================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBhP0eTmmHB2LNh4nIaOZtTk7f1pBbPvgI",
+  authDomain: "tictactoe-76547.firebaseapp.com",
+  projectId: "tictactoe-76547",
+  storageBucket: "tictactoe-76547.firebasestorage.app",
+  messagingSenderId: "46072501212",
+  appId: "1:46072501212:web:f427fe7d366a9feccd7519",
+  measurementId: "G-BDP38SG25L"
+};
+const appId = firebaseConfig.projectId;
+const GAMES_PATH = `artifacts/${appId}/public/data/games`;
+const KIND = "mahjong2_game";
+const gameDocId = (uuid) => `mj2_${uuid}`;
+const LOCAL_NAME_KEY = "mahjong2_player_name";
+
+/* ============================================================= *
+ * 2. Globals                                                    *
+ * ============================================================= */
+let fbApp, db, auth;
+let userId = null, isAuthReady = false;
+let gameId = null, unsub = null, G = null;
+let pendingJoinId = null;     // gameId from URL we should join
+let selectedU = null;         // currently-selected tile uid (discard step)
+let pendingAction = false;    // debounce flag while a write is in flight
+
+const $ = (id) => document.getElementById(id);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const escapeHTML = (s) => String(s ?? "").replace(/[&<>"']/g,
+  c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+/* ============================================================= *
+ * 3. Tile model: render-ids, Wikimedia files, match-codes       *
+ * ============================================================= */
+// Internal render-ids: c1..c9 craks, b1..b9 bams, d1..d9 dots,
+// we/ws/ww/wn winds, dr/dg/dw dragons, f1..f8 flowers, joker, back.
+const TILE_FILES = {
+  c1:"MJ1wan.svg", c2:"MJ2wan.svg", c3:"MJ3wan.svg", c4:"MJ4wan.svg", c5:"MJ5wan.svg",
+  c6:"MJ6wan.svg", c7:"MJ7wan.svg", c8:"MJ8wan.svg", c9:"MJ9wan.svg",
+  b1:"MJ1tiao.svg", b2:"MJ2tiao.svg", b3:"MJ3tiao.svg", b4:"MJ4tiao.svg", b5:"MJ5tiao.svg",
+  b6:"MJ6tiao.svg", b7:"MJ7tiao.svg", b8:"MJ8tiao.svg", b9:"MJ9tiao.svg",
+  d1:"MJ1bing.svg", d2:"MJ2bing.svg", d3:"MJ3bing.svg", d4:"MJ4bing.svg", d5:"MJ5bing.svg",
+  d6:"MJ6bing.svg", d7:"MJ7bing.svg", d8:"MJ8bing.svg", d9:"MJ9bing.svg",
+  we:"MJEastwind.svg", ws:"MJSouthwind.svg", ww:"MJWestwind.svg", wn:"MJNorthwind.svg",
+  dr:"MJReddragon.svg", dg:"MJGreendragon.svg", dw:"MJbaida.svg",
+  f1:"MJmei.svg", f2:"MJlan.svg", f3:"MJzhu.svg", f4:"MJju.svg",
+  f5:"MJspring.svg", f6:"MJsummer.svg", f7:"MJautumn.svg", f8:"MJwinter.svg",
+  joker:"U+1F02A_MJjoker.svg", back:"MJback.svg",
+};
+const tileURL = (rid) =>
+  `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(TILE_FILES[rid])}`;
+
+// Unicode fallback glyphs (used if an SVG fails to load).
+const UNI = {
+  we:cp(0x1F000), ws:cp(0x1F001), ww:cp(0x1F002), wn:cp(0x1F003),
+  dr:cp(0x1F004)+"︎", dg:cp(0x1F005), dw:cp(0x1F006),
+  joker:cp(0x1F02A), back:cp(0x1F02B),
+};
+for (let i = 1; i <= 9; i++) { UNI["c"+i]=cp(0x1F006+i); UNI["b"+i]=cp(0x1F00F+i); UNI["d"+i]=cp(0x1F018+i); }
+for (let i = 1; i <= 8; i++) { UNI["f"+i]=cp(0x1F021+i); }
+function cp(n){ return String.fromCodePoint(n); }
+
+const DRAGON_CODE = { dr:"DR", dg:"DG", dw:"DW" };
+const WIND_CODE   = { we:"WE", ws:"WS", ww:"WW", wn:"WN" };
+
+// Map a render-id to the validator's match-code.
+function matchCode(rid) {
+  if (rid === "joker") return "J";
+  if (DRAGON_CODE[rid]) return DRAGON_CODE[rid];
+  if (WIND_CODE[rid]) return WIND_CODE[rid];
+  if (rid[0] === "f") return "F";
+  if (rid[0] === "c") return "C" + rid.slice(1);
+  if (rid[0] === "b") return "B" + rid.slice(1);
+  if (rid[0] === "d") return "D" + rid.slice(1); // dots (dragons handled above)
+  return "?";
+}
+
+// Sort key so a hand reads craks, bams, dots, winds, dragons, flowers, jokers.
+const GROUP = { c:0, b:1, d:2 };
+function sortKey(rid) {
+  if (rid === "joker") return 9000;
+  if (WIND_CODE[rid]) return 6000 + "eswn".indexOf(rid[1]);
+  if (DRAGON_CODE[rid]) return 7000 + "rgw".indexOf(rid[1]);
+  if (rid[0] === "f") return 8000 + Number(rid.slice(1));
+  return GROUP[rid[0]] * 100 + Number(rid.slice(1));
+}
+
+/* ============================================================= *
+ * 4. The wall (152 physical tiles)                              *
+ * ============================================================= */
+function buildWall() {
+  const tiles = []; let u = 0;
+  const add = (rid, n) => { for (let i = 0; i < n; i++) tiles.push({ u: u++, t: rid }); };
+  for (const s of ["c","b","d"]) for (let r = 1; r <= 9; r++) add(s + r, 4);
+  for (const w of ["we","ws","ww","wn"]) add(w, 4);
+  for (const d of ["dr","dg","dw"]) add(d, 4);
+  for (let f = 1; f <= 8; f++) add("f" + f, 1);
+  add("joker", 8);
+  return tiles; // 108 + 16 + 12 + 8 + 8 = 152
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ============================================================= *
+ * 5. Winning-hand validator (verified; see mahjong_validator.js)*
+ * ============================================================= */
+const SUITS = ["C","B","D"];
+const ROLE_DRAGON_FOR_SUIT = { C:"DR", B:"DG", D:"DW" }; // Red-Crak, Green-Bam, White-Dot
+const NO_JOKER_TYPES = new Set(["pair","single"]);
+const TYPE_SIZE = { single:1, pair:2, pung:3, kong:4, quint:5 };
+
+function resolveTile(ref, roleSuit) {
+  if (ref.flower) return "F";
+  if (ref.wind) return "W" + ref.wind;
+  if (ref.dragon) return "D" + ref.dragon;
+  if (ref.dragonRole) return ROLE_DRAGON_FOR_SUIT[roleSuit[ref.dragonRole]];
+  if (ref.num != null && ref.role) return roleSuit[ref.role] + ref.num;
+  throw new Error("Bad tile ref: " + JSON.stringify(ref));
+}
+function rolesUsed(pattern) {
+  const set = new Set();
+  for (const comp of pattern) { if (comp.role) set.add(comp.role); if (comp.dragonRole) set.add(comp.dragonRole); }
+  return [...set];
+}
+function roleSuitAssignments(roles) {
+  const out = [];
+  const perm = (chosen, rem, idx) => {
+    if (idx === roles.length) { const m = {}; roles.forEach((r,i)=>{ m[r]=chosen[i]; }); out.push(m); return; }
+    for (let i = 0; i < rem.length; i++) perm(chosen.concat(rem[i]), rem.slice(0,i).concat(rem.slice(i+1)), idx+1);
+  };
+  perm([], SUITS, 0);
+  return out;
+}
+function countTiles(tiles) { const m = new Map(); for (const t of tiles) m.set(t,(m.get(t)||0)+1); return m; }
+function patternSize(pattern) { let n = 0; for (const c of pattern) n += (TYPE_SIZE[c.type]||0); return n; }
+
+// An exposed pung/kong is LOCKED: it must satisfy a pattern component of the
+// SAME type whose resolved tile equals the meld's natural (claimed) tile. Any
+// joker inside it is pinned to that component — it cannot be re-floated to fill
+// a different slot. So we consume each meld against a component first, then match
+// the remaining (concealed) tiles + concealed jokers against the leftover slots.
+function meldNaturalCode(ex) {
+  for (const tl of ex.tiles) { const c = matchCode(tl.t); if (c !== "J") return c; }
+  return null; // an all-joker meld can't occur — the claimed discard is always real
+}
+function matchWithMelds(realCount, concealedJokers, melds, pattern, roleSuit) {
+  const comps = pattern.map(c => ({ type: c.type, tile: resolveTile(c, roleSuit), used: false }));
+  // 1) Consume each exposed meld with a distinct same-type, same-tile component.
+  for (const m of melds) {
+    let found = false;
+    for (const comp of comps) {
+      if (comp.used || comp.type !== m.type || comp.tile !== m.natural) continue;
+      comp.used = true; found = true; break;
+    }
+    if (!found) return false; // an exposed meld has no home in this pattern
+  }
+  // 2) Remaining components must be covered by concealed tiles (+ concealed jokers).
+  const noJoker = new Map(), jokerOk = new Map();
+  for (const c of comps) {
+    if (c.used) continue;
+    const size = TYPE_SIZE[c.type];
+    const bucket = NO_JOKER_TYPES.has(c.type) ? noJoker : jokerOk;
+    bucket.set(c.tile, (bucket.get(c.tile) || 0) + size);
+  }
+  const rem = new Map(realCount);
+  const take = (t, n) => { const h = rem.get(t) || 0; if (h < n) return false; if (h === n) rem.delete(t); else rem.set(t, h - n); return true; };
+  for (const [t, need] of noJoker) if (!take(t, need)) return false;
+  let shortfall = 0;
+  for (const [t, need] of jokerOk) { const h = rem.get(t) || 0; const ur = Math.min(h, need); if (ur > 0) take(t, ur); shortfall += need - ur; }
+  if (concealedJokers !== shortfall) return false;   // jokers must exactly cover the gap
+  for (const v of rem.values()) if (v > 0) return false; // no leftover concealed tiles
+  return true;
+}
+
+/* ----- Original hand set (NOT the NMJL card). Each totals 14. ----- */
+const pair   = (ref) => ({ type:"pair",   ...ref });
+const pung   = (ref) => ({ type:"pung",   ...ref });
+const kong   = (ref) => ({ type:"kong",   ...ref });
+const quint  = (ref) => ({ type:"quint",  ...ref });
+const single = (ref) => ({ type:"single", ...ref });
+const N        = (num, role) => ({ num, role });
+const WIND     = (w) => ({ wind: w });
+const DR_ROLE  = (role) => ({ dragonRole: role });
+const DRG      = (d) => ({ dragon: d });
+const FL       = () => ({ flower: true });
+
+const HAND_SET = [
+  // Like Numbers
+  { name:"Triple Sevens", section:"Like Numbers", points:25, pattern:[
+      pung(N(7,"A")), pung(N(7,"B")), pung(N(7,"C")), kong(DR_ROLE("A")), single(N(7,"A")) ] },
+  { name:"Three Kongs of a Number", section:"Like Numbers", points:35, pattern:[
+      kong(N(2,"A")), kong(N(2,"B")), kong(N(2,"C")), pair(FL()) ] },
+  { name:"Twin Kongs of a Number", section:"Like Numbers", points:30, pattern:[
+      kong(N(5,"A")), kong(N(5,"B")), pung(N(5,"C")), pair(DR_ROLE("A")), single(N(5,"C")) ] },
+  // Consecutive Run
+  { name:"Straight Ladder", section:"Consecutive Run", points:30, concealedOnly:true, pattern:[
+      pung(N(3,"A")), pung(N(4,"A")), pung(N(5,"A")), kong(N(6,"A")), single(N(2,"A")) ] },
+  { name:"Two-Suit Run", section:"Consecutive Run", points:25, pattern:[
+      pung(N(1,"A")), pung(N(2,"A")), pung(N(1,"B")), pung(N(2,"B")), pair(FL()) ] },
+  { name:"Run With Soap", section:"Consecutive Run", points:30, pattern:[
+      kong(N(4,"A")), kong(N(5,"A")), pung(N(6,"A")), pair(DRG("W")), single(N(6,"A")) ] },
+  // Winds & Dragons
+  { name:"Four Winds Gather", section:"Winds & Dragons", points:35, pattern:[
+      pung(WIND("E")), pung(WIND("S")), pung(WIND("W")), pung(WIND("N")), pair(FL()) ] },
+  { name:"Dragon Parade", section:"Winds & Dragons", points:30, pattern:[
+      pung(DRG("R")), pung(DRG("G")), pung(DRG("W")), kong(WIND("E")), single(DRG("R")) ] },
+  { name:"North-South Kongs", section:"Winds & Dragons", points:30, pattern:[
+      kong(WIND("N")), kong(WIND("S")), pung(DRG("G")), pair(DRG("R")), single(DRG("W")) ] },
+  // Big Pungs
+  { name:"Quintuple Crown", section:"Big Pungs", points:40, pattern:[
+      quint(N(8,"A")), quint(N(8,"B")), kong(N(8,"C")) ] },
+  { name:"Quint and Kongs", section:"Big Pungs", points:35, pattern:[
+      quint(N(9,"A")), kong(N(9,"B")), kong(N(9,"C")), single(N(9,"A")) ] },
+  { name:"Dragon Quint", section:"Big Pungs", points:40, pattern:[
+      quint(DR_ROLE("A")), kong(N(1,"A")), pung(N(2,"A")), pair(FL()) ] },
+  // Flowers & Dragons
+  { name:"Flower Garden", section:"Flowers & Dragons", points:30, pattern:[
+      kong(FL()), pung(DR_ROLE("A")), pung(DR_ROLE("B")), pair(DR_ROLE("C")), single(FL()), single(FL()) ] },
+  { name:"Bouquet Pungs", section:"Flowers & Dragons", points:35, pattern:[
+      kong(FL()), pung(FL()), kong(N(3,"A")), pung(N(3,"B")) ] },
+  { name:"Three Dragons & Flowers", section:"Flowers & Dragons", points:35, concealedOnly:true, pattern:[
+      pung(DRG("R")), pung(DRG("G")), pung(DRG("W")), pung(FL()), pair(FL()) ] },
+];
+
+/* ============================================================= *
+ * 6. Game-state helpers                                         *
+ * ============================================================= */
+const isMe = (uid) => uid === userId;
+const oppId = () => (G && G.playerIds ? G.playerIds.find(p => p !== userId) : null);
+function nameOf(uid) {
+  if (!G) return "";
+  if (G.player1 && G.player1.uid === uid) return G.player1.name;
+  if (G.player2 && G.player2.uid === uid) return G.player2.name;
+  return "Player";
+}
+const myTurn = (step) => !!G && G.phase === "play" && G.turn === userId && G.awaiting === step;
+const wallLeft = () => (G ? G.wall.length - G.wallIndex : 0);
+
+// All match-codes that make up uid's hand (concealed + exposed) — used only to
+// decide whether a completed win is jokerless (any joker anywhere disqualifies).
+function handMatchCodes(uid, extraRid) {
+  const codes = [];
+  for (const tl of (G.hands[uid] || [])) codes.push(matchCode(tl.t));
+  for (const ex of (G.exposures[uid] || [])) for (const tl of ex.tiles) codes.push(matchCode(tl.t));
+  if (extraRid) codes.push(matchCode(extraRid));
+  return codes;
+}
+// Best (highest-points) winning hand for uid, or null. Exposed melds are matched
+// structurally (see matchWithMelds). extraRid is the claimed discard when winning
+// off an opponent's tile; concealed-only hands are rejected once any meld exists.
+function bestWin(uid, extraRid) {
+  const concealed = [];
+  for (const tl of (G.hands[uid] || [])) concealed.push(matchCode(tl.t));
+  if (extraRid) concealed.push(matchCode(extraRid));
+  const melds = (G.exposures[uid] || []).map(ex => ({ type: ex.type, size: TYPE_SIZE[ex.type], natural: meldNaturalCode(ex) }));
+  const hasExposures = melds.length > 0;
+  if (concealed.length + melds.reduce((s, m) => s + m.size, 0) !== 14) return null;
+  const concealedJokers = concealed.filter(c => c === "J").length;
+  const realCount = countTiles(concealed.filter(c => c !== "J"));
+  let best = null;
+  for (const hand of HAND_SET) {
+    if (patternSize(hand.pattern) !== 14) continue;
+    if (hand.concealedOnly && hasExposures) continue;
+    const roles = rolesUsed(hand.pattern);
+    const assignments = roles.length ? roleSuitAssignments(roles) : [{}];
+    for (const roleSuit of assignments) {
+      if (matchWithMelds(realCount, concealedJokers, melds, hand.pattern, roleSuit)) {
+        if (!best || hand.points > best.points) best = { name: hand.name, points: hand.points, concealedOnly: !!hand.concealedOnly };
+        break;
+      }
+    }
+  }
+  return best;
+}
+
+/* ============================================================= *
+ * 7. Firestore actions                                          *
+ * ============================================================= */
+const gameRef = (id) => doc(db, `${GAMES_PATH}/${id}`);
+
+function newGameState(creatorUid, creatorName) {
+  const wall = shuffle(buildWall());
+  return {
+    _kind: KIND,
+    createdAt: Date.now(), lastUpdated: Date.now(),
+    player1: { uid: creatorUid, name: creatorName },
+    player2: null,
+    playerIds: [creatorUid],
+    phase: "waiting",            // waiting | play | gameover
+    wall, wallIndex: 0,
+    hands: { [creatorUid]: [] },
+    exposures: { [creatorUid]: [] },
+    discards: [],
+    turn: null,
+    awaiting: null,              // discard | draw
+    lastDiscard: null,
+    dealer: creatorUid,
+    winner: null,
+    winInfo: null,
+  };
+}
+
+// Shuffle a fresh wall and deal a new hand into gs (used by join and rematch).
+// Dealer (East) gets 14 and discards first; the other player gets 13.
+function dealFreshInto(gs, dealerUid, otherUid) {
+  const wall = shuffle(buildWall());
+  gs.wall = wall;
+  gs.wallIndex = 27;
+  gs.hands = { [dealerUid]: wall.slice(0, 14), [otherUid]: wall.slice(14, 27) };
+  gs.exposures = { [dealerUid]: [], [otherUid]: [] };
+  gs.discards = [];
+  gs.lastDiscard = null;
+  gs.winner = null;
+  gs.winInfo = null;
+  gs.dealer = dealerUid;
+  gs.turn = dealerUid;
+  gs.awaiting = "discard";
+  gs.phase = "play";
+}
+
+async function pushState(gs) {
+  gs.lastUpdated = Date.now();
+  pendingAction = true; renderActions();
+  try {
+    await setDoc(gameRef(gameId), gs);
+  } catch (e) {
+    console.error("[mahjong] write failed", e);
+    toast("Sync error: " + (e.code || e.message));
+  } finally {
+    // Re-enable buttons once the write settles. The latency-compensated
+    // snapshot can render with pendingAction still true (disabling buttons);
+    // without this re-render they'd stay disabled when the turn stays ours.
+    pendingAction = false;
+    if (G && G.phase === "play") renderActions();
+  }
+}
+
+async function setupNewGame() {
+  const name = ($("name-input").value || "").trim();
+  if (!name) { toast("Enter your name first."); return; }
+  if (!isAuthReady || !userId) { toast("Still connecting…"); return; }
+  localStorage.setItem(LOCAL_NAME_KEY, name);
+  const id = gameDocId(crypto.randomUUID());
+  const gs = newGameState(userId, name);
+  gameId = id;
+  await setDoc(gameRef(id), gs);
+  attachListener(id);
+  updateURL();
+  showGame();
+  revealInvite();
+}
+
+async function joinExistingGame(id) {
+  const name = ($("name-input").value || "").trim() || localStorage.getItem(LOCAL_NAME_KEY) || "";
+  if (!name) { toast("Enter your name to join."); return; }
+  if (!isAuthReady || !userId) { toast("Still connecting…"); return; }
+  localStorage.setItem(LOCAL_NAME_KEY, name);
+
+  // Claim seat 2 atomically so two simultaneous joiners can't both deal and
+  // clobber each other (read-modify-write must be serialized — like cribbage).
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(gameRef(id));
+      if (!snap.exists()) throw new Error("not-found");
+      const data = snap.data();
+      if (data.playerIds.includes(userId)) return;          // already seated (re-entry)
+      if (data.player2) throw new Error("full");            // someone else took seat 2
+      data.player2 = { uid: userId, name };
+      data.playerIds = [data.player1.uid, userId];
+      dealFreshInto(data, data.player1.uid, userId);        // creator = East / dealer
+      data.lastUpdated = Date.now();
+      tx.set(gameRef(id), data);
+    });
+  } catch (e) {
+    if (e.message === "not-found") { toast("That game wasn't found."); }
+    else if (e.message === "full") { toast("That game already has two players."); }
+    else { console.error("[mahjong] join failed", e); toast("Couldn't join: " + (e.code || e.message)); }
+    showMenu();
+    return;
+  }
+  gameId = id;
+  attachListener(id);
+  showGame();
+}
+
+function attachListener(id) {
+  if (unsub) unsub();
+  unsub = onSnapshot(gameRef(id), (snap) => {
+    if (!snap.exists()) { toast("Game ended."); resetLocal(); return; }
+    G = snap.data();
+    if (selectedU != null && !(G.hands[userId] || []).some(t => t.u === selectedU)) selectedU = null;
+    showGame();
+    render();
+  }, (err) => { console.error("[mahjong] snapshot", err); toast("Connection error."); });
+}
+
+// Tear down local state and return to the menu (no Firestore write).
+function resetLocal() {
+  if (unsub) { unsub(); unsub = null; }
+  gameId = null; G = null; selectedU = null;
+  history.replaceState(null, "", location.pathname);
+  pendingJoinId = null;
+  showMenu();
+}
+
+// User-initiated leave: if we'd strand a live opponent, end the game in their
+// favour first; a lone creator's waiting room is deleted so it doesn't orphan.
+async function leaveGame() {
+  const gid = gameId, snapshot = G;
+  try {
+    if (gid && snapshot) {
+      if (snapshot.phase === "play" && oppId()) {
+        const gs = clone(snapshot);
+        gs.phase = "gameover";
+        gs.winner = oppId();
+        gs.winInfo = { handName: null, base: 0, points: 0, jokerless: false, source: "forfeit", by: oppId() };
+        gs.lastDiscard = null;
+        gs.lastUpdated = Date.now();
+        await setDoc(gameRef(gid), gs);
+      } else if (snapshot.phase === "waiting" && !snapshot.player2) {
+        await deleteDoc(gameRef(gid));
+      }
+    }
+  } catch (e) {
+    console.warn("[mahjong] leave cleanup failed", e);
+  }
+  resetLocal();
+}
+
+/* ----- Player actions ----- */
+function actDiscard() {
+  if (!myTurn("discard") || pendingAction) return;
+  if (selectedU == null) { toast("Pick a tile to discard."); return; }
+  const gs = clone(G);
+  const hand = gs.hands[userId];
+  const idx = hand.findIndex(t => t.u === selectedU);
+  if (idx < 0) return;
+  const [tile] = hand.splice(idx, 1);
+  gs.discards.push({ u: tile.u, t: tile.t, by: userId });
+  gs.lastDiscard = { u: tile.u, t: tile.t, by: userId };
+  gs.turn = oppId();
+  gs.awaiting = "draw";
+  selectedU = null;
+  pushState(gs);
+}
+
+function actDraw() {
+  if (!myTurn("draw") || pendingAction) return;
+  const gs = clone(G);
+  if (gs.wallIndex >= gs.wall.length) {       // wall game
+    gs.phase = "gameover"; gs.winner = null; gs.winInfo = null; gs.lastDiscard = null;
+    pushState(gs); return;
+  }
+  const tile = gs.wall[gs.wallIndex++];
+  gs.hands[userId].push({ u: tile.u, t: tile.t });
+  gs.lastDiscard = null;                       // declined to claim
+  gs.awaiting = "discard";
+  pushState(gs);
+}
+
+function canClaim(kind) {
+  if (!myTurn("draw") || !G.lastDiscard) return false;
+  const xc = matchCode(G.lastDiscard.t);
+  if (xc === "F" || xc === "J") return false;  // flowers & jokers aren't claimable
+  const need = kind === "pung" ? 2 : 3;
+  const hand = G.hands[userId] || [];
+  const reals = hand.filter(t => matchCode(t.t) === xc).length;
+  const jokers = hand.filter(t => t.t === "joker").length;
+  return reals + jokers >= need;
+}
+
+function actClaim(kind) {
+  if (!canClaim(kind) || pendingAction) return;
+  const X = G.lastDiscard;
+  const xc = matchCode(X.t);
+  const need = kind === "pung" ? 2 : 3;
+  const hand = G.hands[userId];
+  const use = [];
+  for (const t of hand) if (use.length < need && matchCode(t.t) === xc) use.push(t);      // real first
+  for (const t of hand) if (use.length < need && t.t === "joker" && !use.includes(t)) use.push(t); // then jokers
+  if (use.length < need) return;
+
+  const gs = clone(G);
+  const useU = new Set(use.map(t => t.u));
+  gs.hands[userId] = gs.hands[userId].filter(t => !useU.has(t.u));
+  const di = gs.discards.findIndex(d => d.u === X.u);
+  if (di >= 0) gs.discards.splice(di, 1);
+  gs.exposures[userId].push({
+    type: kind,
+    tiles: [{ u: X.u, t: X.t }, ...use.map(t => ({ u: t.u, t: t.t }))],
+  });
+  gs.lastDiscard = null;
+  gs.turn = userId;
+  gs.awaiting = "discard";       // must now discard
+  pushState(gs);
+}
+
+function canDeclareSelf() {
+  if (!myTurn("discard")) return null;
+  return bestWin(userId, null);
+}
+function canClaimMahjong() {
+  if (!myTurn("draw") || !G.lastDiscard) return null;
+  const xc = matchCode(G.lastDiscard.t);
+  if (xc === "F" || xc === "J") return null;   // flowers & jokers are never claimable off a discard
+  return bestWin(userId, G.lastDiscard.t);
+}
+
+function finishWin(win, source, claimTile) {
+  const gs = clone(G);
+  if (source === "claim" && claimTile) {
+    const di = gs.discards.findIndex(d => d.u === claimTile.u);
+    if (di >= 0) gs.discards.splice(di, 1);
+    gs.hands[userId].push({ u: claimTile.u, t: claimTile.t });
+  }
+  const codes = handMatchCodes(userId); // hand now holds the winning tile
+  const jokerless = codes.every(c => c !== "J");
+  const points = jokerless ? win.points * 2 : win.points;
+  gs.winner = userId;
+  gs.phase = "gameover";
+  gs.winInfo = { handName: win.name, base: win.points, points, jokerless, source, by: userId };
+  gs.lastDiscard = null;
+  pushState(gs);
+}
+
+function actDeclareSelf() {
+  if (pendingAction) return;
+  const win = canDeclareSelf();
+  if (!win) { toast("That isn't a complete winning hand yet."); return; }
+  finishWin(win, "self", null);
+}
+function actClaimMahjong() {
+  if (pendingAction) return;
+  const win = canClaimMahjong();
+  if (!win) { toast("That discard doesn't finish a winning hand."); return; }
+  finishWin(win, "claim", G.lastDiscard);
+}
+
+// Re-deal in place on the SAME doc so both players' listeners transition
+// together (rather than minting a new game and stranding the opponent). The
+// previous non-dealer becomes the new East.
+function doRematch() {
+  if (pendingAction || !G) return;
+  if (!G.player2 || G.playerIds.length < 2) { toast("No opponent to rematch."); return; }
+  $("gameover-modal").classList.add("hidden");
+  const gs = clone(G);
+  const newDealer = G.playerIds.find(p => p !== G.dealer) || G.dealer;
+  const other = G.playerIds.find(p => p !== newDealer);
+  dealFreshInto(gs, newDealer, other);
+  pushState(gs);
+}
+
+/* ============================================================= *
+ * 8. Rendering                                                  *
+ * ============================================================= */
+function tileEl(rid, opts = {}) {
+  const d = document.createElement("div");
+  d.className = "tile" + (opts.size ? " " + opts.size : "");
+  if (opts.faceDown) { d.classList.add("back"); return d; }
+  const img = document.createElement("img");
+  img.src = tileURL(rid);
+  img.alt = matchCode(rid);
+  img.loading = "lazy"; img.decoding = "async";
+  img.onerror = function () {
+    this.style.display = "none";
+    if (this.parentNode.querySelector(".glyph")) return;
+    const s = document.createElement("span");
+    s.className = "glyph";
+    s.textContent = UNI[rid] || matchCode(rid);
+    this.parentNode.appendChild(s);
+  };
+  d.appendChild(img);
+  return d;
+}
+
+function render() {
+  if (!G) return;
+  if (G.phase === "gameover") { renderTable(); renderGameOver(); return; }
+  $("gameover-modal").classList.add("hidden");
+  renderTable();
+}
+
+function renderTable() {
+  const opp = oppId();
+  // Invite panel only while waiting.
+  if (G.phase === "waiting") revealInvite(); else $("invite-panel").classList.add("hidden");
+
+  // Opponent
+  $("opp-name").textContent = opp ? nameOf(opp) : "Waiting for opponent…";
+  $("opp-meta").textContent = opp
+    ? `${(G.hands[opp] || []).length} tiles${G.dealer === opp ? " · East" : ""}`
+    : "";
+  renderExposures($("opp-exposures"), opp ? G.exposures[opp] : []);
+  const oppHand = $("opp-hand"); oppHand.innerHTML = "";
+  for (let i = 0; i < (opp ? (G.hands[opp] || []).length : 0); i++) oppHand.appendChild(tileEl("back", { faceDown: true }));
+
+  // Center: status + discards
+  $("status-text").textContent = statusText();
+  $("wall-count").textContent = `Wall: ${wallLeft()} tiles`;
+  const dp = $("discard-pile"); dp.innerHTML = "";
+  for (const d of G.discards) {
+    const el = tileEl(d.t, { size: "mini" });
+    if (G.lastDiscard && d.u === G.lastDiscard.u) el.classList.add("claimable");
+    dp.appendChild(el);
+  }
+
+  // You
+  $("you-name").textContent = nameOf(userId) + " (you)";
+  $("you-meta").textContent = `${(G.hands[userId] || []).length} tiles${G.dealer === userId ? " · East" : ""}`;
+  renderExposures($("you-exposures"), G.exposures[userId]);
+  renderMyHand();
+  renderActions();
+}
+
+function renderExposures(container, exposures) {
+  container.innerHTML = "";
+  for (const ex of (exposures || [])) {
+    const m = document.createElement("div");
+    m.className = "meld";
+    for (const tl of ex.tiles) m.appendChild(tileEl(tl.t, { size: "mini" }));
+    container.appendChild(m);
+  }
+}
+
+function renderMyHand() {
+  const c = $("you-hand"); c.innerHTML = "";
+  const sorted = [...(G.hands[userId] || [])].sort((a, b) => sortKey(a.t) - sortKey(b.t) || a.u - b.u);
+  const canPick = myTurn("discard");
+  for (const tl of sorted) {
+    const el = tileEl(tl.t);
+    if (canPick) {
+      el.classList.add("selectable");
+      if (tl.u === selectedU) el.classList.add("selected");
+      el.addEventListener("click", () => {
+        if (selectedU === tl.u) { actDiscard(); }
+        else { selectedU = tl.u; renderMyHand(); renderActions(); }
+      });
+    }
+    c.appendChild(el);
+  }
+}
+
+function statusText() {
+  if (G.phase === "waiting") return "Waiting for your opponent to join…";
+  const opp = oppId();
+  if (G.turn === userId) {
+    if (G.awaiting === "discard") return "Your turn — select a tile to discard.";
+    if (G.awaiting === "draw") return G.lastDiscard
+      ? "Your turn — draw, or claim the highlighted discard."
+      : "Your turn — draw a tile.";
+  }
+  return `${nameOf(opp)}'s turn…`;
+}
+
+function actionBtn(label, cls, fn, disabled) {
+  const b = document.createElement("button");
+  b.className = "btn " + cls;
+  b.textContent = label;
+  b.disabled = !!disabled || pendingAction;
+  b.addEventListener("click", fn);
+  return b;
+}
+
+function renderActions() {
+  const a = $("action-area");
+  if (!a) return;
+  a.innerHTML = "";
+  if (!G || G.phase !== "play") return;
+
+  if (G.turn !== userId) {
+    const span = document.createElement("span");
+    span.className = "text-sm text-emerald-100/70";
+    span.textContent = "Waiting for your opponent…";
+    a.appendChild(span);
+    return;
+  }
+
+  if (G.awaiting === "discard") {
+    a.appendChild(actionBtn("Discard", "btn-go", actDiscard, selectedU == null));
+    const win = canDeclareSelf();
+    if (win) a.appendChild(actionBtn(`Mahjong! · ${win.name}`, "btn-win", actDeclareSelf));
+  } else if (G.awaiting === "draw") {
+    const empty = wallLeft() <= 0;
+    a.appendChild(actionBtn(empty ? "Wall empty — end (draw)" : "Draw tile", "btn-go", actDraw));
+    if (canClaim("pung")) a.appendChild(actionBtn("Pung", "btn-claim", () => actClaim("pung")));
+    if (canClaim("kong")) a.appendChild(actionBtn("Kong", "btn-claim", () => actClaim("kong")));
+    const cw = canClaimMahjong();
+    if (cw) a.appendChild(actionBtn(`Mahjong! · ${cw.name}`, "btn-win", actClaimMahjong));
+  }
+}
+
+function renderGameOver() {
+  const m = $("gameover-modal");
+  const iWon = G.winner === userId;
+  const wi = G.winInfo || {};
+  const forfeit = wi.source === "forfeit";
+  if (G.winner && forfeit) {
+    $("go-title").textContent = iWon ? "🀄 You win!" : "You lose";
+    $("go-detail").textContent = iWon
+      ? "Your opponent left the game — you win by default."
+      : "You left the game.";
+  } else if (G.winner) {
+    $("go-title").textContent = iWon ? "🀄 You win!" : "You lose";
+    const who = iWon ? "You" : nameOf(G.winner);
+    $("go-detail").innerHTML =
+      `${escapeHTML(who)} completed <b>${escapeHTML(wi.handName || "")}</b> ` +
+      `for <b>${wi.points}</b> point${wi.points === 1 ? "" : "s"}` +
+      `${wi.jokerless ? " (jokerless — doubled!)" : ""}` +
+      `${wi.source === "claim" ? ", claimed off a discard." : "."}`;
+  } else {
+    $("go-title").textContent = "Draw game";
+    $("go-detail").textContent = "The wall ran out before anyone completed a hand.";
+  }
+  // Show the winner's final hand (not for a forfeit — there's no completed hand).
+  const hc = $("go-hand"); hc.innerHTML = "";
+  if (G.winner && !forfeit) {
+    const row = document.createElement("div"); row.className = "tile-row justify-center";
+    renderExposures(row, G.exposures[G.winner]);
+    const sorted = [...(G.hands[G.winner] || [])].sort((a, b) => sortKey(a.t) - sortKey(b.t));
+    for (const tl of sorted) row.appendChild(tileEl(tl.t, { size: "mini" }));
+    hc.appendChild(row);
+  }
+  // Rematch re-deals in place and needs both players present; hide it on a forfeit.
+  $("go-rematch").classList.toggle("hidden", forfeit || !G.player2);
+  m.classList.remove("hidden");
+}
+
+/* ============================================================= *
+ * 9. Winning-hands reference card                              *
+ * ============================================================= */
+function refChip(comp) {
+  const size = TYPE_SIZE[comp.type];
+  let label = "", role = null;
+  if (comp.num != null) { label = String(comp.num); role = comp.role; }
+  else if (comp.wind) { label = { E:"East", S:"South", W:"West", N:"North" }[comp.wind] + " Wind"; }
+  else if (comp.dragonRole) { label = "Dragon"; role = comp.dragonRole; }
+  else if (comp.dragon) { label = { R:"Red", G:"Green", W:"White" }[comp.dragon] + " Dragon"; }
+  else if (comp.flower) { label = "Flower"; }
+  const cls = role ? " role-" + role : "";
+  return `<span class="hchip${cls}"><b>${size}×</b>${escapeHTML(label)}${role ? '<sup>'+role+'</sup>' : ''}</span>`;
+}
+function renderHandsList() {
+  const list = $("hands-list");
+  list.innerHTML = "";
+  let section = null;
+  for (const hand of HAND_SET) {
+    if (hand.section !== section) {
+      section = hand.section;
+      const h = document.createElement("h3");
+      h.className = "text-sm font-black uppercase tracking-wide text-emerald-300/80 mt-4 mb-1";
+      h.textContent = section;
+      list.appendChild(h);
+    }
+    const row = document.createElement("div");
+    row.className = "py-2 border-b border-white/5";
+    const head = document.createElement("div");
+    head.className = "flex items-center gap-2 mb-1";
+    head.innerHTML =
+      `<span class="font-bold">${escapeHTML(hand.name)}</span>` +
+      (hand.concealedOnly ? ' <span class="badge">concealed</span>' : "") +
+      `<span class="ml-auto text-emerald-300 font-black">${hand.points} pts</span>`;
+    const chips = document.createElement("div");
+    chips.innerHTML = hand.pattern.map(refChip).join("");
+    row.appendChild(head); row.appendChild(chips);
+    list.appendChild(row);
+  }
+}
+
+/* ============================================================= *
+ * 10. Screen / misc helpers                                    *
+ * ============================================================= */
+function showMenu() {
+  $("main-menu").classList.remove("hidden");
+  $("game-screen").classList.add("hidden");
+}
+function showGame() {
+  $("main-menu").classList.add("hidden");
+  $("game-screen").classList.remove("hidden");
+}
+function updateURL() {
+  history.replaceState(null, "", `${location.pathname}?g=${encodeURIComponent(gameId)}`);
+}
+function inviteURL() {
+  return `${location.origin}${location.pathname}?g=${encodeURIComponent(gameId)}`;
+}
+function revealInvite() {
+  if (!gameId) return;
+  $("invite-panel").classList.remove("hidden");
+  $("invite-url").value = inviteURL();
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch { try {
+    const ta = document.createElement("textarea"); ta.value = text;
+    document.body.appendChild(ta); ta.select(); document.execCommand("copy");
+    document.body.removeChild(ta); return true;
+  } catch { return false; } }
+}
+let toastTimer = null;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+/* ============================================================= *
+ * 11. Init                                                      *
+ * ============================================================= */
+function wireUI() {
+  $("primary-btn").addEventListener("click", () => {
+    if (pendingJoinId) joinExistingGame(pendingJoinId);
+    else setupNewGame();
+  });
+  $("name-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("primary-btn").click(); });
+
+  $("copy-link-btn").addEventListener("click", async () => {
+    revealInvite();
+    const ok = await copyText(inviteURL());
+    $("invite-status").textContent = ok ? "Link copied to clipboard." : "Copy failed — select and copy manually.";
+  });
+  $("invite-copy").addEventListener("click", async () => {
+    const ok = await copyText(inviteURL());
+    $("invite-status").textContent = ok ? "Link copied to clipboard." : "Copy failed — select and copy manually.";
+  });
+  $("leave-btn").addEventListener("click", leaveGame);
+
+  $("rules-btn").addEventListener("click", () => $("rules-modal").classList.remove("hidden"));
+  $("rules-close").addEventListener("click", () => $("rules-modal").classList.add("hidden"));
+  const openHands = () => { renderHandsList(); $("hands-modal").classList.remove("hidden"); };
+  $("hands-btn").addEventListener("click", openHands);
+  $("g-hands-btn").addEventListener("click", openHands);
+  $("hands-close").addEventListener("click", () => $("hands-modal").classList.add("hidden"));
+
+  $("go-rematch").addEventListener("click", doRematch);
+  $("go-leave").addEventListener("click", () => { $("gameover-modal").classList.add("hidden"); leaveGame(); });
+
+  for (const m of ["hands-modal", "rules-modal"]) {
+    $(m).addEventListener("click", (e) => { if (e.target === $(m)) $(m).classList.add("hidden"); });
+  }
+}
+
+async function init() {
+  wireUI();
+  const storedName = localStorage.getItem(LOCAL_NAME_KEY) || "";
+  $("name-input").value = storedName;
+
+  pendingJoinId = new URLSearchParams(location.search).get("g");
+  if (pendingJoinId) {
+    $("join-hint").textContent = "You're joining a game — enter your name and tap Join Game.";
+    $("join-hint").classList.remove("hidden");
+    $("primary-btn").textContent = "Join Game";
+  }
+  showMenu();
+
+  try {
+    fbApp = initializeApp(firebaseConfig);
+    db = getFirestore(fbApp);
+    auth = getAuth(fbApp);
+    await signInAnonymously(auth);
+    userId = auth.currentUser.uid;
+    isAuthReady = true;
+  } catch (e) {
+    console.error("[mahjong] auth failed", e);
+    toast("Couldn't connect. Reload to retry.");
+    return;
+  }
+
+  // Auto-join if we already know the player's name.
+  if (pendingJoinId && storedName) joinExistingGame(pendingJoinId);
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
