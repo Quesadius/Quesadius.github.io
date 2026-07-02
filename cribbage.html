@@ -6,14 +6,61 @@
 <title>Cribbage</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  html { background: #0c3019; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    /* One large felt table — everything sits on it.
+       (No background-attachment:fixed — iOS Safari mangles it.) */
+    background:
+      radial-gradient(120% 90% at 50% 0%, #2e8049 0%, #1f6b3a 38%, #14522b 72%, #0c3019 100%)
+      #0c3019;
+  }
   .card { display:inline-block; vertical-align:top; }
   .card svg { display:block; }
   .card-btn { cursor:pointer; transition: transform .1s ease, box-shadow .1s ease; border-radius:8px; }
   .card-btn:hover { transform: translateY(-6px); box-shadow: 0 6px 12px rgba(0,0,0,.2); }
-  .card-selected { transform: translateY(-12px); box-shadow: 0 8px 16px rgba(59,130,246,.5); outline: 2px solid #3b82f6; }
+  .card-selected { transform: translateY(-12px); box-shadow: 0 8px 16px rgba(250,204,21,.55); outline: 2px solid #facc15; }
   .card-disabled { opacity: .45; cursor: not-allowed; }
   .card-disabled:hover { transform: none; box-shadow: none; }
+
+  /* Dark translucent panels that read as objects on the felt */
+  .table-panel { background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px; color: #f5f5f4; }
+  .table-well { background: rgba(0,0,0,.18); border-radius: 12px; }
+
+  /* Active-turn glow on a player zone */
+  .zone { border-radius: 12px; padding: 6px 8px; transition: box-shadow .3s ease, background .3s ease; }
+  .zone-active { background: rgba(253,230,138,.07);
+    box-shadow: 0 0 0 2px rgba(253,230,138,.75), 0 0 26px rgba(253,230,138,.28); }
+
+  /* Pegging pile: opponent's cards ride high, yours ride low */
+  .peg-card { margin-right: -14px; transition: transform .25s ease; }
+  .peg-card-opp  { transform: translateY(-9px); }
+  .peg-card-mine { transform: translateY(9px); }
+  .peg-card:last-child { margin-right: 0; }
+
+  /* Big running-count chip */
+  #peg-count-chip {
+    width: 3.4rem; height: 3.4rem; border-radius: 9999px;
+    background: #fbbf24; color: #1c1917;
+    display: grid; place-items: center;
+    font-size: 1.5rem; font-weight: 800;
+    box-shadow: 0 4px 12px rgba(0,0,0,.4), inset 0 -2px 4px rgba(0,0,0,.2);
+    flex: none;
+  }
+  #peg-count-chip.chip-done { background: #a8a29e; }
+
+  /* Game log */
+  #game-log { max-height: 10.5rem; overflow-y: auto; scroll-behavior: smooth;
+    font-size: .8rem; line-height: 1.5; }
+  #game-log .log-row { display:flex; gap:.5rem; padding: 1px 0; }
+  #game-log .log-who { color:#fde68a; font-weight:600; flex:none; }
+  #game-log .log-pts { color:#6ee7b7; font-weight:700; }
+
+  /* Presence dot */
+  .presence-dot { width:.55rem; height:.55rem; border-radius:9999px; display:inline-block;
+    margin-left:.35rem; background:#57534e; }
+  .presence-dot.online { background:#4ade80; box-shadow: 0 0 6px rgba(74,222,128,.8); }
 
   /* Cribbage board */
   .board-wrap {
@@ -32,8 +79,8 @@
   .peg-front-2 { fill: #c0c0c0; }   /* silver */
   .peg-back-2  { fill: #8a8a8a; }
   .peg-move    { transition: transform .8s cubic-bezier(.4,1.4,.6,1); }
+  .no-anim     { transition: none !important; }
 
-  .felt { background: radial-gradient(ellipse at center, #1f6b3a 0%, #134a26 70%, #0c3019 100%); }
   .pip { font-family: "Times New Roman", serif; }
   .breakdown-item { display:flex; justify-content:space-between; padding:4px 8px; border-bottom:1px solid #e5e7eb; }
   .breakdown-item:last-child { border-bottom:0; font-weight:700; }
@@ -49,7 +96,16 @@
     #game-layout { grid-template-columns: 1fr; }
   }
 
-  /* Fanned deck picker */
+  /* Count breakdown: docked side panel on wide screens (board stays visible),
+     centered overlay on narrow ones. */
+  @media (min-width: 900px) {
+    #breakdown-modal { pointer-events: none; background: transparent !important;
+      justify-content: flex-end !important; align-items: flex-start !important; }
+    #breakdown-modal > div { pointer-events: auto; margin-top: 4.5rem; margin-right: .25rem;
+      box-shadow: 0 20px 50px rgba(0,0,0,.55); }
+  }
+
+  /* Fanned deck picker (height set by JS: 1 or 2 rows) */
   .fan { position: relative; height: 108px; width: 100%; }
   .fan .fan-card {
     position: absolute; top: 4px;
@@ -95,17 +151,17 @@
   .peg-round-done .card { opacity: 0.6; filter: grayscale(0.25); }
 </style>
 </head>
-<body class="bg-stone-100 min-h-screen text-stone-800">
+<body class="min-h-screen text-stone-100">
 
 <div id="peg-popup"></div>
 <div id="app" class="max-w-6xl mx-auto p-3 sm:p-6">
 
   <!-- ============ MAIN MENU ============ -->
   <section id="main-menu" class="hidden">
-    <h1 class="text-4xl sm:text-5xl font-bold text-center mb-2">Cribbage</h1>
-    <p class="text-center text-stone-600 mb-8">Two-player, race to 121.</p>
+    <h1 class="text-4xl sm:text-5xl font-bold text-center mb-2 text-amber-50" style="text-shadow:0 2px 8px rgba(0,0,0,.4)">Cribbage</h1>
+    <p class="text-center text-emerald-100/80 mb-8">Two-player, race to 121.</p>
 
-    <div class="bg-white rounded-2xl shadow-md p-6 max-w-md mx-auto space-y-4">
+    <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md mx-auto space-y-4 text-stone-800">
       <div>
         <label class="block text-sm font-semibold mb-1">Your name</label>
         <input id="name-input" type="text" maxlength="20" placeholder="e.g. Dad"
@@ -128,8 +184,8 @@
   <!-- ============ STATS ============ -->
   <section id="stats-screen" class="hidden">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Statistics</h2>
-      <button id="stats-back-btn" class="px-3 py-1 bg-stone-200 hover:bg-stone-300 rounded-lg text-sm">← Back</button>
+      <h2 class="text-2xl font-bold text-amber-50" style="text-shadow:0 2px 8px rgba(0,0,0,.4)">Statistics</h2>
+      <button id="stats-back-btn" class="px-3 py-1 bg-stone-200 hover:bg-stone-300 rounded-lg text-sm text-stone-800">← Back</button>
     </div>
     <div id="stats-content" class="space-y-6">
       <p class="text-stone-500">Loading…</p>
@@ -140,8 +196,10 @@
   <section id="game-screen" class="hidden">
 
     <header class="flex flex-wrap items-center justify-between gap-2 mb-3">
-      <h1 class="text-2xl sm:text-3xl font-bold">Cribbage</h1>
+      <h1 class="text-2xl sm:text-3xl font-bold text-amber-50" style="text-shadow:0 2px 8px rgba(0,0,0,.4)">Cribbage</h1>
       <div class="flex items-center gap-2 flex-wrap">
+        <button id="mute-btn" title="Toggle sound"
+          class="bg-black/25 hover:bg-black/40 border border-white/10 text-base px-2.5 py-1 rounded-lg">🔊</button>
         <button id="copy-link-btn"
           class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded-lg">
           Copy Invite Link
@@ -154,8 +212,8 @@
     </header>
 
     <!-- Invite link panel (revealed on Copy Invite Link click) -->
-    <div id="invite-panel" class="hidden mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm flex items-center gap-2">
-      <input id="invite-url" readonly class="flex-1 bg-white border border-blue-300 rounded px-2 py-1 text-xs" />
+    <div id="invite-panel" class="hidden mb-3 px-3 py-2 bg-white/95 rounded-lg text-sm flex items-center gap-2 text-stone-800 shadow-lg">
+      <input id="invite-url" readonly class="flex-1 bg-white border border-stone-300 rounded px-2 py-1 text-xs" />
       <button id="invite-copy-again" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded">Copy</button>
       <button id="invite-close" class="text-stone-500 hover:text-stone-800 text-xs px-2 py-1" title="Close">×</button>
       <span id="invite-status" class="text-xs text-emerald-700"></span>
@@ -168,28 +226,28 @@
         <div class="board-wrap">
           <svg id="board-svg" class="board-svg" viewBox="0 0 232 660" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
-        <div id="score-bar" class="bg-white rounded-xl shadow mt-3 divide-y divide-stone-200 overflow-hidden"></div>
+        <div id="score-bar" class="table-panel mt-3 divide-y divide-white/10 overflow-hidden"></div>
+        <div id="series-line" class="hidden text-center text-xs text-emerald-100/80 mt-2"></div>
       </aside>
 
-      <!-- Main column: status + felt -->
+      <!-- Main column: status + play area directly on the felt -->
       <div id="main-col" class="min-w-0">
 
         <!-- Status bar -->
-        <div id="status-bar" class="mb-3 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm sm:text-base">
+        <div id="status-bar" class="mb-3 px-4 py-2 bg-amber-50 text-stone-800 rounded-lg text-sm sm:text-base shadow-lg">
           Waiting…
         </div>
 
-        <!-- Felt area: opponent, middle, you -->
-        <div class="felt rounded-2xl shadow-inner p-3 sm:p-5 space-y-4 text-white">
+        <div class="space-y-4 text-white">
 
           <!-- Opponent zone -->
-          <div>
+          <div id="opp-zone" class="zone">
             <div class="text-sm uppercase tracking-wide text-emerald-100/80 mb-1" id="opponent-label">Opponent</div>
             <div id="opponent-hand" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
           </div>
 
           <!-- Fan zone: deck spread for cut-for-deal and starter cut -->
-          <div id="fan-zone" class="hidden bg-black/20 rounded-xl p-3">
+          <div id="fan-zone" class="hidden table-well p-3">
             <div id="fan-picks" class="flex items-end justify-center gap-6 mb-3 min-h-[20px]"></div>
             <div id="fan-container" class="fan"></div>
             <div id="fan-caption" class="text-center text-xs text-emerald-100/80 mt-2"></div>
@@ -197,24 +255,25 @@
 
           <!-- Middle: crib + starter + pegging -->
           <div id="middle-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div class="bg-black/20 rounded-xl p-3">
+            <div class="table-well p-3">
               <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1" id="crib-label">Crib</div>
               <div id="crib-area" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
             </div>
-            <div class="bg-black/20 rounded-xl p-3">
+            <div class="table-well p-3">
               <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">Starter</div>
               <div id="starter-area" class="flex items-center justify-center min-h-[80px]"></div>
             </div>
-            <div class="bg-black/20 rounded-xl p-3">
-              <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">
-                Pegging <span id="pegging-total" class="text-white font-bold ml-2"></span>
+            <div class="table-well p-3 sm:col-span-1">
+              <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">Pegging</div>
+              <div class="flex items-center gap-2">
+                <div id="pegging-area" class="flex flex-wrap items-center flex-1 min-h-[96px] py-2"></div>
+                <div id="peg-count-chip" class="hidden">0</div>
               </div>
-              <div id="pegging-area" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
             </div>
           </div>
 
           <!-- Your zone -->
-          <div>
+          <div id="my-zone" class="zone">
             <div class="text-sm uppercase tracking-wide text-emerald-100/80 mb-1" id="player-label">You</div>
             <div id="player-hand" class="flex flex-wrap gap-1.5 min-h-[110px]"></div>
           </div>
@@ -222,13 +281,19 @@
           <!-- Action area -->
           <div id="action-area" class="flex flex-wrap items-center gap-2 justify-center pt-2"></div>
 
+          <!-- Game log -->
+          <div id="game-log-panel" class="hidden table-panel p-3">
+            <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">Game log</div>
+            <div id="game-log"></div>
+          </div>
+
         </div>
       </div>
     </div>
 
     <!-- Breakdown overlay -->
     <div id="breakdown-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto">
+      <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto text-stone-800">
         <h3 class="text-xl font-bold mb-1">Hand complete</h3>
         <div class="text-xs text-stone-500 mb-3">Starter:
           <span id="breakdown-starter-card" class="inline-block align-middle ml-1"></span>
@@ -244,13 +309,18 @@
 
     <!-- Game-over overlay -->
     <div id="gameover-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 text-center">
+      <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 text-center text-stone-800">
         <h3 class="text-3xl font-bold mb-2" id="gameover-title">🎉</h3>
-        <p id="gameover-detail" class="mb-5 text-stone-700"></p>
+        <p id="gameover-detail" class="mb-2 text-stone-700"></p>
+        <p id="gameover-series" class="mb-5 text-sm text-stone-500"></p>
         <div class="flex gap-2">
           <button id="rematch-btn"
-            class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg">
+            class="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-400 text-white font-semibold py-2 rounded-lg">
             Rematch
+          </button>
+          <button id="gameover-stats-btn"
+            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg">
+            View Stats
           </button>
           <button id="gameover-leave-btn"
             class="flex-1 bg-stone-200 hover:bg-stone-300 text-stone-800 font-semibold py-2 rounded-lg">
@@ -308,6 +378,35 @@ let localSelection = [];   // local UI: cards selected for crib
 let lastRenderedPhase = null;
 let lastShownPegEventAt = 0;
 let pendingAction = null;   // 'discard' | 'continue' | ... — survives re-renders
+let lastPegHistoryLen = -1; // -1 = first render sentinel (no sound on join)
+let lastWinSoundGame = null;
+
+/* ---- Sounds: tiny WebAudio synth, no assets ---- */
+let audioCtx = null;
+let muted = localStorage.getItem('cribbage_muted') === '1';
+function ac(){
+  if (!audioCtx){
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ return null; }
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+  return audioCtx;
+}
+function tone(freq, dur, type, vol, delay){
+  if (muted) return;
+  const ctx = ac(); if (!ctx) return;
+  const t = ctx.currentTime + (delay || 0);
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type || 'triangle'; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol || .15, t);
+  g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t + dur + .02);
+}
+function sndCard(){ tone(220, .06, 'square', .05); tone(180, .05, 'square', .04, .02); }
+function sndPeg(){ tone(1350, .05, 'triangle', .12); tone(1750, .06, 'triangle', .10, .06); }
+function sndWin(){ [523, 659, 784, 1047].forEach((f, i) => tone(f, .18, 'triangle', .14, i * .12)); }
+function updateMuteBtn(){ const b = $('mute-btn'); if (b) b.textContent = muted ? '🔇' : '🔊'; }
 
 const LOCAL_NAME_KEY = 'cribbage_player_name';
 
@@ -370,13 +469,27 @@ function renderCardSVG(card, opts={}){
 
   let body = '';
   if (isFace) {
-    // Stylized face card: large rank letter + suit, ornamental border
+    // Court card: ornate double frame, mirrored rank letters, suit medallion,
+    // and a tinted panel — reads as royalty without external art.
+    const accent = (s === 'H' || s === 'D') ? '#fdeaea' : '#ececf4';
+    const fs = Math.min(w,h);
     body = `
-      <rect x="14" y="14" width="${w-28}" height="${h-28}" fill="none" stroke="${color}" stroke-width="1.2" rx="3"/>
-      <text x="${w/2}" y="${h*0.46}" text-anchor="middle" font-size="${Math.min(w,h)*0.42}"
-        fill="${color}" font-family="Times New Roman, serif" font-weight="700">${lbl}</text>
-      <text x="${w/2}" y="${h*0.78}" text-anchor="middle" font-size="${Math.min(w,h)*0.34}"
-        fill="${color}">${glyph}</text>`;
+      <rect x="11" y="11" width="${w-22}" height="${h-22}" fill="${accent}" stroke="${color}" stroke-width="1.4" rx="4"/>
+      <rect x="14.5" y="14.5" width="${w-29}" height="${h-29}" fill="none" stroke="${color}" stroke-width="0.6" rx="2.5"
+        stroke-dasharray="2.5 1.5"/>
+      <g fill="${color}" font-family="Times New Roman, serif" font-weight="700" text-anchor="middle">
+        <text x="${w/2}" y="${h*0.40}" font-size="${fs*0.34}">${lbl}</text>
+        <g transform="translate(${w/2},${h*0.62}) rotate(180)">
+          <text x="0" y="${fs*0.10}" font-size="${fs*0.34}">${lbl}</text>
+        </g>
+      </g>
+      <circle cx="${w/2}" cy="${h/2}" r="${fs*0.135}" fill="white" stroke="${color}" stroke-width="0.9"/>
+      <text x="${w/2}" y="${h/2}" text-anchor="middle" dominant-baseline="central"
+        font-size="${fs*0.18}" fill="${color}">${glyph}</text>
+      <g fill="${color}" font-size="${fs*0.12}" text-anchor="middle">
+        <text x="${w-19}" y="${h*0.235}">${glyph}</text>
+        <text x="19" y="${h*0.82}">${glyph}</text>
+      </g>`;
   } else {
     // Pip card
     const pips = PIP_POSITIONS[r] || [];
@@ -761,17 +874,47 @@ function attachListener(id){
       return;
     }
     G = snap.data();
+    // Rematch hop: a finished game pointing at its successor moves both players over.
+    if (G.nextGameId && G.phase === 'game_done'){
+      gameId = G.nextGameId;
+      attachListener(gameId);
+      updateURL();
+      return;
+    }
     showGame();
     render();
   });
+  startPresence();
 }
 
 async function leaveGame(){
+  stopPresence();
   if (unsub){ unsub(); unsub = null; }
   gameId = null;
   G = null;
   history.replaceState(null,'',location.pathname);
   showMenu();
+}
+
+/* ---- Presence: a light heartbeat so each player can see the other is around ---- */
+let presenceTimer = null;
+function presenceBeat(){
+  if (!gameId || !userId) return;
+  updateDoc(gameRef(gameId), { [`presence.${userId}`]: Date.now() }).catch(()=>{});
+}
+function startPresence(){
+  stopPresence();
+  presenceBeat();
+  presenceTimer = setInterval(presenceBeat, 25000);
+  document.addEventListener('visibilitychange', presenceBeat);
+}
+function stopPresence(){
+  if (presenceTimer){ clearInterval(presenceTimer); presenceTimer = null; }
+  document.removeEventListener('visibilitychange', presenceBeat);
+}
+function isOnline(uid){
+  const last = (G && G.presence && G.presence[uid]) || 0;
+  return (Date.now() - last) < 70000;
 }
 
 /* ========================================================================
@@ -806,9 +949,19 @@ function startNewHand(gs){
   // Save the rest of the deck on the doc temporarily for the cut (so cut is deterministic
   // and seen by both players). We strip dealt cards from the deck for the cut.
   gs._cutDeck = deck.slice(12);
+  appendLog(gs, null, `— Hand ${gs.handNumber}: ${nameOf(gs.dealer)} deals —`);
 }
 
 function sortCardsByOrder(a,b){ return orderOf(a) - orderOf(b); }
+
+function cardText(c){ return `${labelOf(c)}${SUIT_GLYPH[suitOf(c)]}`; }
+
+// Append a line to the shared game log (capped). uid null = neutral event.
+function appendLog(gs, uid, text, pts){
+  gs.log = gs.log || [];
+  gs.log.push({ t: Date.now(), uid: uid || null, text, pts: pts || 0 });
+  if (gs.log.length > 40) gs.log = gs.log.slice(-40);
+}
 
 /* Actions during play */
 
@@ -840,6 +993,7 @@ async function actPickCutForDeal(index){
         fresh.dealer = orderOf(c1) < orderOf(c2) ? u1 : u2;
         fresh.firstDealerUid = fresh.dealer;
         fresh.phase = 'cut_for_deal_done';
+        appendLog(fresh, null, `${nameOf(u1)} cut ${cardText(c1)}, ${nameOf(u2)} cut ${cardText(c2)} — ${nameOf(fresh.dealer)} deals first`);
       }
     }
     return fresh;
@@ -891,9 +1045,12 @@ async function actCutDeck(position){
   const idx = Math.max(0, Math.min(deck.length-1, position|0));
   gs.starter = deck[idx];
   delete gs._cutDeck;
+  appendLog(gs, gs.pone, `cut starter ${cardText(gs.starter)}`);
   // His heels: dealer scores 2 if starter is a Jack
   if (rankOf(gs.starter) === 'J'){
     addScore(gs, gs.dealer, 2);
+    gs.lastPegEvent = { uid: gs.dealer, items: [{name:'His heels (Jack)', pts:2}], total:2, at: Date.now() };
+    appendLog(gs, gs.dealer, 'his heels — Jack starter', 2);
   }
   if (checkGameOver(gs)) { await pushState(gs); return; }
   gs.phase = 'pegging';
@@ -930,6 +1087,8 @@ async function actPlayCard(card){
   // Score the play
   const cards = gs.peggingRound.map(p => p.card);
   const { pts, items } = scorePeggingPlay(cards);
+  const itemsTxt = pts > 0 ? ` — ${items.map(i => i.name).join(' + ')}` : '';
+  appendLog(gs, userId, `played ${cardText(card)} (${gs.peggingTotal})${itemsTxt}`, pts);
   if (pts > 0){
     addScore(gs, userId, pts);
     gs.lastPegEvent = { uid: userId, items, total: pts, at: Date.now() };
@@ -947,6 +1106,7 @@ async function actPlayCard(card){
   if (allEmpty){
     if (!hit31){
       addScore(gs, userId, 1);
+      appendLog(gs, userId, 'last card', 1);
       // Combine the play's items (if any) with the +1 last-card so the popup shows both.
       const lastItems = [...(pts>0?items:[]), {name:'Last card', pts:1}];
       const lastTotal = (pts>0?pts:0) + 1;
@@ -972,6 +1132,7 @@ async function actPlayCard(card){
       } else {
         // Both stuck → end round; +1 last card to me. Keep cards visible.
         addScore(gs, userId, 1);
+        appendLog(gs, userId, 'last card', 1);
         const lastItems = [...(pts>0?items:[]), {name:'Last card', pts:1}];
         const lastTotal = (pts>0?pts:0) + 1;
         gs.lastPegEvent = { uid: userId, items: lastItems, total: lastTotal, at: Date.now() };
@@ -994,6 +1155,7 @@ async function actSayGo(){
   if (canPlay) return;
   const gs = clone(G);
   if (!gs.peggingGoes.includes(userId)) gs.peggingGoes.push(userId);
+  appendLog(gs, userId, 'says "go"');
   const oppId = opponentInGame(gs, userId);
   const oppHandEmpty = gs.hands[oppId].length === 0;
   const oppCanPlay = !oppHandEmpty && gs.hands[oppId].some(c => valueOf(c) + effectivePegTotal(gs) <= 31);
@@ -1004,6 +1166,7 @@ async function actSayGo(){
     const lastPlay = gs.peggingRound[gs.peggingRound.length-1];
     if (lastPlay){
       addScore(gs, lastPlay.uid, 1);
+      appendLog(gs, lastPlay.uid, 'go point', 1);
       gs.lastPegEvent = { uid: lastPlay.uid, items: [{name:'Go', pts:1}], total:1, at: Date.now() };
       if (checkGameOver(gs)){ await pushState(gs); return; }
     }
@@ -1048,13 +1211,16 @@ function enterCounting(gs){
   // Pone counts first; if pone hits 121, game ends and dealer doesn't count.
   addScore(gs, pone, ponePts.total);
   updateBest(gs, pone, 'hand', ponePts.total);
+  appendLog(gs, pone, `hand scores ${ponePts.total}`, ponePts.total);
   if (!checkGameOver(gs)){
     addScore(gs, dealer, dealerPts.total);
     updateBest(gs, dealer, 'hand', dealerPts.total);
+    appendLog(gs, dealer, `hand scores ${dealerPts.total}`, dealerPts.total);
   }
   if (!checkGameOver(gs)){
     addScore(gs, dealer, cribPts.total);
     updateBest(gs, dealer, 'crib', cribPts.total);
+    appendLog(gs, dealer, `crib scores ${cribPts.total}`, cribPts.total);
   }
 
   gs.countBreakdown = {
@@ -1096,6 +1262,11 @@ function checkGameOver(gs){
         gs.phase = 'game_done';
         gs.winner = uid;
         gs.endedAt = Date.now();
+        // Session series tally (carried across rematches)
+        gs.series = gs.series || {};
+        gs.series[uid] = (gs.series[uid] || 0) + 1;
+        const loser = gs.playerIds.find(p => p !== uid);
+        appendLog(gs, uid, `wins ${gs.scores[uid]}–${gs.scores[loser]} 🏆`);
         // Fire stats once
         recordGameEnd(gs).catch(console.error);
       }
@@ -1211,8 +1382,29 @@ function render(){
   renderFanZone();
   renderPegging();
   renderActions();
+  renderGameLog();
   renderBreakdownModal();
   renderGameOverModal();
+  // Hide the invite panel once the opponent has joined.
+  if (G.player2) $('invite-panel').classList.add('hidden');
+  // Card-play sound: fires when the pegging history grows (either player).
+  const hl = (G.peggingHistory || []).length;
+  if (lastPegHistoryLen >= 0 && hl > lastPegHistoryLen) sndCard();
+  lastPegHistoryLen = hl;
+}
+
+function renderGameLog(){
+  const panel = $('game-log-panel');
+  const el = $('game-log');
+  const log = G.log || [];
+  if (!log.length){ panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  el.innerHTML = log.map(row => {
+    const who = row.uid ? `<span class="log-who">${escapeHTML(row.uid === userId ? 'You' : nameOf(row.uid))}</span>` : '';
+    const pts = row.pts ? ` <span class="log-pts">+${row.pts}</span>` : '';
+    return `<div class="log-row">${who}<span>${escapeHTML(row.text)}${pts}</span></div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
 }
 
 function renderStatus(){
@@ -1278,15 +1470,29 @@ function renderScoreBar(){
   G.playerIds.forEach((uid, ix) => {
     const isMine = uid === userId;
     const isDealer = uid === G.dealer;
+    const presence = isMine ? '' :
+      `<span class="presence-dot ${isOnline(uid) ? 'online' : ''}" title="${isOnline(uid) ? 'Online' : 'Away'}"></span>`;
     const div = document.createElement('div');
-    div.className = `score-row ${isMine ? 'bg-emerald-50' : ''}`;
+    div.className = `score-row ${isMine ? 'bg-white/10' : ''}`;
     div.innerHTML = `
       <span class="score-dot" style="background:${pegColors[ix] || '#888'}"></span>
-      <span class="font-semibold text-sm truncate">${escapeHTML(nameOf(uid))}${isMine?' <span class="text-[10px] text-emerald-700">(you)</span>':''}</span>
-      ${isDealer ? '<span class="text-[10px] uppercase tracking-wide bg-amber-100 text-amber-800 rounded px-1 py-0.5 flex-none">Dealer</span>' : ''}
+      <span class="font-semibold text-sm truncate">${escapeHTML(nameOf(uid))}${isMine?' <span class="text-[10px] text-emerald-300">(you)</span>':''}${presence}</span>
+      ${isDealer ? '<span class="text-[10px] uppercase tracking-wide bg-amber-200/90 text-amber-900 rounded px-1 py-0.5 flex-none">Dealer</span>' : ''}
       <span class="ml-auto text-lg font-bold tabular-nums">${G.scores[uid] || 0}</span>`;
     el.appendChild(div);
   });
+
+  // Session series (populated once someone has won a game this session)
+  const sl = $('series-line');
+  const s = G.series || {};
+  const [u1, u2] = G.playerIds;
+  const total = (s[u1] || 0) + (s[u2] || 0);
+  if (u2 && total > 0){
+    sl.classList.remove('hidden');
+    sl.textContent = `Series: ${nameOf(u1)} ${s[u1] || 0} – ${s[u2] || 0} ${nameOf(u2)}`;
+  } else {
+    sl.classList.add('hidden');
+  }
 }
 
 /* ---- Cribbage board ---- */
@@ -1296,13 +1502,22 @@ function renderScoreBar(){
 function boardOrientation(){
   return window.matchMedia('(min-width: 900px)').matches ? 'vertical' : 'horizontal';
 }
-let lastBoardOrientation = null;
+// Board skeleton is built once per (orientation, player-names) and kept in the DOM;
+// only the four peg elements move afterward, so CSS transitions actually animate them.
+let boardGeom = null;   // { key, orient, p1, p2, holeR, freshBuild }
 
 function renderBoard(){
   if (!G || !G.playerIds.length) return;
-  const svg = $('board-svg');
   const orient = boardOrientation();
-  lastBoardOrientation = orient;
+  const key = `${orient}|${G.playerIds.map(uid => nameOf(uid)).join('|')}|${G.playerIds.length}`;
+  if (!boardGeom || boardGeom.key !== key){
+    buildBoardSkeleton(orient, key);
+  }
+  positionPegs();
+}
+
+function buildBoardSkeleton(orient, key){
+  const svg = $('board-svg');
   const holesPerRow = 40;             // 40 × 3 + 1 game hole = 121
   const holeR = 4.2;
   const lane = 10;                    // ± offset between the two players' rows
@@ -1371,6 +1586,15 @@ function renderBoard(){
   html += curveAt(mEnd, rowCs[0], rowCs[1], dirFar);
   html += curveAt(mStart, rowCs[1], rowCs[2], -dirFar);
 
+  // --- Lane tint stripes: gold for player 1's row, silver for player 2's ---
+  for (let r = 0; r < 3; r++){
+    for (const [off, color] of [[-lane, '#d4af37'], [+lane, '#c0c0c0']]){
+      const a = toXY(mStart, rowCs[r] + off), b = toXY(mEnd, rowCs[r] + off);
+      html += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"
+                stroke="${color}" stroke-width="9.5" stroke-linecap="round" opacity="0.14"/>`;
+    }
+  }
+
   // --- Skunk markers on holes 60 (faint dashed) and 90 (bold dashed) ---
   for (const [n, width] of [[60, 1.0], [90, 1.8]]){
     const m = holeM(n), c = rowCs[holeRow(n)];
@@ -1420,19 +1644,12 @@ function renderBoard(){
   html += drawHoles(p1);
   html += drawHoles(p2);
 
-  // --- Pegs ---
-  function drawPegs(positions, classFront, classBack, scoreNow, scorePrev){
-    let s = '';
-    const back = clamp(scorePrev, 0, 121);
-    const front = clamp(scoreNow, 0, 121);
-    const bp = positions[back];
-    const fp = positions[front];
-    if (bp) s += `<circle class="peg peg-move ${classBack}"  cx="${bp.x}" cy="${bp.y}" r="${holeR+1.6}"/>`;
-    if (fp) s += `<circle class="peg peg-move ${classFront}" cx="${fp.x}" cy="${fp.y}" r="${holeR+1.6}"/>`;
-    return s;
-  }
-  html += drawPegs(p1, 'peg-front-1', 'peg-back-1', G.scores[u1]||0, G.prevScores[u1]||0);
-  if (u2) html += drawPegs(p2, 'peg-front-2', 'peg-back-2', G.scores[u2]||0, G.prevScores[u2]||0);
+  // --- Persistent pegs: created once at origin, moved via CSS transform ---
+  // Back peg drawn first so the front peg overlaps when they share a hole (start).
+  html += `<circle id="peg-1-back"  class="peg peg-move peg-back-1"  cx="0" cy="0" r="${holeR+1.6}"/>`;
+  html += `<circle id="peg-1-front" class="peg peg-move peg-front-1" cx="0" cy="0" r="${holeR+1.6}"/>`;
+  html += `<circle id="peg-2-back"  class="peg peg-move peg-back-2"  cx="0" cy="0" r="${holeR+1.6}" visibility="hidden"/>`;
+  html += `<circle id="peg-2-front" class="peg peg-move peg-front-2" cx="0" cy="0" r="${holeR+1.6}" visibility="hidden"/>`;
 
   // --- Defs for wood grain (subtle striations) ---
   const defs = `<defs>
@@ -1444,6 +1661,37 @@ function renderBoard(){
 
   svg.innerHTML = defs + html;
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  boardGeom = { key, orient, p1, p2, holeR, freshBuild: true };
+}
+
+function positionPegs(){
+  if (!boardGeom || !G) return;
+  const instant = boardGeom.freshBuild;
+  boardGeom.freshBuild = false;
+  const [u1, u2] = G.playerIds;
+  setPeg('peg-1-front', boardGeom.p1[clamp(G.scores[u1]||0, 0, 121)], instant);
+  setPeg('peg-1-back',  boardGeom.p1[clamp(G.prevScores[u1]||0, 0, 121)], instant);
+  const p2f = $('peg-2-front'), p2b = $('peg-2-back');
+  if (u2){
+    p2f.removeAttribute('visibility');
+    p2b.removeAttribute('visibility');
+    setPeg('peg-2-front', boardGeom.p2[clamp(G.scores[u2]||0, 0, 121)], instant);
+    setPeg('peg-2-back',  boardGeom.p2[clamp(G.prevScores[u2]||0, 0, 121)], instant);
+  } else {
+    p2f.setAttribute('visibility', 'hidden');
+    p2b.setAttribute('visibility', 'hidden');
+  }
+}
+
+function setPeg(id, pos, instant){
+  const el = $(id);
+  if (!el || !pos) return;
+  if (instant) el.classList.add('no-anim');
+  el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+  if (instant){
+    void el.getBoundingClientRect();   // flush so the transition doesn't fire
+    el.classList.remove('no-anim');
+  }
 }
 
 function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
@@ -1460,6 +1708,24 @@ function renderHands(){
   // Labels
   $('player-label').textContent = `You — ${nameOf(userId)}${G.dealer===userId?' (Dealer)':''}`;
   $('opponent-label').textContent = `Opponent — ${oppId?nameOf(oppId):'(waiting)'}${oppId && G.dealer===oppId ? ' (Dealer)' : ''}`;
+
+  // Active-turn glow: whose action is the game waiting on?
+  let glowMe = false, glowOpp = false;
+  if (G.phase === 'pegging'){
+    glowMe = G.peggingTurn === userId;
+    glowOpp = oppId && G.peggingTurn === oppId;
+  } else if (G.phase === 'discard' && G.hands){
+    glowMe = (G.hands[userId] || []).length > 4;
+    glowOpp = oppId && (G.hands[oppId] || []).length > 4;
+  } else if (G.phase === 'cut'){
+    glowMe = G.pone === userId;
+    glowOpp = oppId && G.pone === oppId;
+  } else if (G.phase === 'cut_for_deal'){
+    glowMe = !(G.cutForDeal && G.cutForDeal[userId]);
+    glowOpp = oppId && !(G.cutForDeal && G.cutForDeal[oppId]);
+  }
+  $('my-zone').classList.toggle('zone-active', !!glowMe);
+  $('opp-zone').classList.toggle('zone-active', !!glowOpp);
 
   if (!G.hands || !G.hands[userId]) return;
 
@@ -1588,20 +1854,27 @@ function renderFanZone(){
 }
 
 function buildFan(container, count, pickedIdxSet, interactive, onPick){
-  container.style.height = '';
   container.classList.toggle('fan-active', interactive);
   container.classList.toggle('fan-disabled', !interactive);
   const cardW = 64, cardH = 92;
   // The fan zone was just unhidden by the caller, so clientWidth is current.
   const cw = container.clientWidth || 600;
-  const span = Math.max(0, cw - cardW - 8);
-  const step = count > 1 ? span / (count - 1) : 0;
+  // Narrow screens get two rows — twice the spread per card, friendlier taps.
+  const rows = cw < 560 ? 2 : 1;
+  const perRow = Math.ceil(count / rows);
+  const rowH = cardH + 16;
+  container.style.height = `${rows * rowH + 4}px`;
   container.innerHTML = '';
+  const span = Math.max(0, cw - cardW - 8);
   for (let i = 0; i < count; i++){
     if (pickedIdxSet.has(i)) continue;         // gap where a card was taken
+    const row = Math.floor(i / perRow);
+    const rowCount = Math.min(perRow, count - row*perRow);
+    const step = rowCount > 1 ? span / (rowCount - 1) : 0;
     const d = document.createElement('div');
     d.className = 'fan-card';
-    d.style.left = `${4 + i*step}px`;
+    d.style.left = `${4 + (i % perRow)*step}px`;
+    d.style.top = `${4 + row*rowH}px`;
     d.style.zIndex = i;
     d.innerHTML = renderBackSVG(cardW, cardH);
     if (interactive) d.addEventListener('click', () => onPick(i));
@@ -1614,16 +1887,27 @@ function renderPegging(){
   el.innerHTML = '';
   el.classList.toggle('peg-round-done', !!G.peggingRoundCompleted);
   const inPegging = (G.phase === 'pegging');
-  $('pegging-total').textContent = inPegging
-    ? (G.peggingRoundCompleted ? `Total: ${G.peggingTotal} ✓` : `Total: ${G.peggingTotal}`)
-    : '';
+
+  // Big running-count chip
+  const chip = $('peg-count-chip');
+  if (inPegging){
+    chip.classList.remove('hidden');
+    chip.textContent = G.peggingTotal;
+    chip.classList.toggle('chip-done', !!G.peggingRoundCompleted);
+    chip.title = G.peggingRoundCompleted ? 'Round complete — next card starts at 0' : 'Running count';
+  } else {
+    chip.classList.add('hidden');
+  }
+
   // Keep showing the most recent round even after phase moved (so the last card stays visible).
+  // Opponent's cards ride high, yours ride low, so attribution is visible at a glance.
   const round = G.peggingRound || [];
   if (round.length === 0) return;
   for (const p of round){
+    const mine = p.uid === userId;
     const c = document.createElement('div');
-    c.className = 'card';
-    c.title = `${nameOf(p.uid)} played`;
+    c.className = `card peg-card ${mine ? 'peg-card-mine' : 'peg-card-opp'}`;
+    c.title = `${nameOf(p.uid)} played ${labelOf(p.card)}${SUIT_GLYPH[suitOf(p.card)]}`;
     c.innerHTML = renderCardSVG(p.card, {w:50,h:72});
     el.appendChild(c);
   }
@@ -1645,6 +1929,7 @@ function maybeShowPegPopup(){
   popup.classList.remove('peg-popup-show');
   void popup.offsetWidth;
   popup.classList.add('peg-popup-show');
+  sndPeg();
 }
 
 /* ---- Action area ---- */
@@ -1777,6 +2062,7 @@ function renderGameOverModal(){
   const modal = $('gameover-modal');
   if (G.phase !== 'game_done'){ modal.classList.add('hidden'); return; }
   modal.classList.remove('hidden');
+  if (lastWinSoundGame !== gameId){ lastWinSoundGame = gameId; sndWin(); }
   const winnerName = nameOf(G.winner);
   const loser = G.playerIds.find(p => p !== G.winner);
   const loserScore = G.scores[loser];
@@ -1787,13 +2073,52 @@ function renderGameOverModal(){
   if (dskunk) detail += `  Double skunk!`;
   else if (skunk) detail += `  Skunk!`;
   $('gameover-detail').textContent = detail;
-  $('rematch-btn').onclick = doRematch;
+  const s = G.series || {};
+  const [su1, su2] = G.playerIds;
+  $('gameover-series').textContent =
+    `Series: ${nameOf(su1)} ${s[su1] || 0} – ${s[su2] || 0} ${nameOf(su2)}`;
+  const rbtn = $('rematch-btn');
+  const creating = pendingAction === 'rematch' || !!G.nextGameId;
+  rbtn.disabled = creating;
+  rbtn.textContent = creating ? 'Starting…' : 'Rematch';
+  rbtn.onclick = async () => {
+    if (pendingAction) return;
+    pendingAction = 'rematch';
+    render();
+    try { await actRematch(); }
+    catch(e){ console.error(e); }
+    finally { pendingAction = null; render(); }
+  };
+  $('gameover-stats-btn').onclick = loadAndShowStats;
   $('gameover-leave-btn').onclick = leaveGame;
 }
 
-async function doRematch(){
-  // Start a new game in place — reuse gameId? Simplest: create new game and update URL.
-  await setupNewGame();
+// Rematch: create the next game prefilled with both players, then point the old
+// doc at it — both clients' listeners hop over together.
+async function actRematch(){
+  if (!G || G.phase !== 'game_done' || G.nextGameId) return;
+  if (!G.player2) { alert('Opponent left — start a new game from the menu.'); return; }
+  const newId = crypto.randomUUID();
+  const gs = newGameState(G.player1.uid, G.player1.name);
+  gs.player2 = { uid: G.player2.uid, name: G.player2.name };
+  gs.playerIds = [...G.playerIds];
+  gs.scores = {}; gs.prevScores = {};
+  for (const uid of gs.playerIds){ gs.scores[uid] = 0; gs.prevScores[uid] = 0; }
+  gs.phase = 'cut_for_deal';
+  gs.cutDeck = shuffleInPlace(makeDeck());
+  gs.cutForDeal = {};
+  gs.cutForDealPicks = {};
+  gs.cutForDealTies = 0;
+  gs.series = clone(G.series || {});
+  const [su1, su2] = gs.playerIds;
+  appendLog(gs, null, `Rematch — series ${nameOf(su1)} ${gs.series[su1]||0} – ${gs.series[su2]||0} ${nameOf(su2)}`);
+  try {
+    await setDoc(gameRef(newId), gs);
+    await updateDoc(gameRef(gameId), { nextGameId: newId });
+  } catch(e){
+    console.error('Rematch failed', e);
+    alert(`Rematch failed: ${e.code || e.message}`);
+  }
 }
 
 /* ========================================================================
@@ -1819,8 +2144,31 @@ async function loadAndShowStats(){
     // Render
     let html = '';
 
+    // Head-to-head banner (the two most active players)
+    const byGames = [...players].sort((a,b)=>((b.wins||0)+(b.losses||0))-((a.wins||0)+(a.losses||0)));
+    if (byGames.length >= 2){
+      const [a, b] = byGames;
+      html += `<div class="bg-white rounded-2xl shadow-md p-4 text-center text-stone-800">
+        <div class="text-xs uppercase tracking-wide text-stone-400 mb-1">Head to head</div>
+        <div class="text-2xl font-bold">
+          ${escapeHTML(a.name||'?')} <span class="text-emerald-600">${a.wins||0}</span>
+          <span class="text-stone-400 font-normal mx-1">–</span>
+          <span class="text-emerald-600">${b.wins||0}</span> ${escapeHTML(b.name||'?')}
+        </div>
+      </div>`;
+    }
+
+    const bestLine = (label, val, when, opp) => {
+      if (!val) return `<div>${label}: <span class="font-semibold">0</span></div>`;
+      const meta = [];
+      if (opp) meta.push(`vs ${escapeHTML(opp)}`);
+      if (when) meta.push(new Date(when).toLocaleDateString());
+      return `<div>${label}: <span class="font-semibold">${val}</span>
+        ${meta.length ? `<span class="text-stone-400">(${meta.join(', ')})</span>` : ''}</div>`;
+    };
+
     // Per-player aggregates
-    html += `<div class="bg-white rounded-2xl shadow-md p-5">
+    html += `<div class="bg-white rounded-2xl shadow-md p-5 text-stone-800">
       <h3 class="font-bold text-lg mb-3">Players</h3>`;
     if (!players.length){
       html += `<p class="text-stone-500">No games played yet.</p>`;
@@ -1835,10 +2183,10 @@ async function loadAndShowStats(){
               <div class="font-semibold">${escapeHTML(p.name || p.uid)}</div>
               <div class="text-sm text-stone-500">${p.wins||0}–${p.losses||0} (${streakLabel})</div>
             </div>
-            <div class="text-xs text-stone-600 mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
-              <div>Best hand: <span class="font-semibold">${p.bestHand||0}</span></div>
-              <div>Best crib: <span class="font-semibold">${p.bestCrib||0}</span></div>
-              <div>Best pegging run: <span class="font-semibold">${p.bestPegRun||0}</span></div>
+            <div class="text-xs text-stone-600 mt-2 space-y-1">
+              ${bestLine('Best hand', p.bestHand, p.bestHandWhen, p.bestHandOpp)}
+              ${bestLine('Best crib', p.bestCrib, p.bestCribWhen, p.bestCribOpp)}
+              ${bestLine('Best pegging run', p.bestPegRun, p.bestPegRunWhen, p.bestPegRunOpp)}
               <div>Skunks for/against: ${p.skunksFor||0}/${p.skunksAgainst||0}</div>
               <div>Double skunks for/against: ${p.doubleSkunksFor||0}/${p.doubleSkunksAgainst||0}</div>
             </div>
@@ -1849,7 +2197,7 @@ async function loadAndShowStats(){
     html += `</div>`;
 
     // History
-    html += `<div class="bg-white rounded-2xl shadow-md p-5 mt-4">
+    html += `<div class="bg-white rounded-2xl shadow-md p-5 mt-4 text-stone-800">
       <h3 class="font-bold text-lg mb-3">Recent Games</h3>`;
     if (!history.length){
       html += `<p class="text-stone-500">No games yet.</p>`;
@@ -1969,10 +2317,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     await setupNewGame();
   });
   $('show-stats-btn').addEventListener('click', loadAndShowStats);
-  $('stats-back-btn').addEventListener('click', showMenu);
+  $('stats-back-btn').addEventListener('click', () => {
+    // Return to the live game if there is one; otherwise the menu.
+    if (gameId && G){ showGame(); render(); } else showMenu();
+  });
   $('copy-link-btn').addEventListener('click', copyLink);
   $('leave-game-btn').addEventListener('click', leaveGame);
   $('invite-close').addEventListener('click', ()=> $('invite-panel').classList.add('hidden'));
+  updateMuteBtn();
+  $('mute-btn').addEventListener('click', ()=>{
+    muted = !muted;
+    localStorage.setItem('cribbage_muted', muted ? '1' : '0');
+    updateMuteBtn();
+    if (!muted) sndPeg();   // audible confirmation
+  });
+  // Browsers unlock audio only after a user gesture — prime the context on first click.
+  document.addEventListener('click', ()=> ac(), { once: true });
 
   // Re-render on resize: board flips orientation at 900px and the fan re-spaces.
   let resizeTimer = null;
