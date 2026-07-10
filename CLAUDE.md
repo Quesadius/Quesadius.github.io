@@ -29,6 +29,11 @@ Then open `http://localhost:8765/<page>.html`. Any equivalent static server (e.g
 | `nationalparks.html` | National Park visit tracker on a map | Leaflet 1.9.4 | none |
 | `lostcities.html` | Scorecard for the Lost Cities card game | (vanilla CSS/JS) | none |
 | `accordion.html` | Single-player Accordion solitaire | (vanilla CSS/JS) | `localStorage` (options) |
+| `cribsolv.html` | Cribbage discard solver/trainer: ranks all 15 discards by exact EV, explains why, quiz mode | none — fully self-contained, no CDN | `localStorage` (quiz preference) |
+
+## cribsolv.html is generated — don't hand-edit it
+
+Unlike every other app here, `cribsolv.html` is the **build artifact** of a Vite + React + TypeScript project at `~/Code/cribsolv` (its own directory, outside this repo). All JS/CSS is inlined at build time, including its web worker, so the deployed file still follows this repo's one-file rule. To change the app: edit the source project and run `npm run deploy` there — it rebuilds and re-copies `cribsolv.html` into this repo. Then commit and push here as usual.
 
 ## Shared Firebase project (important)
 
