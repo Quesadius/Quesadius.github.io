@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Words for Two</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --cell: clamp(17px, calc((100vw - 30px) / 15), 34px);
+    --rtile: clamp(40px, 11vw, 50px);
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #24476e 0%, #16304f 45%, #0d1f36 100%);
+    color: #eef4fb;
+    min-height: 100svh;
+  }
+  .hidden { display: none !important; }
+
+  .panel {
+    background: rgba(8, 24, 44, 0.55);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 16px;
+  }
+
+  /* ----- Board ----- */
+  #board {
+    display: grid;
+    grid-template-columns: repeat(15, var(--cell));
+    grid-auto-rows: var(--cell);
+    gap: 2px;
+    width: max-content;
+    margin: 0 auto;
+    padding: 7px;
+    background: #0a1626;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.07);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .cell {
+    position: relative;
+    border-radius: 4px;
+    background: #1d3350;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .cell .plabel {
+    font-size: calc(var(--cell) * 0.34);
+    font-weight: 800; letter-spacing: .01em;
+    color: rgba(255,255,255,.85);
+    pointer-events: none;
+  }
+  .cell.c-dl { background: #3c6fae; }
+  .cell.c-tl { background: #3d9b52; }
+  .cell.c-dw { background: #c04a5e; }
+  .cell.c-tw { background: #d97a2e; }
+  .cell.c-ctr { background: #45577a; }
+  .cell.c-ctr .plabel { font-size: calc(var(--cell) * 0.55); color: #f5c542; }
+  .cell.droptarget { outline: 2px solid #f5c542; outline-offset: 1px; }
+
+  /* ----- Letter tiles ----- */
+  .wtile {
+    border-radius: 4px;
+    background: linear-gradient(#fdf8e7, #efe1ba);
+    color: #3a2b16;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,.5),
+                inset 0 1.5px 0 rgba(255,255,255,.85),
+                inset 0 -2px 0 rgba(0,0,0,.14);
+    position: relative;
+    font-weight: 800;
+    touch-action: none;
+  }
+  .wtile.on-board { position: absolute; inset: 1px; }
+  .wtile .lt { font-size: calc(var(--cell) * 0.58); line-height: 1; }
+  .wtile .pv {
+    position: absolute; bottom: 2%; right: 7%;
+    font-size: calc(var(--cell) * 0.27); font-weight: 700; line-height: 1;
+  }
+  .wtile.blank { background: linear-gradient(#f3ecff, #d9c9f2); }
+  .wtile.blank .lt { color: #5b3b8a; }
+  .wtile.staged { outline: 2px solid #f5c542; box-shadow: 0 0 8px rgba(245,197,66,.55), 0 1px 2px rgba(0,0,0,.5); cursor: grab; z-index: 2; }
+  .wtile.lastplay { outline: 2px solid #59d3b8; box-shadow: 0 0 7px rgba(89,211,184,.6), 0 1px 2px rgba(0,0,0,.5); }
+
+  /* Rack tiles are larger, free-standing */
+  .rtile {
+    width: var(--rtile); height: var(--rtile);
+    flex: 0 0 auto; cursor: grab;
+    transition: transform .08s ease;
+  }
+  .rtile .lt { font-size: calc(var(--rtile) * 0.52); }
+  .rtile .pv { font-size: calc(var(--rtile) * 0.26); }
+  .rtile.selected { transform: translateY(-9px); outline: 3px solid #f5c542; }
+  .rtile.ghosted { opacity: .35; }
+  #rack {
+    display: flex; gap: 6px; justify-content: center; align-items: flex-end;
+    min-height: calc(var(--rtile) + 12px);
+    padding: 9px 6px 3px;
+  }
+
+  /* Floating drag ghost */
+  #ghost {
+    position: fixed; z-index: 100; pointer-events: none;
+    width: var(--rtile); height: var(--rtile);
+    transform: translate(-50%, -75%) scale(1.12);
+    opacity: .92;
+  }
+
+  /* ----- Score strip ----- */
+  .pcard {
+    flex: 1 1 0; min-width: 0;
+    border-radius: 12px; padding: 8px 12px;
+    background: rgba(255,255,255,.06);
+    border: 2px solid transparent;
+  }
+  .pcard.active { border-color: #f5c542; background: rgba(245,197,66,.10); }
+  .pcard .pname { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pcard .pscore { font-size: 26px; font-weight: 900; line-height: 1.1; }
+
+  /* ----- Status bar ----- */
+  #status-bar {
+    min-height: 40px;
+    display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px;
+    text-align: center; font-weight: 600; font-size: 14px;
+    padding: 6px 10px;
+  }
+  .wchip {
+    display: inline-flex; align-items: baseline; gap: 4px;
+    padding: 2px 9px; border-radius: 999px; font-weight: 800; font-size: 13px;
+    background: rgba(255,255,255,.10); border: 1.5px solid rgba(255,255,255,.22);
+  }
+  .wchip .ws { font-size: 11px; font-weight: 700; opacity: .8; }
+  .wchip.good { background: rgba(47,179,107,.2); border-color: #2fb36b; }
+  .wchip.bad  { background: rgba(224,69,90,.22); border-color: #e0455a; }
+  .wchip.dubious { background: rgba(245,197,66,.15); border-color: rgba(245,197,66,.6); }
+
+  /* ----- Buttons ----- */
+  .btn {
+    border: none; border-radius: 10px; padding: 9px 15px; font-weight: 700;
+    cursor: pointer; font-size: 14px; transition: filter .1s ease, opacity .1s ease;
+    white-space: nowrap;
+  }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn:not(:disabled):hover { filter: brightness(1.08); }
+  .btn-primary { background: #f5c542; color: #1e2a1a; }
+  .btn-go { background: #2fb36b; color: #062314; }
+  .btn-ghost { background: rgba(255,255,255,.12); color: #eef4fb; }
+  .btn-danger { background: #c04a5e; color: #fff; }
+  .btn-sm { padding: 7px 11px; font-size: 13px; }
+
+  /* ----- Modals / toast ----- */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(4, 12, 24, .74);
+    display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50;
+  }
+  .modal-card {
+    background: #13283f; border: 1px solid rgba(255,255,255,.12); border-radius: 18px;
+    max-width: 560px; width: 100%; max-height: 88vh; overflow: auto; padding: 22px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  #toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    background: #1a2a3e; color: #fff; padding: 10px 18px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.14); box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    z-index: 80; opacity: 0; transition: opacity .2s ease; pointer-events: none;
+    font-weight: 600; max-width: 90vw; text-align: center;
+  }
+  #toast.show { opacity: 1; }
+
+  /* Blank-letter picker grid */
+  #blank-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }
+  #blank-grid .wtile { width: 100%; aspect-ratio: 1; cursor: pointer; }
+  #blank-grid .wtile .lt { font-size: 22px; }
+
+  /* Swap picker */
+  #swap-tiles { display: flex; gap: 7px; flex-wrap: wrap; justify-content: center; }
+  #swap-tiles .rtile.selected { transform: translateY(-6px); outline: 3px solid #e0455a; }
+
+  /* History */
+  #history-list { max-height: 180px; overflow-y: auto; font-size: 13px; }
+  #history-list .hrow { padding: 5px 2px; border-bottom: 1px solid rgba(255,255,255,.06); display: flex; gap: 8px; align-items: baseline; }
+  #history-list .hpts { margin-left: auto; font-weight: 800; color: #7fd8c0; }
+
+  /* Rules legend swatches */
+  .legend-sq {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 5px;
+    font-size: 10px; font-weight: 800; color: #fff; margin-right: 6px;
+  }
+  #values-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  #values-grid .vt { text-align: center; background: rgba(255,255,255,.07); border-radius: 6px; padding: 4px 0; font-size: 12px; }
+  #values-grid .vt b { font-size: 14px; }
+
+  .logo-tile {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 6px; position: relative;
+    background: linear-gradient(#fdf8e7, #efe1ba); color: #3a2b16;
+    font-weight: 900; font-size: 24px;
+    box-shadow: 0 2px 3px rgba(0,0,0,.45), inset 0 1.5px 0 rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.14);
+  }
+  .logo-tile small { position: absolute; bottom: 2px; right: 4px; font-size: 9px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div id="app" class="max-w-2xl mx-auto px-2.5 py-4">
+
+  <!-- ===================== MAIN MENU ===================== -->
+  <section id="main-menu" class="hidden">
+    <div class="text-center mt-6 mb-6">
+      <div class="flex gap-1.5 justify-center mb-3" aria-hidden="true">
+        <span class="logo-tile">W<small>4</small></span><span class="logo-tile">O<small>1</small></span><span class="logo-tile">R<small>1</small></span><span class="logo-tile">D<small>2</small></span><span class="logo-tile">S<small>1</small></span>
+      </div>
+      <h1 class="text-4xl font-black tracking-tight">Words for Two</h1>
+      <p class="text-sky-100/80 mt-2">Crossword battles with a friend over a shared link</p>
+    </div>
+    <div class="panel max-w-md mx-auto p-6">
+      <label class="block text-sm font-semibold mb-1 text-sky-100/90">Your name</label>
+      <input id="name-input" maxlength="20" placeholder="e.g. Jordan"
+             class="w-full rounded-lg px-3 py-2 text-slate-900 font-semibold outline-none" />
+      <button id="primary-btn" class="btn btn-primary w-full mt-4">New Game</button>
+      <p id="join-hint" class="text-center text-sky-100/70 text-sm mt-3 hidden"></p>
+      <button id="rules-btn" class="btn btn-ghost w-full mt-4">How to play</button>
+    </div>
+    <p class="text-center text-[11px] text-sky-100/50 mt-6 max-w-md mx-auto">
+      A fan-made word game. Not affiliated with, sponsored by, or endorsed by Zynga
+      (Words With Friends) or Hasbro/Mattel (Scrabble®).
+    </p>
+  </section>
+
+  <!-- ===================== GAME SCREEN ===================== -->
+  <section id="game-screen" class="hidden">
+    <div class="flex items-center gap-2 mb-3 flex-wrap">
+      <h1 class="text-lg font-black mr-auto">🔠 Words for Two</h1>
+      <button id="mute-btn" class="btn btn-ghost btn-sm" title="Sound">🔊</button>
+      <button id="g-rules-btn" class="btn btn-ghost btn-sm">Rules</button>
+      <button id="copy-link-btn" class="btn btn-ghost btn-sm">Invite link</button>
+      <button id="leave-btn" class="btn btn-ghost btn-sm">Leave</button>
+    </div>
+
+    <div id="invite-panel" class="panel p-3 mb-3 hidden">
+      <p class="text-sm font-semibold mb-2">Send this link to your opponent:</p>
+      <div class="flex gap-2">
+        <input id="invite-url" readonly class="flex-1 rounded-lg px-3 py-2 text-slate-900 text-sm min-w-0" />
+        <button id="invite-copy" class="btn btn-primary">Copy</button>
+      </div>
+      <p id="invite-status" class="text-xs text-sky-100/70 mt-1"></p>
+    </div>
+
+    <div class="flex items-stretch gap-2 mb-2">
+      <div id="p-me" class="pcard">
+        <div class="pname"></div>
+        <div class="pscore">0</div>
+      </div>
+      <div class="flex flex-col items-center justify-center px-1 text-center">
+        <div id="bag-info" class="text-xs font-bold text-sky-100/80">Bag: —</div>
+        <div id="dict-info" class="text-[10px] text-sky-100/50 mt-1">dictionary…</div>
+      </div>
+      <div id="p-opp" class="pcard">
+        <div class="pname"></div>
+        <div class="pscore">0</div>
+      </div>
+    </div>
+
+    <div id="status-bar"></div>
+
+    <div id="board"></div>
+
+    <div id="rack-area">
+      <div id="rack"></div>
+      <div id="action-area" class="flex gap-2 flex-wrap items-center justify-center mt-1 mb-3 min-h-[42px]"></div>
+    </div>
+
+    <div class="panel p-3">
+      <div class="text-[11px] uppercase tracking-wide text-sky-100/50 mb-1">Moves</div>
+      <div id="history-list"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+<div id="blank-modal" class="modal-bg hidden">
+  <div class="modal-card" style="max-width: 380px;">
+    <h2 class="text-xl font-black mb-3">Blank tile — pick a letter</h2>
+    <div id="blank-grid"></div>
+    <button id="blank-cancel" class="btn btn-ghost w-full mt-4">Cancel</button>
+  </div>
+</div>
+
+<div id="swap-modal" class="modal-bg hidden">
+  <div class="modal-card" style="max-width: 420px;">
+    <h2 class="text-xl font-black mb-1">Swap tiles</h2>
+    <p class="text-sm text-sky-100/80 mb-4">Tap the tiles you want to trade in, then confirm. Swapping uses your turn.</p>
+    <div id="swap-tiles" class="mb-4"></div>
+    <div class="flex gap-2">
+      <button id="swap-confirm" class="btn btn-go flex-1">Swap</button>
+      <button id="swap-cancel" class="btn btn-ghost flex-1">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="gameover-modal" class="modal-bg hidden">
+  <div class="modal-card text-center" style="max-width: 420px;">
+    <h2 id="go-title" class="text-3xl font-black mb-3"></h2>
+    <div id="go-scores" class="mb-3"></div>
+    <p id="go-detail" class="text-sky-100/90 mb-5 text-sm"></p>
+    <div class="flex gap-2 justify-center flex-wrap">
+      <button id="go-rematch" class="btn btn-primary">Rematch</button>
+      <button id="go-view" class="btn btn-ghost">View board</button>
+      <button id="go-menu" class="btn btn-ghost">Menu</button>
+    </div>
+  </div>
+</div>
+
+<div id="rules-modal" class="modal-bg hidden">
+  <div class="modal-card">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-2xl font-black">How to play</h2>
+      <button id="rules-close" class="btn btn-ghost">Close</button>
+    </div>
+    <div class="text-sm text-sky-100/90 space-y-2.5 leading-relaxed">
+      <p><b>Goal.</b> Score the most points by building crossword-style words on the board with your 7 tiles.</p>
+      <p><b>Your turn.</b> Drag (or tap-select, then tap a square) tiles onto the board to spell a word in one row or column.
+         The first word must cover the center ★. Every later word must connect to what's on the board, and every
+         string of letters it forms must be a valid word. Then press <b>Play</b> — you'll draw back up to 7 tiles.</p>
+      <p><b>Premium squares</b> apply only when a newly placed tile covers them:</p>
+      <p>
+        <span class="legend-sq" style="background:#3c6fae">DL</span> double letter ·
+        <span class="legend-sq" style="background:#3d9b52">TL</span> triple letter ·
+        <span class="legend-sq" style="background:#c04a5e">DW</span> double word ·
+        <span class="legend-sq" style="background:#d97a2e">TW</span> triple word
+      </p>
+      <p><b>Bingo!</b> Playing all 7 tiles in one turn earns a <b>+35</b> bonus.</p>
+      <p><b>Blanks</b> can stand for any letter (you pick when you place one) but score 0.</p>
+      <p><b>Swap or pass.</b> Instead of playing, trade in tiles (while the bag has some) or pass.
+         Six scoreless turns in a row (passes or swaps) end the game.</p>
+      <p><b>Game end.</b> When the bag is empty and a player uses their last tile, they collect the value of the
+         opponent's leftover tiles. If the game ends on passes, each player's leftover tiles are deducted instead.
+         The higher total wins.</p>
+      <p><b>Dictionary:</b> the public-domain ENABLE word list — the same lexicon classic Words With Friends used.</p>
+      <p class="pt-1"><b>Letter values</b> (count in bag shown small):</p>
+      <div id="values-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="ghost" class="hidden"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, onSnapshot, setDoc, deleteDoc, runTransaction }
+  from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+/* ============================================================= *
+ * 1. Firebase config (shared project; see CLAUDE.md)            *
+ * ============================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyBhP0eTmmHB2LNh4nIaOZtTk7f1pBbPvgI",
+  authDomain: "tictactoe-76547.firebaseapp.com",
+  projectId: "tictactoe-76547",
+  storageBucket: "tictactoe-76547.firebasestorage.app",
+  messagingSenderId: "46072501212",
+  appId: "1:46072501212:web:f427fe7d366a9feccd7519",
+  measurementId: "G-BDP38SG25L"
+};
+const appId = firebaseConfig.projectId;
+// Docs live in the existing `games` collection (the only one Firestore rules
+// permit), namespaced by doc-ID prefix and a `_kind` field — like cribbage/mahjong.
+const GAMES_PATH = `artifacts/${appId}/public/data/games`;
+const KIND = "words_game";
+const gameDocId = (uuid) => `words_${uuid}`;
+const LOCAL_NAME_KEY = "words_player_name";
+
+/* ============================================================= *
+ * 2. Game constants (Words-With-Friends rules)                  *
+ * ============================================================= */
+const SIZE = 15, CENTER = 112;
+const idx = (r, c) => r * 15 + c;
+const VALUES = { A:1,B:4,C:4,D:2,E:1,F:4,G:3,H:3,I:1,J:10,K:5,L:2,M:4,N:2,O:1,
+                 P:4,Q:10,R:1,S:1,T:1,U:2,V:5,W:4,X:8,Y:3,Z:10,"?":0 };
+const DIST   = { A:9,B:2,C:2,D:5,E:13,F:2,G:3,H:4,I:8,J:1,K:1,L:4,M:2,N:5,O:8,
+                 P:2,Q:1,R:6,S:5,T:7,U:4,V:2,W:2,X:1,Y:2,Z:1,"?":2 }; // 104 tiles
+const BINGO_BONUS = 35;
+const SCORELESS_LIMIT = 6; // consecutive passes/swaps that end the game
+
+// WWF premium layout: d/t = double/triple letter, D/T = double/triple word, * = start.
+const PREMIUM = [
+  "...T..t.t..T...",
+  "..d..D...D..d..",
+  ".d..d.....d..d.",
+  "T..t...D...t..T",
+  "..d...d.d...d..",
+  ".D...t...t...D.",
+  "t...d.....d...t",
+  "...D...*...D...",
+  "t...d.....d...t",
+  ".D...t...t...D.",
+  "..d...d.d...d..",
+  "T..t...D...t..T",
+  ".d..d.....d..d.",
+  "..d..D...D..d..",
+  "...T..t.t..T...",
+].join("");
+const PREMIUM_LABEL = { d:"DL", t:"TL", D:"DW", T:"TW", "*":"★" };
+
+function buildBag() {
+  const a = [];
+  for (const [ch, n] of Object.entries(DIST)) for (let i = 0; i < n; i++) a.push(ch);
+  return a;
+}
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+const isBlankChar = (ch) => /[a-z]/.test(ch); // committed blanks are lowercase on the board
+const tileValue = (ch) => isBlankChar(ch) ? 0 : (VALUES[ch] || 0);
+const rackValue = (rk) => rk.split("").reduce((s, ch) => s + (VALUES[ch] || 0), 0);
+const setCell = (s, i, ch) => s.slice(0, i) + ch + s.slice(i + 1);
+
+/* ============================================================= *
+ * 3. Dictionary (ENABLE list — the classic WWF lexicon)         *
+ * ============================================================= */
+const DICT_URLS = [
+  "https://cdn.jsdelivr.net/gh/dolph/dictionary@master/enable1.txt",
+  "https://raw.githubusercontent.com/dolph/dictionary/master/enable1.txt",
+];
+let DICT = null;              // Set of lowercase words
+let dictState = "loading";    // loading | ready | failed
+async function loadDictionary() {
+  for (const url of DICT_URLS) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const text = await res.text();
+      const set = new Set();
+      for (const line of text.split("\n")) {
+        const w = line.trim();
+        if (w) set.add(w);
+      }
+      if (set.size < 1000) continue; // sanity check
+      DICT = set; dictState = "ready";
+      renderDictInfo(); renderAll();
+      return;
+    } catch (e) { /* try next source */ }
+  }
+  dictState = "failed";
+  renderDictInfo(); renderAll();
+  toast("Couldn't load the dictionary — words won't be checked this game.");
+}
+const inDict = (w) => DICT && DICT.has(w.toLowerCase());
+
+/* ============================================================= *
+ * 4. Globals                                                    *
+ * ============================================================= */
+let fbApp, db, auth;
+let userId = null, isAuthReady = false;
+let gameId = null, unsub = null, G = null;
+let pendingJoinId = null;
+
+// Local rack model: order is the player's own arrangement; `cell` != null means
+// the tile is staged on the board this turn (not yet submitted).
+let myTiles = [];             // [{id, ch, cell, blankAs}]
+let nextTileId = 1;
+let selectedId = null;        // tap-to-place selection
+let pendingAction = false;
+let goShownFor = null;        // endInfo.ts we already popped the modal for
+let passArmed = false, passTimer = null;
+let leaveArmed = false, leaveTimer = null;
+let prevMoveCount = -1;       // to ding on opponent moves
+
+const $ = (id) => document.getElementById(id);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const escapeHTML = (s) => String(s ?? "").replace(/[&<>"']/g,
+  c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+const isMe = (uid) => uid === userId;
+const oppId = () => (G && G.playerIds ? G.playerIds.find(p => p !== userId) : null);
+function nameOf(uid) {
+  if (!G) return "";
+  if (G.player1 && G.player1.uid === uid) return G.player1.name;
+  if (G.player2 && G.player2.uid === uid) return G.player2.name;
+  return "Player";
+}
+const myTurn = () => !!G && G.phase === "play" && G.turn === userId;
+const stagedTiles = () => myTiles.filter(t => t.cell != null);
+const stagedAt = (i) => myTiles.find(t => t.cell === i) || null;
+
+/* ---- Sounds: tiny WebAudio synth, no assets ---- */
+let audioCtx = null;
+let muted = localStorage.getItem("words_muted") === "1";
+function ac() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { return null; }
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+function tone(freq, dur, type, vol, delay) {
+  if (muted) return;
+  const ctx = ac(); if (!ctx) return;
+  const t = ctx.currentTime + (delay || 0);
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type || "triangle"; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol || .15, t);
+  g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t + dur + .02);
+}
+function sndPlace() { tone(520, .04, "square", .05); }
+function sndPlay()  { tone(660, .09, "triangle", .12); tone(880, .12, "triangle", .12, .09); }
+function sndOpp()   { tone(440, .10, "triangle", .10); tone(550, .10, "triangle", .08, .10); }
+function sndErr()   { tone(160, .12, "square", .08); }
+function sndWin()   { [523, 659, 784, 1047].forEach((f, i) => tone(f, .18, "triangle", .14, i * .12)); }
+function updateMuteBtn() { $("mute-btn").textContent = muted ? "🔇" : "🔊"; }
+
+/* ============================================================= *
+ * 5. Move analysis: geometry, words formed, score               *
+ * ============================================================= */
+// placements: [{cell, letter (A-Z), isBlank}] — returns {err} or {words, total, bingo}.
+function analyzeMove(board, placements) {
+  if (!placements.length) return { err: "Place at least one tile." };
+  const occ = new Map();
+  for (const p of placements) {
+    if (occ.has(p.cell) || board[p.cell] !== ".") return { err: "Tiles overlap." };
+    occ.set(p.cell, p);
+  }
+  const rs = placements.map(p => Math.floor(p.cell / 15));
+  const cs = placements.map(p => p.cell % 15);
+  const sameRow = rs.every(r => r === rs[0]);
+  const sameCol = cs.every(c => c === cs[0]);
+  if (!sameRow && !sameCol) return { err: "Tiles must line up in one row or column." };
+
+  const at = (r, c) => {
+    if (r < 0 || r > 14 || c < 0 || c > 14) return ".";
+    const p = occ.get(idx(r, c));
+    return p ? p.letter : board[idx(r, c)];
+  };
+
+  // Contiguity along the play axis (gaps may only be existing board tiles).
+  if (placements.length > 1) {
+    const horiz = sameRow;
+    const fixed = horiz ? rs[0] : cs[0];
+    const vars = (horiz ? cs : rs).slice().sort((a, b) => a - b);
+    for (let v = vars[0]; v <= vars[vars.length - 1]; v++) {
+      if (at(horiz ? fixed : v, horiz ? v : fixed) === ".") {
+        return { err: "Tiles must form one unbroken line." };
+      }
+    }
+  }
+
+  // Collect maximal runs (length >= 2) through the placements.
+  const runAt = (r, c, dr, dc) => {
+    let r0 = r, c0 = c;
+    while (at(r0 - dr, c0 - dc) !== ".") { r0 -= dr; c0 -= dc; }
+    const cells = [];
+    while (at(r0, c0) !== ".") { cells.push(idx(r0, c0)); r0 += dr; c0 += dc; }
+    return cells;
+  };
+  const runs = [], seen = new Set();
+  const addRun = (cells, horiz) => {
+    if (cells.length < 2) return;
+    const key = cells[0] + (horiz ? "H" : "V");
+    if (!seen.has(key)) { seen.add(key); runs.push(cells); }
+  };
+  if (placements.length === 1) {
+    addRun(runAt(rs[0], cs[0], 0, 1), true);
+    addRun(runAt(rs[0], cs[0], 1, 0), false);
+  } else if (sameRow) {
+    addRun(runAt(rs[0], cs[0], 0, 1), true);
+    for (let i = 0; i < placements.length; i++) addRun(runAt(rs[i], cs[i], 1, 0), false);
+  } else {
+    addRun(runAt(rs[0], cs[0], 1, 0), false);
+    for (let i = 0; i < placements.length; i++) addRun(runAt(rs[i], cs[i], 0, 1), true);
+  }
+
+  const emptyBoard = !/[A-Za-z]/.test(board);
+  if (!runs.length) {
+    return { err: emptyBoard ? "Your first word needs at least two letters." : "That doesn't spell a word." };
+  }
+  if (emptyBoard) {
+    if (!occ.has(CENTER)) return { err: "The first word must cover the center ★." };
+  } else {
+    const touches = placements.some(p => {
+      const r = Math.floor(p.cell / 15), c = p.cell % 15;
+      return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].some(([rr, cc]) =>
+        rr >= 0 && rr < 15 && cc >= 0 && cc < 15 && board[idx(rr, cc)] !== ".");
+    });
+    if (!touches) return { err: "New words must connect to the board." };
+  }
+
+  // Score each run. Premiums count only under newly placed tiles.
+  const words = runs.map(cells => {
+    let sum = 0, mult = 1, str = "";
+    for (const i of cells) {
+      const p = occ.get(i);
+      if (p) {
+        let v = p.isBlank ? 0 : VALUES[p.letter];
+        const prem = PREMIUM[i];
+        if (prem === "d") v *= 2;
+        else if (prem === "t") v *= 3;
+        else if (prem === "D") mult *= 2;
+        else if (prem === "T") mult *= 3;
+        sum += v; str += p.letter;
+      } else {
+        sum += tileValue(board[i]); str += board[i].toUpperCase();
+      }
+    }
+    return { word: str, score: sum * mult, cells };
+  });
+  const bingo = placements.length === 7;
+  const total = words.reduce((s, w) => s + w.score, 0) + (bingo ? BINGO_BONUS : 0);
+  return { words, total, bingo };
+}
+
+// Current staging → placements for analyzeMove.
+function currentPlacements() {
+  return stagedTiles().map(t => ({
+    cell: t.cell,
+    letter: t.ch === "?" ? t.blankAs : t.ch,
+    isBlank: t.ch === "?",
+  }));
+}
+// Full check incl. dictionary: {ok, err?, words?, total?, bad?}.
+function checkCurrentMove() {
+  const a = analyzeMove(G.board, currentPlacements());
+  if (a.err) return { ok: false, err: a.err };
+  if (dictState === "ready") {
+    const bad = a.words.filter(w => !inDict(w.word));
+    if (bad.length) {
+      return { ok: false, words: a.words, total: a.total, bingo: a.bingo, bad,
+               err: `Not a word: ${bad.map(w => w.word).join(", ")}` };
+    }
+  }
+  return { ok: true, words: a.words, total: a.total, bingo: a.bingo,
+           unchecked: dictState !== "ready" };
+}
+
+/* ============================================================= *
+ * 6. Firestore game lifecycle                                   *
+ * ============================================================= */
+const gameRef = (id) => doc(db, `${GAMES_PATH}/${id}`);
+
+function newGameState(creatorUid, creatorName) {
+  return {
+    _kind: KIND,
+    createdAt: Date.now(), lastUpdated: Date.now(),
+    player1: { uid: creatorUid, name: creatorName },
+    player2: null,
+    playerIds: [creatorUid],
+    phase: "waiting",            // waiting | play | gameover
+    board: ".".repeat(225),
+    bag: "", racks: {}, scores: {},
+    turn: null, first: null, scoreless: 0,
+    moves: [], lastPlay: null,
+    winner: null, endInfo: null,
+  };
+}
+
+// Fresh bag + racks + empty board into gs (used by join and rematch).
+function dealFreshInto(gs, firstUid, otherUid) {
+  const bag = shuffle(buildBag()).join("");
+  gs.board = ".".repeat(225);
+  gs.racks = { [firstUid]: bag.slice(0, 7), [otherUid]: bag.slice(7, 14) };
+  gs.bag = bag.slice(14);
+  gs.scores = { [firstUid]: 0, [otherUid]: 0 };
+  gs.turn = firstUid; gs.first = firstUid;
+  gs.phase = "play"; gs.scoreless = 0;
+  gs.moves = []; gs.lastPlay = null;
+  gs.winner = null; gs.endInfo = null;
+}
+
+async function pushState(gs) {
+  gs.lastUpdated = Date.now();
+  pendingAction = true; renderActions();
+  try {
+    await setDoc(gameRef(gameId), gs);
+  } catch (e) {
+    console.error("[words] write failed", e);
+    toast("Sync error: " + (e.code || e.message));
+  } finally {
+    pendingAction = false;
+    if (G) renderActions();
+  }
+}
+
+async function setupNewGame() {
+  const name = ($("name-input").value || "").trim();
+  if (!name) { toast("Enter your name first."); return; }
+  if (!isAuthReady || !userId) { toast("Still connecting…"); return; }
+  localStorage.setItem(LOCAL_NAME_KEY, name);
+  const id = gameDocId(crypto.randomUUID());
+  const gs = newGameState(userId, name);
+  gameId = id;
+  await setDoc(gameRef(id), gs);
+  attachListener(id);
+  updateURL();
+  showGame();
+  revealInvite();
+}
+
+async function joinExistingGame(id) {
+  const name = ($("name-input").value || "").trim() || localStorage.getItem(LOCAL_NAME_KEY) || "";
+  if (!name) { toast("Enter your name to join."); return; }
+  if (!isAuthReady || !userId) { toast("Still connecting…"); return; }
+  localStorage.setItem(LOCAL_NAME_KEY, name);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(gameRef(id));
+      if (!snap.exists()) throw new Error("not-found");
+      const data = snap.data();
+      if (data._kind !== KIND) throw new Error("not-found");
+      if (data.playerIds.includes(userId)) return;          // already seated (re-entry)
+      if (data.player2) throw new Error("full");
+      data.player2 = { uid: userId, name };
+      data.playerIds = [data.player1.uid, userId];
+      dealFreshInto(data, data.player1.uid, userId);        // creator moves first
+      data.lastUpdated = Date.now();
+      tx.set(gameRef(id), data);
+    });
+  } catch (e) {
+    if (e.message === "not-found") toast("That game wasn't found.");
+    else if (e.message === "full") toast("That game already has two players.");
+    else { console.error("[words] join failed", e); toast("Couldn't join: " + (e.code || e.message)); }
+    showMenu();
+    return;
+  }
+  gameId = id;
+  attachListener(id);
+  updateURL();
+  showGame();
+}
+
+function attachListener(id) {
+  if (unsub) unsub();
+  prevMoveCount = -1;
+  unsub = onSnapshot(gameRef(id), (snap) => {
+    if (!snap.exists()) { toast("Game ended."); resetLocal(); return; }
+    G = snap.data();
+    syncRack();
+    // Ding when the opponent's move lands (not on first snapshot, not on our own).
+    const mc = (G.moves || []).length;
+    if (prevMoveCount >= 0 && mc > prevMoveCount) {
+      const last = G.moves[mc - 1];
+      if (last && last.by !== userId) sndOpp();
+    }
+    prevMoveCount = mc;
+    updateTitle();
+    showGame();
+    renderAll();
+  }, (err) => { console.error("[words] snapshot", err); toast("Connection error."); });
+}
+
+function resetLocal() {
+  if (unsub) { unsub(); unsub = null; }
+  gameId = null; G = null;
+  myTiles = []; selectedId = null; goShownFor = null; prevMoveCount = -1;
+  history.replaceState(null, "", location.pathname);
+  pendingJoinId = null;
+  document.title = "Words for Two";
+  showMenu();
+}
+
+// Leaving a live game forfeits it; a lone creator's waiting room is deleted.
+async function leaveGame() {
+  const gid = gameId, snapshot = G;
+  try {
+    if (gid && snapshot) {
+      if (snapshot.phase === "play" && oppId()) {
+        const gs = clone(snapshot);
+        finishGame(gs, "resign", { by: userId });
+        gs.lastUpdated = Date.now();
+        await setDoc(gameRef(gid), gs);
+      } else if (snapshot.phase === "waiting" && !snapshot.player2) {
+        await deleteDoc(gameRef(gid));
+      }
+    }
+  } catch (e) {
+    console.warn("[words] leave cleanup failed", e);
+  }
+  resetLocal();
+}
+
+// Sets phase/winner/endInfo on gs. reason: out | passes | resign.
+function finishGame(gs, reason, extra) {
+  gs.phase = "gameover";
+  gs.turn = null;
+  if (reason === "resign") {
+    gs.winner = gs.playerIds.find(p => p !== extra.by) || null;
+  } else {
+    const [a, b] = gs.playerIds;
+    gs.winner = gs.scores[a] > gs.scores[b] ? a : gs.scores[b] > gs.scores[a] ? b : null;
+  }
+  gs.endInfo = { reason, ts: Date.now(), ...extra };
+}
+
+/* ============================================================= *
+ * 7. Local rack sync + staging                                  *
+ * ============================================================= */
+// Reconcile myTiles with the authoritative server rack, preserving local order.
+// Unstaged tiles keep their chars first so played/staged ones drop naturally.
+function syncRack() {
+  const server = (G && G.racks && G.racks[userId]) || "";
+  const need = new Map();
+  for (const ch of server) need.set(ch, (need.get(ch) || 0) + 1);
+  const takes = (t) => {
+    const n = need.get(t.ch) || 0;
+    if (n <= 0) return false;
+    need.set(t.ch, n - 1);
+    return true;
+  };
+  const keepIds = new Set();
+  for (const t of myTiles) if (t.cell == null && takes(t)) keepIds.add(t.id);
+  for (const t of myTiles) if (t.cell != null && takes(t)) keepIds.add(t.id);
+  const kept = myTiles.filter(t => keepIds.has(t.id));
+  for (const [ch, n] of need) {
+    for (let i = 0; i < n; i++) kept.push({ id: nextTileId++, ch, cell: null, blankAs: null });
+  }
+  myTiles = kept;
+  // Recall any staged tile whose square got taken (opponent move landed there).
+  for (const t of myTiles) {
+    if (t.cell != null && G.board[t.cell] !== ".") { t.cell = null; t.blankAs = null; }
+  }
+  if (selectedId != null && !myTiles.some(t => t.id === selectedId && t.cell == null)) selectedId = null;
+}
+
+function placeTile(t, cell) {
+  if (!G || G.phase !== "play") return;
+  if (G.board[cell] !== "." || stagedAt(cell)) return;
+  const commit = (blankAs) => {
+    t.cell = cell; t.blankAs = blankAs;
+    selectedId = null;
+    sndPlace();
+    renderAll();
+  };
+  if (t.ch === "?") {
+    pickBlankLetter().then(L => { if (L) commit(L); else renderAll(); });
+  } else {
+    commit(null);
+  }
+}
+function recallTile(t) {
+  t.cell = null; t.blankAs = null;
+  renderAll();
+}
+function recallAll() {
+  for (const t of myTiles) { t.cell = null; t.blankAs = null; }
+  renderAll();
+}
+function shuffleRack() {
+  shuffle(myTiles);
+  renderAll();
+}
+
+/* ---- Blank letter picker (promise-based modal) ---- */
+let blankResolve = null;
+function pickBlankLetter() {
+  return new Promise(res => {
+    blankResolve = res;
+    const grid = $("blank-grid");
+    grid.innerHTML = "";
+    for (let i = 0; i < 26; i++) {
+      const L = String.fromCharCode(65 + i);
+      const d = document.createElement("div");
+      d.className = "wtile blank";
+      d.innerHTML = `<span class="lt">${L}</span>`;
+      d.addEventListener("click", () => closeBlank(L));
+      grid.appendChild(d);
+    }
+    $("blank-modal").classList.remove("hidden");
+  });
+}
+function closeBlank(result) {
+  $("blank-modal").classList.add("hidden");
+  const r = blankResolve; blankResolve = null;
+  if (r) r(result);
+}
+
+/* ============================================================= *
+ * 8. Player actions                                             *
+ * ============================================================= */
+async function actPlay() {
+  if (!myTurn() || pendingAction) return;
+  const staged = stagedTiles();
+  const chk = checkCurrentMove();
+  if (!chk.ok) { toast(chk.err); sndErr(); return; }
+
+  const gs = clone(G);
+  for (const t of staged) {
+    gs.board = setCell(gs.board, t.cell, t.ch === "?" ? t.blankAs.toLowerCase() : t.ch);
+  }
+  let rack = gs.racks[userId];
+  for (const t of staged) rack = rack.replace(t.ch, "");
+  const draw = Math.min(7 - rack.length, gs.bag.length);
+  gs.racks[userId] = rack + gs.bag.slice(0, draw);
+  gs.bag = gs.bag.slice(draw);
+  gs.scores[userId] += chk.total;
+  const cells = staged.map(t => t.cell);
+  gs.moves.push({
+    by: userId, type: "play", ts: Date.now(),
+    words: chk.words.map(w => ({ w: w.word, s: w.score })),
+    score: chk.total, bingo: !!chk.bingo, cells,
+  });
+  gs.lastPlay = { by: userId, cells };
+  gs.scoreless = 0;
+
+  if (gs.racks[userId].length === 0 && gs.bag.length === 0) {
+    // Played out: collect the opponent's leftovers.
+    const opp = oppId();
+    const gained = rackValue(gs.racks[opp]);
+    gs.scores[userId] += gained;
+    gs.scores[opp] -= gained;
+    finishGame(gs, "out", { by: userId, gained });
+  } else {
+    gs.turn = oppId();
+  }
+  sndPlay();
+  await pushState(gs);
+}
+
+async function actPass() {
+  if (!myTurn() || pendingAction) return;
+  recallAll();
+  const gs = clone(G);
+  gs.moves.push({ by: userId, type: "pass", ts: Date.now() });
+  gs.lastPlay = null;
+  gs.scoreless += 1;
+  if (gs.scoreless >= SCORELESS_LIMIT) {
+    endByScorelessInto(gs);
+  } else {
+    gs.turn = oppId();
+  }
+  await pushState(gs);
+}
+
+function endByScorelessInto(gs) {
+  const deducted = {};
+  for (const uid of gs.playerIds) {
+    deducted[uid] = rackValue(gs.racks[uid]);
+    gs.scores[uid] -= deducted[uid];
+  }
+  finishGame(gs, "passes", { deducted });
+}
+
+async function actSwap(tileIds) {
+  if (!myTurn() || pendingAction) return;
+  const chars = myTiles.filter(t => tileIds.has(t.id)).map(t => t.ch);
+  if (!chars.length) return;
+  const gs = clone(G);
+  if (chars.length > gs.bag.length) { toast("Not enough tiles left in the bag."); return; }
+  let rack = gs.racks[userId];
+  for (const ch of chars) rack = rack.replace(ch, "");
+  rack += gs.bag.slice(0, chars.length);
+  gs.bag = gs.bag.slice(chars.length);
+  for (const ch of chars) { // return swapped tiles to random bag positions
+    const i = Math.floor(Math.random() * (gs.bag.length + 1));
+    gs.bag = gs.bag.slice(0, i) + ch + gs.bag.slice(i);
+  }
+  gs.racks[userId] = rack;
+  gs.moves.push({ by: userId, type: "swap", count: chars.length, ts: Date.now() });
+  gs.lastPlay = null;
+  gs.scoreless += 1;
+  if (gs.scoreless >= SCORELESS_LIMIT) {
+    endByScorelessInto(gs);
+  } else {
+    gs.turn = oppId();
+  }
+  await pushState(gs);
+}
+
+function doRematch() {
+  if (pendingAction || !G) return;
+  if (!G.player2 || G.playerIds.length < 2) { toast("No opponent to rematch."); return; }
+  $("gameover-modal").classList.add("hidden");
+  const gs = clone(G);
+  const newFirst = G.playerIds.find(p => p !== G.first) || G.first;
+  const other = G.playerIds.find(p => p !== newFirst);
+  dealFreshInto(gs, newFirst, other);
+  goShownFor = null;
+  pushState(gs);
+}
+
+/* ---- Swap modal ---- */
+const swapSel = new Set();
+function openSwapModal() {
+  if (!myTurn()) return;
+  recallAll();
+  swapSel.clear();
+  renderSwapModal();
+  $("swap-modal").classList.remove("hidden");
+}
+function renderSwapModal() {
+  const wrap = $("swap-tiles");
+  wrap.innerHTML = "";
+  for (const t of myTiles) {
+    const el = tileNode(t.ch === "?" ? "" : t.ch, VALUES[t.ch], { blank: t.ch === "?" });
+    el.classList.add("rtile");
+    if (swapSel.has(t.id)) el.classList.add("selected");
+    el.addEventListener("click", () => {
+      if (swapSel.has(t.id)) swapSel.delete(t.id); else swapSel.add(t.id);
+      renderSwapModal();
+    });
+    wrap.appendChild(el);
+  }
+  const n = swapSel.size, bag = G ? G.bag.length : 0;
+  $("swap-confirm").textContent = n ? `Swap ${n} tile${n > 1 ? "s" : ""}` : "Swap";
+  $("swap-confirm").disabled = n === 0 || n > bag;
+}
+
+/* ============================================================= *
+ * 9. Rendering                                                  *
+ * ============================================================= */
+function tileNode(letter, value, opts = {}) {
+  const d = document.createElement("div");
+  d.className = "wtile";
+  if (opts.blank) d.classList.add("blank");
+  const showValue = !opts.blank && value > 0;
+  d.innerHTML = `<span class="lt">${letter}</span>` + (showValue ? `<span class="pv">${value}</span>` : "");
+  return d;
+}
+
+function renderAll() {
+  if (!G) return;
+  renderScores();
+  renderStatus();
+  renderBoard();
+  renderRack();
+  renderActions();
+  renderHistory();
+  renderDictInfo();
+  if (G.phase === "waiting") revealInvite(); else $("invite-panel").classList.add("hidden");
+  if (G.phase === "gameover") maybeShowGameOver();
+  else { $("gameover-modal").classList.add("hidden"); goShownFor = null; }
+}
+
+function renderScores() {
+  const opp = oppId();
+  const meCard = $("p-me"), opCard = $("p-opp");
+  meCard.querySelector(".pname").textContent = (nameOf(userId) || "You") + " (you)";
+  meCard.querySelector(".pscore").textContent = (G.scores && G.scores[userId]) ?? 0;
+  opCard.querySelector(".pname").textContent = opp ? nameOf(opp) : "Waiting…";
+  opCard.querySelector(".pscore").textContent = opp ? ((G.scores && G.scores[opp]) ?? 0) : "—";
+  meCard.classList.toggle("active", G.phase === "play" && G.turn === userId);
+  opCard.classList.toggle("active", G.phase === "play" && !!opp && G.turn === opp);
+  $("bag-info").textContent = G.phase === "waiting" ? "Bag: 104" : `Bag: ${G.bag.length}`;
+}
+
+function renderDictInfo() {
+  const el = $("dict-info");
+  if (!el) return;
+  el.textContent = dictState === "ready" ? "ENABLE ✓"
+                 : dictState === "loading" ? "dictionary…"
+                 : "no dictionary ⚠";
+}
+
+function describeMove(m) {
+  if (m.type === "pass") return "passed";
+  if (m.type === "swap") return `swapped ${m.count} tile${m.count > 1 ? "s" : ""}`;
+  const ws = (m.words || []).map(w => `${w.w} ${w.s}`).join(" · ");
+  return ws + (m.bingo ? ` · BINGO +${BINGO_BONUS}` : "");
+}
+
+function renderStatus() {
+  const bar = $("status-bar");
+  bar.innerHTML = "";
+  const put = (html, cls) => {
+    const s = document.createElement("span");
+    if (cls) s.className = cls;
+    s.innerHTML = html;
+    bar.appendChild(s);
+  };
+  if (G.phase === "waiting") { put("Share the invite link below to start the game."); return; }
+  if (G.phase === "gameover") {
+    const w = G.winner;
+    put(w === null ? "Game over — it's a tie!" : `Game over — <b>${escapeHTML(nameOf(w))}</b> wins!`);
+    return;
+  }
+  const staged = stagedTiles();
+  if (staged.length) {
+    const chk = checkCurrentMove();
+    if (chk.err && !chk.words) { put(chk.err, "text-amber-300"); return; }
+    for (const w of chk.words) {
+      const bad = chk.bad && chk.bad.some(b => b.word === w.word && b.cells[0] === w.cells[0]);
+      const cls = bad ? "bad" : chk.unchecked ? "dubious" : "good";
+      const chip = document.createElement("span");
+      chip.className = "wchip " + cls;
+      chip.innerHTML = `${escapeHTML(w.word)} <span class="ws">${w.score}</span>`;
+      bar.appendChild(chip);
+    }
+    if (chk.bingo) put(`<span class="wchip good">BINGO +${BINGO_BONUS}</span>`);
+    put(`= <b>${chk.total}</b>`, "font-black");
+    if (chk.unchecked && dictState === "loading") put("(checking…)", "text-xs text-sky-100/60");
+    if (!myTurn()) put("· waiting for your turn", "text-xs text-sky-100/60");
+    return;
+  }
+  if (myTurn()) { put("Your turn — place a word, or swap / pass."); return; }
+  const last = (G.moves || [])[G.moves.length - 1];
+  const oppName = escapeHTML(nameOf(oppId()));
+  if (last && last.by !== userId) {
+    put(`${oppName} ${escapeHTML(describeMove(last))}${last.type === "play" ? ` for <b>${last.score}</b>` : ""} — waiting for them… `);
+  } else {
+    put(`Waiting for ${oppName}…`);
+  }
+}
+
+function renderBoard() {
+  const b = $("board");
+  b.innerHTML = "";
+  const lastCells = new Set((G.lastPlay && G.lastPlay.cells) || []);
+  for (let i = 0; i < 225; i++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.dataset.i = i;
+    const prem = PREMIUM[i];
+    if (prem === "d") cell.classList.add("c-dl");
+    else if (prem === "t") cell.classList.add("c-tl");
+    else if (prem === "D") cell.classList.add("c-dw");
+    else if (prem === "T") cell.classList.add("c-tw");
+    else if (prem === "*") cell.classList.add("c-ctr");
+
+    const st = stagedAt(i);
+    const bc = G.board[i];
+    if (st) {
+      const letter = st.ch === "?" ? st.blankAs : st.ch;
+      const tl = tileNode(letter, VALUES[st.ch], { blank: st.ch === "?" });
+      tl.classList.add("on-board", "staged");
+      tl.dataset.tileId = st.id;
+      cell.appendChild(tl);
+    } else if (bc !== ".") {
+      const tl = tileNode(bc.toUpperCase(), tileValue(bc), { blank: isBlankChar(bc) });
+      tl.classList.add("on-board");
+      if (lastCells.has(i)) tl.classList.add("lastplay");
+      cell.appendChild(tl);
+    } else if (prem !== ".") {
+      cell.innerHTML = `<span class="plabel">${PREMIUM_LABEL[prem]}</span>`;
+    }
+    b.appendChild(cell);
+  }
+}
+
+function renderRack() {
+  const r = $("rack");
+  r.innerHTML = "";
+  const inPlay = G.phase === "play" || G.phase === "gameover";
+  $("rack-area").classList.toggle("hidden", !inPlay);
+  if (!inPlay) return;
+  for (const t of myTiles) {
+    if (t.cell != null) continue;
+    const el = tileNode(t.ch === "?" ? "" : t.ch, VALUES[t.ch], { blank: t.ch === "?" });
+    el.classList.add("rtile");
+    el.dataset.tileId = t.id;
+    if (t.id === selectedId) el.classList.add("selected");
+    r.appendChild(el);
+  }
+}
+
+function actionBtn(label, cls, fn, disabled) {
+  const b = document.createElement("button");
+  b.className = "btn " + cls;
+  b.innerHTML = label;
+  b.disabled = !!disabled || pendingAction;
+  b.addEventListener("click", fn);
+  return b;
+}
+
+function renderActions() {
+  const a = $("action-area");
+  if (!a || !G) return;
+  a.innerHTML = "";
+  if (G.phase === "waiting") return;
+
+  if (G.phase === "gameover") {
+    a.appendChild(actionBtn("Results", "btn-ghost btn-sm", () => { goShownFor = null; maybeShowGameOver(); }));
+    if (G.player2 && (G.endInfo || {}).reason !== "resign") a.appendChild(actionBtn("Rematch", "btn-primary btn-sm", doRematch));
+    a.appendChild(actionBtn("Menu", "btn-ghost btn-sm", resetLocal));
+    return;
+  }
+
+  const staged = stagedTiles();
+  const mine = myTurn();
+  a.appendChild(actionBtn("🔀", "btn-ghost btn-sm", shuffleRack, myTiles.length < 2));
+  a.appendChild(actionBtn("⟲ Recall", "btn-ghost btn-sm", recallAll, staged.length === 0));
+  a.appendChild(actionBtn("Swap", "btn-ghost btn-sm", openSwapModal, !mine || G.bag.length === 0));
+  a.appendChild(actionBtn(passArmed ? "Pass turn?" : "Pass", passArmed ? "btn-danger btn-sm" : "btn-ghost btn-sm", () => {
+    if (!passArmed) {
+      passArmed = true;
+      clearTimeout(passTimer);
+      passTimer = setTimeout(() => { passArmed = false; renderActions(); }, 4000);
+      renderActions();
+    } else {
+      passArmed = false; clearTimeout(passTimer);
+      actPass();
+    }
+  }, !mine));
+
+  let playLabel = "Play";
+  let playDisabled = !mine || staged.length === 0;
+  if (staged.length && mine) {
+    const chk = checkCurrentMove();
+    if (chk.ok) playLabel = `Play&nbsp;+${chk.total}`;
+    else playDisabled = true;
+  }
+  if (dictState === "loading" && staged.length) playDisabled = true;
+  a.appendChild(actionBtn(playLabel, "btn-go", actPlay, playDisabled));
+}
+
+function renderHistory() {
+  const list = $("history-list");
+  list.innerHTML = "";
+  const moves = (G.moves || []).slice(-40).reverse();
+  if (!moves.length) {
+    list.innerHTML = `<div class="text-sky-100/40 text-xs py-1">No moves yet.</div>`;
+    return;
+  }
+  for (const m of moves) {
+    const row = document.createElement("div");
+    row.className = "hrow";
+    const pts = m.type === "play" ? `<span class="hpts">+${m.score}</span>` : "";
+    row.innerHTML = `<b>${escapeHTML(nameOf(m.by))}</b><span>${escapeHTML(describeMove(m))}</span>${pts}`;
+    list.appendChild(row);
+  }
+}
+
+function maybeShowGameOver() {
+  const ts = G.endInfo && G.endInfo.ts;
+  if (goShownFor === ts) return;
+  goShownFor = ts;
+  const opp = oppId();
+  const iWon = G.winner === userId;
+  const tie = G.winner === null;
+  $("go-title").textContent = tie ? "🤝 Tie game" : iWon ? "🏆 You win!" : "You lose";
+  $("go-scores").innerHTML = G.playerIds.map(uid =>
+    `<div class="flex justify-between px-6 py-0.5 ${uid === G.winner ? "font-black text-amber-300" : ""}">
+       <span>${escapeHTML(nameOf(uid))}${isMe(uid) ? " (you)" : ""}</span><span>${G.scores[uid]}</span>
+     </div>`).join("");
+  const ei = G.endInfo || {};
+  let detail = "";
+  if (ei.reason === "resign") {
+    detail = `${escapeHTML(nameOf(ei.by))} ${isMe(ei.by) ? "(you) " : ""}left the game — win by forfeit.`;
+  } else if (ei.reason === "out") {
+    detail = `${escapeHTML(nameOf(ei.by))} played out and collected <b>${ei.gained}</b> points from ` +
+             `${escapeHTML(nameOf(G.playerIds.find(p => p !== ei.by)))}'s leftover tiles.`;
+  } else if (ei.reason === "passes") {
+    const parts = G.playerIds.map(uid => `${escapeHTML(nameOf(uid))} −${(ei.deducted || {})[uid] ?? 0}`);
+    detail = `Six scoreless turns in a row ended the game. Leftover tiles deducted: ${parts.join(", ")}.`;
+  }
+  $("go-detail").innerHTML = detail;
+  // No rematch offer after a forfeit — the opponent has left the game.
+  $("go-rematch").classList.toggle("hidden", !G.player2 || ei.reason === "resign");
+  $("gameover-modal").classList.remove("hidden");
+  if (iWon) sndWin();
+}
+
+function updateTitle() {
+  document.title = (G && G.phase === "play" && G.turn === userId) ? "● Your move — Words for Two" : "Words for Two";
+}
+
+/* ============================================================= *
+ * 10. Pointer interaction: tap-select, tap-place, drag & drop   *
+ * ============================================================= */
+let drag = null; // {tile, fromCell, startX, startY, moved, hoverCell}
+
+function tileById(id) { return myTiles.find(t => t.id === id) || null; }
+
+function startPointer(e) {
+  if (!G || G.phase !== "play") return;
+  const tileEl = e.target.closest("[data-tile-id]");
+  if (tileEl) {
+    const t = tileById(Number(tileEl.dataset.tileId));
+    if (!t) return;
+    e.preventDefault();
+    drag = { tile: t, fromCell: t.cell, startX: e.clientX, startY: e.clientY, moved: false, hoverCell: null };
+    return;
+  }
+  const cellEl = e.target.closest(".cell");
+  if (cellEl) {
+    drag = { cellTap: Number(cellEl.dataset.i), startX: e.clientX, startY: e.clientY, moved: false };
+  }
+}
+
+function movePointer(e) {
+  if (!drag) return;
+  const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+  if (!drag.moved && Math.hypot(dx, dy) < 7) return;
+  if (drag.cellTap != null) { drag = null; return; }  // dragging from empty cell = nothing
+  drag.moved = true;
+  e.preventDefault();
+  const g = $("ghost");
+  if (g.classList.contains("hidden")) {
+    const t = drag.tile;
+    g.innerHTML = "";
+    const node = tileNode(t.ch === "?" ? (t.blankAs || "") : t.ch, VALUES[t.ch], { blank: t.ch === "?" });
+    node.style.width = "100%"; node.style.height = "100%";
+    g.appendChild(node);
+    g.classList.remove("hidden");
+    // Visually lift the source tile
+    document.querySelectorAll(`[data-tile-id="${t.id}"]`).forEach(el => el.classList.add("ghosted"));
+  }
+  g.style.left = e.clientX + "px";
+  g.style.top = e.clientY + "px";
+  // Highlight the droppable cell under the pointer
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const cellEl = el && el.closest ? el.closest(".cell") : null;
+  let cellIdx = null;
+  if (cellEl) {
+    const i = Number(cellEl.dataset.i);
+    if (G.board[i] === "." && (!stagedAt(i) || stagedAt(i) === drag.tile)) cellIdx = i;
+  }
+  if (drag.hoverCell !== cellIdx) {
+    document.querySelectorAll(".cell.droptarget").forEach(c => c.classList.remove("droptarget"));
+    if (cellIdx != null) {
+      const c = document.querySelector(`.cell[data-i="${cellIdx}"]`);
+      if (c) c.classList.add("droptarget");
+    }
+    drag.hoverCell = cellIdx;
+  }
+}
+
+function endPointer(e) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  $("ghost").classList.add("hidden");
+  document.querySelectorAll(".wtile.ghosted").forEach(el => el.classList.remove("ghosted"));
+  document.querySelectorAll(".cell.droptarget").forEach(c => c.classList.remove("droptarget"));
+
+  // --- Tap on an empty board cell: place the selected rack tile ---
+  if (d.cellTap != null) {
+    if (!d.moved && selectedId != null) {
+      const t = tileById(selectedId);
+      if (t && t.cell == null) placeTile(t, d.cellTap);
+    }
+    return;
+  }
+
+  const t = d.tile;
+  if (!d.moved) {
+    // --- Tap ---
+    if (t.cell != null) { recallTile(t); }                 // tap staged tile → recall
+    else if (selectedId === t.id) { selectedId = null; renderAll(); }
+    else { selectedId = t.id; renderAll(); }
+    return;
+  }
+
+  // --- Drop ---
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const cellEl = el && el.closest ? el.closest(".cell") : null;
+  const rackEl = el && el.closest ? el.closest("#rack-area") : null;
+  if (cellEl) {
+    const i = Number(cellEl.dataset.i);
+    if (G.board[i] === "." && !stagedAt(i)) {
+      if (t.ch === "?" && !t.blankAs) {
+        placeTile(t, i);                                    // asks for the letter
+      } else {
+        t.cell = i; selectedId = null; sndPlace(); renderAll();
+      }
+      return;
+    }
+    renderAll();                                            // occupied → snap back
+    return;
+  }
+  if (rackEl) {
+    // Return to rack / reorder at drop position.
+    t.cell = null; t.blankAs = null;
+    const rackTiles = myTiles.filter(x => x.cell == null && x.id !== t.id);
+    const els = [...$("rack").querySelectorAll("[data-tile-id]")].filter(elm => Number(elm.dataset.tileId) !== t.id);
+    let insertBefore = null;
+    for (const elm of els) {
+      const r = elm.getBoundingClientRect();
+      if (e.clientX < r.left + r.width / 2) { insertBefore = tileById(Number(elm.dataset.tileId)); break; }
+    }
+    const without = myTiles.filter(x => x.id !== t.id);
+    const at = insertBefore ? without.indexOf(insertBefore) : without.length;
+    without.splice(at, 0, t);
+    myTiles = without;
+    renderAll();
+    return;
+  }
+  renderAll();                                              // dropped nowhere → snap back
+}
+
+/* ============================================================= *
+ * 11. Screens / misc                                            *
+ * ============================================================= */
+function showMenu() {
+  $("main-menu").classList.remove("hidden");
+  $("game-screen").classList.add("hidden");
+}
+function showGame() {
+  $("main-menu").classList.add("hidden");
+  $("game-screen").classList.remove("hidden");
+}
+function updateURL() {
+  history.replaceState(null, "", `${location.pathname}?g=${encodeURIComponent(gameId)}`);
+}
+function inviteURL() {
+  return `${location.origin}${location.pathname}?g=${encodeURIComponent(gameId)}`;
+}
+function revealInvite() {
+  if (!gameId) return;
+  $("invite-panel").classList.remove("hidden");
+  $("invite-url").value = inviteURL();
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch { try {
+    const ta = document.createElement("textarea"); ta.value = text;
+    document.body.appendChild(ta); ta.select(); document.execCommand("copy");
+    document.body.removeChild(ta); return true;
+  } catch { return false; } }
+}
+let toastTimer = null;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+function renderValuesGrid() {
+  const g = $("values-grid");
+  if (g.childElementCount) return;
+  const letters = [...Object.keys(DIST)];
+  g.innerHTML = letters.map(ch =>
+    `<div class="vt"><b>${ch === "?" ? "🀆" : ch}</b> ${VALUES[ch]}<br><span class="text-sky-100/50">×${DIST[ch]}</span></div>`
+  ).join("");
+}
+
+/* ============================================================= *
+ * 12. Init + wiring                                             *
+ * ============================================================= */
+function wireUI() {
+  $("primary-btn").addEventListener("click", () => {
+    if (pendingJoinId) joinExistingGame(pendingJoinId);
+    else setupNewGame();
+  });
+  $("name-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("primary-btn").click(); });
+
+  $("copy-link-btn").addEventListener("click", async () => {
+    revealInvite();
+    const ok = await copyText(inviteURL());
+    $("invite-status").textContent = ok ? "Link copied to clipboard." : "Copy failed — select and copy manually.";
+  });
+  $("invite-copy").addEventListener("click", async () => {
+    const ok = await copyText(inviteURL());
+    $("invite-status").textContent = ok ? "Link copied to clipboard." : "Copy failed — select and copy manually.";
+  });
+
+  // Leaving a live game is a forfeit → two-step confirm on the button itself.
+  $("leave-btn").addEventListener("click", () => {
+    const live = G && G.phase === "play" && oppId();
+    if (live && !leaveArmed) {
+      leaveArmed = true;
+      $("leave-btn").textContent = "Forfeit?";
+      $("leave-btn").classList.add("btn-danger");
+      clearTimeout(leaveTimer);
+      leaveTimer = setTimeout(() => {
+        leaveArmed = false;
+        $("leave-btn").textContent = "Leave";
+        $("leave-btn").classList.remove("btn-danger");
+      }, 4000);
+      return;
+    }
+    leaveArmed = false; clearTimeout(leaveTimer);
+    $("leave-btn").textContent = "Leave";
+    $("leave-btn").classList.remove("btn-danger");
+    leaveGame();
+  });
+
+  const openRules = () => { renderValuesGrid(); $("rules-modal").classList.remove("hidden"); };
+  $("rules-btn").addEventListener("click", openRules);
+  $("g-rules-btn").addEventListener("click", openRules);
+  $("rules-close").addEventListener("click", () => $("rules-modal").classList.add("hidden"));
+
+  $("mute-btn").addEventListener("click", () => {
+    muted = !muted;
+    localStorage.setItem("words_muted", muted ? "1" : "0");
+    updateMuteBtn();
+  });
+  updateMuteBtn();
+
+  $("blank-cancel").addEventListener("click", () => closeBlank(null));
+  $("swap-cancel").addEventListener("click", () => $("swap-modal").classList.add("hidden"));
+  $("swap-confirm").addEventListener("click", () => {
+    $("swap-modal").classList.add("hidden");
+    actSwap(new Set(swapSel));
+  });
+
+  $("go-rematch").addEventListener("click", doRematch);
+  $("go-view").addEventListener("click", () => $("gameover-modal").classList.add("hidden"));
+  $("go-menu").addEventListener("click", () => { $("gameover-modal").classList.add("hidden"); resetLocal(); });
+
+  for (const m of ["rules-modal", "swap-modal"]) {
+    $(m).addEventListener("click", (e) => { if (e.target === $(m)) $(m).classList.add("hidden"); });
+  }
+
+  // Pointer interactions (tap + drag) for board and rack.
+  $("board").addEventListener("pointerdown", startPointer);
+  $("rack").addEventListener("pointerdown", startPointer);
+  window.addEventListener("pointermove", movePointer, { passive: false });
+  window.addEventListener("pointerup", endPointer);
+  window.addEventListener("pointercancel", () => {
+    if (drag) { drag = null; $("ghost").classList.add("hidden"); renderAll(); }
+  });
+
+  document.addEventListener("visibilitychange", updateTitle);
+}
+
+async function init() {
+  wireUI();
+  loadDictionary();
+  const storedName = localStorage.getItem(LOCAL_NAME_KEY) || "";
+  $("name-input").value = storedName;
+
+  pendingJoinId = new URLSearchParams(location.search).get("g");
+  if (pendingJoinId) {
+    $("join-hint").textContent = "You're joining a game — enter your name and tap Join Game.";
+    $("join-hint").classList.remove("hidden");
+    $("primary-btn").textContent = "Join Game";
+  }
+  showMenu();
+
+  try {
+    fbApp = initializeApp(firebaseConfig);
+    db = getFirestore(fbApp);
+    auth = getAuth(fbApp);
+    await signInAnonymously(auth);
+    userId = auth.currentUser.uid;
+    isAuthReady = true;
+  } catch (e) {
+    console.error("[words] auth failed", e);
+    toast("Couldn't connect. Reload to retry.");
+    return;
+  }
+
+  if (pendingJoinId && storedName) joinExistingGame(pendingJoinId);
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

@@ -30,6 +30,8 @@ Then open `http://localhost:8765/<page>.html`. Any equivalent static server (e.g
 | `lostcities.html` | Scorecard for the Lost Cities card game | (vanilla CSS/JS) | none |
 | `accordion.html` | Single-player Accordion solitaire | (vanilla CSS/JS) | `localStorage` (options) |
 | `cribsolv.html` | Cribbage discard solver/trainer: ranks all 15 discards by exact EV, explains why, quiz mode | none — fully self-contained, no CDN | `localStorage` (quiz preference) |
+| `mahjong.html` | Two-player American-style mahjong with an original hand set | Tailwind, Firebase, Wikimedia tile SVGs | Firestore + `localStorage` (player name) |
+| `words.html` | Two-player Words-With-Friends-style crossword game (WWF board/values, live scoring, blanks, swaps) | Tailwind, Firebase, ENABLE word list (jsDelivr → raw GitHub fallback) | Firestore + `localStorage` (player name, mute) |
 
 ## cribsolv.html is generated — don't hand-edit it
 
@@ -37,9 +39,9 @@ Unlike every other app here, `cribsolv.html` is the **build artifact** of a Vite
 
 ## Shared Firebase project (important)
 
-`tictactoe.html`, `trash.html`, and `cribbage.html` all initialize Firebase using the **same** hardcoded `firebaseConfig` for project `tictactoe-76547` (apiKey `AIzaSyBhP0eTmmHB2LNh4nIaOZtTk7f1pBbPvgI`). They use anonymous auth and Firestore. Things to keep in mind when working on any of these:
+`tictactoe.html`, `trash.html`, `cribbage.html`, `mahjong.html`, and `words.html` all initialize Firebase using the **same** hardcoded `firebaseConfig` for project `tictactoe-76547` (apiKey `AIzaSyBhP0eTmmHB2LNh4nIaOZtTk7f1pBbPvgI`). They use anonymous auth and Firestore. Things to keep in mind when working on any of these:
 
-- The three apps share one Firebase project but use different Firestore collections/document layouts. When adding a new multiplayer app, decide whether to reuse this project or stand up a new one — don't accidentally collide collection names.
+- The apps share one Firebase project but use different Firestore collections/document layouts. When adding a new multiplayer app, decide whether to reuse this project or stand up a new one — don't accidentally collide collection names. The Firestore rules only permit the `artifacts/{projectId}/public/data/games` collection, so `cribbage.html`, `mahjong.html`, and `words.html` namespace their docs inside it with document-ID prefixes (`crib_`, `mj2_`, `words_`) and a `_kind` field.
 - The config is committed on purpose (it's a public web client key). Firestore security rules in the Firebase console are the actual access control — code changes that assume new collection paths will silently fail writes until rules are updated there.
 - Each app's module-level `<script type="module">` block both imports Firebase and defines all game logic. There is no shared JS file; if you change a Firestore call pattern in one app, the others are untouched.
 
