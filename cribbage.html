@@ -5,16 +5,72 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cribbage</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
-  html { background: #0c3019; }
+  :root {
+    /* The pub board: walnut and brass on green baize. */
+    --baize-hi: #2e8049;
+    --baize:    #1f6b3a;
+    --baize-lo: #14522b;
+    --baize-edge: #0c3019;
+    --walnut-hi: #8b5a2b;
+    --walnut:    #6b4423;
+    --walnut-lo: #4a2e18;
+    --walnut-edge: #3e2613;
+    --walnut-dark: #2a1a0d;
+    --brass-hi: #eed48a;
+    --brass:    #c9a227;
+    --brass-lo: #9d7c17;
+    --brass-edge: #6d5510;
+    --cream:    #fbf8ef;
+    --cream-lo: #efe7d2;
+    --ink:      #3b2a17;
+    --serif: 'Libre Baskerville', Georgia, 'Times New Roman', serif;
+  }
+  html { background: var(--baize-edge); }
   body {
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     /* One large felt table — everything sits on it.
        (No background-attachment:fixed — iOS Safari mangles it.) */
     background:
-      radial-gradient(120% 90% at 50% 0%, #2e8049 0%, #1f6b3a 38%, #14522b 72%, #0c3019 100%)
-      #0c3019;
+      radial-gradient(120% 90% at 50% 0%, var(--baize-hi) 0%, var(--baize) 38%, var(--baize-lo) 72%, var(--baize-edge) 100%)
+      var(--baize-edge);
   }
+  .wordmark {
+    font-family: var(--serif);
+    font-weight: 700;
+    color: var(--brass-hi);
+    letter-spacing: .02em;
+    text-shadow: 0 1px 0 rgba(0,0,0,.55), 0 3px 12px rgba(0,0,0,.35);
+  }
+  .caption {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: .72rem;
+    color: rgba(251,248,239,.62);
+    letter-spacing: .04em;
+  }
+
+  /* Two-button system: brass primary, cream-outline secondary */
+  .btn { font-weight: 600; border-radius: 10px; transition: transform .08s ease, filter .12s ease, background .12s ease; }
+  .btn:active { transform: translateY(1px); }
+  .btn-brass {
+    background: linear-gradient(180deg, var(--brass-hi), var(--brass) 55%, var(--brass-lo));
+    color: #3a2c05;
+    border: 1px solid var(--brass-edge);
+    box-shadow: 0 2px 6px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.5);
+    text-shadow: 0 1px 0 rgba(255,255,255,.35);
+  }
+  .btn-brass:hover { filter: brightness(1.07); }
+  .btn-brass:disabled { filter: grayscale(.55) brightness(.8); cursor: not-allowed; box-shadow: none; }
+  .btn-cream {
+    background: rgba(251,248,239,.04);
+    color: var(--cream);
+    border: 1px solid rgba(251,248,239,.4);
+  }
+  .btn-cream:hover { background: rgba(251,248,239,.12); }
   .card { display:inline-block; vertical-align:top; }
   .card svg { display:block; }
   .card-btn { cursor:pointer; transition: transform .1s ease, box-shadow .1s ease; border-radius:8px; }
@@ -158,21 +214,21 @@
 
   <!-- ============ MAIN MENU ============ -->
   <section id="main-menu" class="hidden">
-    <h1 class="text-4xl sm:text-5xl font-bold text-center mb-2 text-amber-50" style="text-shadow:0 2px 8px rgba(0,0,0,.4)">Cribbage</h1>
-    <p class="text-center text-emerald-100/80 mb-8">Two-player, race to 121.</p>
+    <h1 class="wordmark text-5xl sm:text-6xl text-center mb-2">Cribbage</h1>
+    <p class="caption text-center mb-8" style="font-size:.95rem">a two-player race to 121</p>
 
-    <div class="bg-white rounded-2xl shadow-xl p-6 max-w-md mx-auto space-y-4 text-stone-800">
+    <div id="menu-decor" class="flex justify-center mb-6"></div>
+
+    <div class="bg-white/95 rounded-2xl shadow-xl p-6 max-w-md mx-auto space-y-4 text-stone-800">
       <div>
         <label class="block text-sm font-semibold mb-1">Your name</label>
         <input id="name-input" type="text" maxlength="20" placeholder="e.g. Dad"
-          class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
       </div>
-      <button id="new-game-btn"
-        class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg shadow">
+      <button id="new-game-btn" class="btn btn-brass w-full py-3">
         New Game
       </button>
-      <button id="show-stats-btn"
-        class="w-full bg-stone-200 hover:bg-stone-300 text-stone-800 font-semibold py-3 rounded-lg">
+      <button id="show-stats-btn" class="btn w-full py-3 border border-stone-300 text-stone-700 hover:bg-stone-100">
         View Statistics
       </button>
       <p class="text-xs text-stone-500 text-center">
@@ -184,8 +240,8 @@
   <!-- ============ STATS ============ -->
   <section id="stats-screen" class="hidden">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold text-amber-50" style="text-shadow:0 2px 8px rgba(0,0,0,.4)">Statistics</h2>
-      <button id="stats-back-btn" class="px-3 py-1 bg-stone-200 hover:bg-stone-300 rounded-lg text-sm text-stone-800">← Back</button>
+      <h2 class="wordmark text-3xl">Statistics</h2>
+      <button id="stats-back-btn" class="btn btn-cream px-3 py-1 text-sm">← Back</button>
     </div>
     <div id="stats-content" class="space-y-6">
       <p class="text-stone-500">Loading…</p>
@@ -196,16 +252,14 @@
   <section id="game-screen" class="hidden">
 
     <header class="flex flex-wrap items-center justify-between gap-2 mb-3">
-      <h1 class="text-2xl sm:text-3xl font-bold text-amber-50" style="text-shadow:0 2px 8px rgba(0,0,0,.4)">Cribbage</h1>
+      <h1 class="wordmark text-3xl sm:text-4xl">Cribbage</h1>
       <div class="flex items-center gap-2 flex-wrap">
-        <button id="mute-btn" title="Toggle sound"
-          class="bg-black/25 hover:bg-black/40 border border-white/10 text-base px-2.5 py-1 rounded-lg">🔊</button>
-        <button id="copy-link-btn"
-          class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded-lg">
+        <button id="mute-btn" title="Toggle sound" aria-label="Toggle sound"
+          class="btn btn-cream px-2.5 py-1.5"></button>
+        <button id="copy-link-btn" class="btn btn-brass text-sm px-3 py-1.5">
           Copy Invite Link
         </button>
-        <button id="leave-game-btn"
-          class="bg-stone-300 hover:bg-stone-400 text-stone-800 text-sm px-3 py-1.5 rounded-lg">
+        <button id="leave-game-btn" class="btn btn-cream text-sm px-3 py-1.5">
           Leave
         </button>
       </div>
@@ -214,7 +268,7 @@
     <!-- Invite link panel (revealed on Copy Invite Link click) -->
     <div id="invite-panel" class="hidden mb-3 px-3 py-2 bg-white/95 rounded-lg text-sm flex items-center gap-2 text-stone-800 shadow-lg">
       <input id="invite-url" readonly class="flex-1 bg-white border border-stone-300 rounded px-2 py-1 text-xs" />
-      <button id="invite-copy-again" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded">Copy</button>
+      <button id="invite-copy-again" class="btn btn-brass text-xs px-2 py-1">Copy</button>
       <button id="invite-close" class="text-stone-500 hover:text-stone-800 text-xs px-2 py-1" title="Close">×</button>
       <span id="invite-status" class="text-xs text-emerald-700"></span>
     </div>
@@ -233,8 +287,9 @@
       <!-- Main column: status + play area directly on the felt -->
       <div id="main-col" class="min-w-0">
 
-        <!-- Status bar -->
-        <div id="status-bar" class="mb-3 px-4 py-2 bg-amber-50 text-stone-800 rounded-lg text-sm sm:text-base shadow-lg">
+        <!-- Status ribbon -->
+        <div id="status-bar" class="mb-3 mx-auto w-fit max-w-full px-5 py-2 rounded-full text-sm sm:text-base text-center"
+          style="background:var(--cream); color:var(--ink); box-shadow:0 3px 10px rgba(0,0,0,.35)">
           Waiting…
         </div>
 
@@ -242,7 +297,7 @@
 
           <!-- Opponent zone -->
           <div id="opp-zone" class="zone">
-            <div class="text-sm uppercase tracking-wide text-emerald-100/80 mb-1" id="opponent-label">Opponent</div>
+            <div class="caption mb-1" id="opponent-label">Opponent</div>
             <div id="opponent-hand" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
           </div>
 
@@ -250,21 +305,21 @@
           <div id="fan-zone" class="hidden table-well p-3">
             <div id="fan-picks" class="flex items-end justify-center gap-6 mb-3 min-h-[20px]"></div>
             <div id="fan-container" class="fan"></div>
-            <div id="fan-caption" class="text-center text-xs text-emerald-100/80 mt-2"></div>
+            <div id="fan-caption" class="caption text-center mt-2"></div>
           </div>
 
           <!-- Middle: crib + starter + pegging -->
           <div id="middle-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div class="table-well p-3">
-              <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1" id="crib-label">Crib</div>
+              <div class="caption mb-1" id="crib-label">Crib</div>
               <div id="crib-area" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
             </div>
             <div class="table-well p-3">
-              <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">Starter</div>
+              <div class="caption mb-1">starter</div>
               <div id="starter-area" class="flex items-center justify-center min-h-[80px]"></div>
             </div>
             <div class="table-well p-3 sm:col-span-1">
-              <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">Pegging</div>
+              <div class="caption mb-1">pegging</div>
               <div class="flex items-center gap-2">
                 <div id="pegging-area" class="flex flex-wrap items-center flex-1 min-h-[96px] py-2"></div>
                 <div id="peg-count-chip" class="hidden">0</div>
@@ -274,7 +329,7 @@
 
           <!-- Your zone -->
           <div id="my-zone" class="zone">
-            <div class="text-sm uppercase tracking-wide text-emerald-100/80 mb-1" id="player-label">You</div>
+            <div class="caption mb-1" id="player-label">You</div>
             <div id="player-hand" class="flex flex-wrap gap-1.5 min-h-[110px]"></div>
           </div>
 
@@ -283,7 +338,7 @@
 
           <!-- Game log -->
           <div id="game-log-panel" class="hidden table-panel p-3">
-            <div class="text-xs uppercase tracking-wide text-emerald-100/80 mb-1">Game log</div>
+            <div class="caption mb-1">score sheet</div>
             <div id="game-log"></div>
           </div>
 
@@ -301,7 +356,7 @@
         <div id="breakdown-sections" class="space-y-3"></div>
         <div id="breakdown-continue-status" class="text-xs text-stone-500 my-3"></div>
         <button id="breakdown-continue-btn"
-          class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-400 text-white font-semibold py-2 rounded-lg">
+          class="btn btn-brass w-full py-2">
           Continue
         </button>
       </div>
@@ -315,15 +370,15 @@
         <p id="gameover-series" class="mb-5 text-sm text-stone-500"></p>
         <div class="flex gap-2">
           <button id="rematch-btn"
-            class="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-400 text-white font-semibold py-2 rounded-lg">
+            class="btn btn-brass flex-1 py-2">
             Rematch
           </button>
           <button id="gameover-stats-btn"
-            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg">
+            class="btn flex-1 py-2 border border-stone-300 text-stone-700 hover:bg-stone-100">
             View Stats
           </button>
           <button id="gameover-leave-btn"
-            class="flex-1 bg-stone-200 hover:bg-stone-300 text-stone-800 font-semibold py-2 rounded-lg">
+            class="btn flex-1 py-2 border border-stone-300 text-stone-700 hover:bg-stone-100">
             Leave
           </button>
         </div>
@@ -1475,7 +1530,7 @@ function renderScoreBar(){
       <span class="score-dot" style="background:${pegColors[ix] || '#888'}"></span>
       <span class="font-semibold text-sm truncate">${escapeHTML(nameOf(uid))}${isMine?' <span class="text-[10px] text-emerald-300">(you)</span>':''}${presence}</span>
       ${isDealer ? '<span class="text-[10px] uppercase tracking-wide bg-amber-200/90 text-amber-900 rounded px-1 py-0.5 flex-none">Dealer</span>' : ''}
-      <span class="ml-auto text-lg font-bold tabular-nums">${G.scores[uid] || 0}</span>`;
+      <span class="ml-auto text-lg font-bold tabular-nums" style="font-family:var(--serif)">${G.scores[uid] || 0}</span>`;
     el.appendChild(div);
   });
 
@@ -1936,7 +1991,7 @@ function renderActions(){
   if (!G.player2) return;
   if (G.phase === 'cut_for_deal_done'){
     const btn = document.createElement('button');
-    btn.className = 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-500 text-white font-semibold px-4 py-2 rounded-lg';
+    btn.className = 'btn btn-brass px-4 py-2';
     const isPending = (pendingAction === 'startHand');
     btn.disabled = isPending;
     btn.textContent = isPending ? 'Dealing…' : `Start hand — ${nameOf(G.dealer)} deals`;
@@ -1955,7 +2010,7 @@ function renderActions(){
     const myHand = G.hands[userId] || [];
     if (myHand.length > 4){
       const btn = document.createElement('button');
-      btn.className = 'bg-emerald-600 hover:bg-emerald-700 disabled:bg-stone-500 text-white font-semibold px-4 py-2 rounded-lg';
+      btn.className = 'btn btn-brass px-4 py-2';
       const need = myHand.length - 4;
       const isPending = (pendingAction === 'discard');
       btn.disabled = isPending || localSelection.length !== need;
@@ -1988,7 +2043,7 @@ function renderActions(){
     const canPlay = myHand.some(c => valueOf(c) + effectivePegTotal(G) <= 31);
     if (!canPlay){
       const btn = document.createElement('button');
-      btn.className = 'bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg';
+      btn.className = 'btn btn-brass px-4 py-2';
       btn.textContent = `Say "Go"`;
       btn.addEventListener('click', actSayGo);
       el.appendChild(btn);
