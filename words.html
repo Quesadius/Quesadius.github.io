@@ -334,8 +334,9 @@
         <span class="legend-sq" style="background:#3d9b52">TL</span> triple letter ·
         <span class="legend-sq" style="background:#c04a5e">DW</span> double word ·
         <span class="legend-sq" style="background:#d97a2e">TW</span> triple word
+        · the center ★ doubles the first word
       </p>
-      <p><b>Bingo!</b> Playing all 7 tiles in one turn earns a <b>+35</b> bonus.</p>
+      <p><b>Bingo!</b> Playing all 7 tiles in one turn earns a <b>+50</b> bonus.</p>
       <p><b>Blanks</b> can stand for any letter (you pick when you place one) but score 0.</p>
       <p><b>Swap or pass.</b> Instead of playing, trade in tiles (while the bag has some) or pass.
          Six scoreless turns in a row (passes or swaps) end the game.</p>
@@ -386,28 +387,29 @@ const idx = (r, c) => r * 15 + c;
 // Scrabble letter values (not WWF's — switched by request alongside TWL06).
 const VALUES = { A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,
                  P:3,Q:10,R:1,S:1,T:1,U:1,V:4,W:4,X:8,Y:4,Z:10,"?":0 };
-const DIST   = { A:9,B:2,C:2,D:5,E:13,F:2,G:3,H:4,I:8,J:1,K:1,L:4,M:2,N:5,O:8,
-                 P:2,Q:1,R:6,S:5,T:7,U:4,V:2,W:2,X:1,Y:2,Z:1,"?":2 }; // 104 tiles
-const BINGO_BONUS = 35;
+const DIST   = { A:9,B:2,C:2,D:4,E:12,F:2,G:3,H:2,I:9,J:1,K:1,L:4,M:2,N:6,O:8,
+                 P:2,Q:1,R:6,S:4,T:6,U:4,V:2,W:2,X:1,Y:2,Z:1,"?":2 }; // 100 tiles
+const BINGO_BONUS = 50;
 const SCORELESS_LIMIT = 6; // consecutive passes/swaps that end the game
 
-// WWF premium layout: d/t = double/triple letter, D/T = double/triple word, * = start.
+// Scrabble premium layout: d/t = double/triple letter, D/T = double/triple word,
+// * = center star (a double-word square in Scrabble).
 const PREMIUM = [
-  "...T..t.t..T...",
-  "..d..D...D..d..",
-  ".d..d.....d..d.",
-  "T..t...D...t..T",
-  "..d...d.d...d..",
+  "T..d...T...d..T",
   ".D...t...t...D.",
-  "t...d.....d...t",
-  "...D...*...D...",
-  "t...d.....d...t",
-  ".D...t...t...D.",
+  "..D...d.d...D..",
+  "d..D...d...D..d",
+  "....D.....D....",
+  ".t...t...t...t.",
   "..d...d.d...d..",
-  "T..t...D...t..T",
-  ".d..d.....d..d.",
-  "..d..D...D..d..",
-  "...T..t.t..T...",
+  "T..d...*...d..T",
+  "..d...d.d...d..",
+  ".t...t...t...t.",
+  "....D.....D....",
+  "d..D...d...D..d",
+  "..D...d.d...D..",
+  ".D...t...t...D.",
+  "T..d...T...d..T",
 ].join("");
 const PREMIUM_LABEL = { d:"DL", t:"TL", D:"DW", T:"TW", "*":"★" };
 
@@ -612,6 +614,7 @@ function analyzeMove(board, placements) {
         else if (prem === "t") v *= 3;
         else if (prem === "D") mult *= 2;
         else if (prem === "T") mult *= 3;
+        else if (prem === "*") mult *= 2; // center ★ doubles the first word
         sum += v; str += p.letter;
       } else {
         sum += tileValue(board[i]); str += board[i].toUpperCase();

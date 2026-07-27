@@ -31,7 +31,7 @@ Then open `http://localhost:8765/<page>.html`. Any equivalent static server (e.g
 | `accordion.html` | Single-player Accordion solitaire | (vanilla CSS/JS) | `localStorage` (options) |
 | `cribsolv.html` | Cribbage discard solver/trainer: ranks all 15 discards by exact EV, explains why, quiz mode | none — fully self-contained, no CDN | `localStorage` (quiz preference) |
 | `mahjong.html` | Two-player American-style mahjong with an original hand set | Tailwind, Firebase, Wikimedia tile SVGs | Firestore + `localStorage` (player name) |
-| `words.html` | Two-player Words-With-Friends-style crossword game (WWF board + tile bag, Scrabble letter values, live scoring, blanks, swaps) | Tailwind, Firebase, TWL06 Scrabble word list (jsDelivr → raw GitHub fallback) | Firestore + `localStorage` (player name, mute) |
+| `words.html` | Two-player crossword game with full Scrabble rules (board, values, 100-tile bag, +50 bingo, live scoring, blanks, swaps) | Tailwind, Firebase, TWL06 Scrabble word list (jsDelivr → raw GitHub fallback) | Firestore + `localStorage` (player name, mute) |
 
 ## cribsolv.html is generated — don't hand-edit it
 
