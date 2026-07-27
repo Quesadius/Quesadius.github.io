@@ -1,0 +1,38 @@
+name: Weekly CDN smoke
+
+# CDN-rot detector: the same smoke suite, on a schedule. Notify-only — a
+# failure files an issue instead of blocking anything.
+on:
+  schedule:
+    - cron: "0 14 * * 1" # Mondays 14:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - name: File an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create cdn-smoke --repo "$GITHUB_REPOSITORY" \
+            --description "Weekly CDN smoke failures" --color D93F0B 2>/dev/null || true
+          if [ -z "$(gh issue list --repo "$GITHUB_REPOSITORY" --label cdn-smoke --state open --json number --jq '.[].number')" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "Weekly CDN smoke failed ($(date -u +%F))" \
+              --label cdn-smoke \
+              --body "The scheduled smoke run failed — likely a CDN dependency (Tailwind, Firebase, jsDelivr word list, Leaflet, D3, Wikimedia tiles) or an external endpoint changed underneath a page. See the run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi

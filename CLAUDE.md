@@ -52,6 +52,14 @@ Unlike every other app here, `cribsolv.html` is the **build artifact** of a Vite
 - **No TypeScript, no JSX.** Plain ES2020+ in `<script type="module">` blocks.
 - Files are large (cribbage is ~2k lines, others 300–730). Prefer targeted `Edit`s with enough surrounding context to disambiguate — searching for a CSS class or function name usually locates the right span quickly.
 
-## Deployment
+## CI and deployment
 
-Push to `main`. GitHub Pages serves the repo root. There is no staging environment; if you need to preview a change, run the local server above.
+Pushing to `main` triggers `.github/workflows/ci.yml`, and **GitHub Pages deploys from that workflow** (not from the branch): lint + smoke must pass before the site updates, so a broken push leaves the last good deploy serving. The deploy job stages `*.html` only — the CI tooling never ships.
+
+- **Lint**: `npm run lint` — ESLint via `eslint-plugin-html` checks the JS inside each page's `<script>` blocks (`no-undef`, `no-unused-vars`, `no-redeclare`; correctness only, no style rules). `cribsolv.html` is excluded (minified build artifact). Page-level CDN globals (`d3`, `L`, `tailwind`, …) are declared in `eslint.config.mjs`.
+- **Smoke**: `npm test` — Playwright loads every page from a local static server and fails on any uncaught exception or `console.error`, plus a per-page readiness assertion (e.g. words.html must reach "TWL06 ✓", highpoints must draw >40 state paths). Read-only by design: it never creates games, so CI writes nothing to Firestore. `tests/global-setup.mjs` generates the gitignored `dummy_climb_data.csv` fixture that highpoints.html fetches on localhost.
+- **Weekly CDN smoke** (`weekly-smoke.yml`): the same suite on a Monday cron. Notify-only — on failure it files a `cdn-smoke` issue instead of blocking anything. This is the detector for CDN deps rotting with no code change.
+
+The `package.json` / `node_modules` are **dev-only tooling** — an intentional, bounded exception to the "no package manager" rule. No page may ever reference anything from npm at runtime; every page stays a self-contained HTML file. Run `npm ci` once locally, then `npm run lint` and `npm test` before pushing (the smoke suite reuses a dev server already running on port 8765).
+
+There is no staging environment; to preview a change, run the local server above.

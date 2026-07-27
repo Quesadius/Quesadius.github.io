@@ -1,0 +1,16 @@
+{
+  "name": "quesadius-github-io-ci",
+  "private": true,
+  "description": "Dev-only CI tooling for the static pages in this repo. Nothing here is used at runtime; every page stays a self-contained HTML file.",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0",
+    "eslint": "^10.8.0",
+    "eslint-plugin-html": "^8.1.4",
+    "globals": "^17.8.0"
+  }
+}
