@@ -96,6 +96,36 @@
   .stack { position: relative; }
   .stack .card { position: absolute; left: 0; top: 0; }
 
+  /* ===== Motion ===== */
+  @keyframes deal-in {
+    from { opacity: 0; transform: translateY(-84px) scale(.95); }
+    to   { opacity: 1; transform: none; }
+  }
+  .deal-in { animation: deal-in .5s cubic-bezier(.25,.9,.4,1.08) both; }
+
+  @keyframes thrown {
+    from { opacity: 0; transform: translateY(var(--fromY, -70px)) rotate(16deg) scale(1.06); }
+    to   { opacity: 1; transform: none; }
+  }
+  .thrown { animation: thrown .38s cubic-bezier(.3,.8,.4,1) both; }
+
+  .persp { perspective: 600px; }
+  @keyframes flip-in {
+    from { transform: rotateY(88deg); }
+    to   { transform: none; }
+  }
+  .flip-in { animation: flip-in .45s ease-out both; }
+
+  @keyframes peg-pulse {
+    40% { filter: brightness(1.7) drop-shadow(0 0 7px rgba(238,212,138,.95)); }
+  }
+  .peg-pulse { animation: peg-pulse .9s ease-out; }
+
+  @keyframes phase-enter {
+    from { opacity: 0; transform: translateY(8px); }
+  }
+  .phase-enter { animation: phase-enter .35s ease-out; }
+
   /* Dark translucent panels that read as objects on the felt */
   .table-panel { background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.08);
     border-radius: 14px; color: #f5f5f4; }
@@ -445,6 +475,22 @@ let lastShownPegEventAt = 0;
 let pendingAction = null;   // 'discard' | 'continue' | ... — survives re-renders
 let lastPegHistoryLen = -1; // -1 = first render sentinel (no sound on join)
 let lastWinSoundGame = null;
+let lastPegPositions = {};  // per-peg-id last position — gates the peg pulse
+
+// Animation windows: Firestore renders twice per action (local echo + server
+// ack), and every render rebuilds the DOM. Re-applying an animation class with
+// a negative delay lets the rebuilt element RESUME its animation mid-flight
+// instead of restarting or losing it.
+const animWindows = {};  // name -> { key, at, on }
+function animElapsed(name, key, shouldAnimate, durMs){
+  const w = animWindows[name];
+  if (!w || w.key !== key){
+    animWindows[name] = { key, at: performance.now(), on: shouldAnimate };
+  }
+  const cur = animWindows[name];
+  const elapsed = performance.now() - cur.at;
+  return (cur.on && elapsed < durMs) ? elapsed : -1;
+}
 
 /* ---- Sounds: tiny WebAudio synth, no assets ---- */
 let audioCtx = null;
@@ -1437,8 +1483,10 @@ const $ = (id) => document.getElementById(id);
 
 function render(){
   if (!G) return;
+  let phaseChanged = false;
   if (G.phase !== lastRenderedPhase){
     localSelection = [];
+    phaseChanged = lastRenderedPhase !== null;
     lastRenderedPhase = G.phase;
   }
   // Drop any local selections no longer present in our hand (new deal, etc.).
@@ -1463,6 +1511,17 @@ function render(){
   const hl = (G.peggingHistory || []).length;
   if (lastPegHistoryLen >= 0 && hl > lastPegHistoryLen) sndCard();
   lastPegHistoryLen = hl;
+  // Gentle rise on phase transitions.
+  if (phaseChanged){
+    for (const id of ['middle-grid', 'fan-zone']){
+      const zone = $(id);
+      if (!zone.classList.contains('hidden')){
+        zone.classList.remove('phase-enter');
+        void zone.offsetWidth;
+        zone.classList.add('phase-enter');
+      }
+    }
+  }
 }
 
 function renderGameLog(){
@@ -1769,7 +1828,16 @@ function setPeg(id, pos, instant){
   if (instant){
     void el.getBoundingClientRect();   // flush so the transition doesn't fire
     el.classList.remove('no-anim');
+  } else {
+    // Brief brass glint when a peg actually moves.
+    const key = `${pos.x},${pos.y}`;
+    if (lastPegPositions[id] && lastPegPositions[id] !== key){
+      el.classList.remove('peg-pulse');
+      void el.getBoundingClientRect();
+      el.classList.add('peg-pulse');
+    }
   }
+  lastPegPositions[id] = `${pos.x},${pos.y}`;
 }
 
 function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
@@ -1840,6 +1908,19 @@ function renderHands(){
     const d = cardDims('opp');
     tilt.innerHTML = renderBackSVG(d.w, d.h);
   });
+
+  // Deal-in: staggered fly-in once per fresh deal (not when joining mid-hand).
+  const dealKey = `${gameId}|${G.handNumber}|${myHand.length ? 'dealt' : 'none'}`;
+  const prevDeal = animWindows.deal;
+  const dealFresh = !!prevDeal && prevDeal.key !== dealKey && myHand.length > 0;
+  const DEAL_DUR = 500 + 6 * 70;
+  const dealElapsed = animElapsed('deal', dealKey, dealFresh, DEAL_DUR);
+  if (dealElapsed >= 0){
+    [...meEl.children, ...oppEl.children].forEach((slot, i) => {
+      slot.classList.add('deal-in');
+      slot.style.animationDelay = `${(i % 6) * 70 - dealElapsed}ms`;
+    });
+  }
 }
 
 /* Lay n cards as an arc fan inside `container` (a .hand-fan element).
@@ -1942,12 +2023,26 @@ function renderStarter(){
   }
   if (G.starter){
     const sc = document.createElement('div');
-    sc.className = 'card';
+    sc.className = 'card persp';
     sc.style.left = '6px';
     sc.style.top = '0px';
     sc.style.transform = 'rotate(-4deg)';
-    sc.innerHTML = renderCardSVG(G.starter, dims);
+    const inner = document.createElement('div');
+    inner.innerHTML = renderCardSVG(G.starter, dims);
+    sc.appendChild(inner);
     wrap.appendChild(sc);
+    // Flip reveal when the starter transitions from absent to present.
+    const starterKey = `${gameId}|${G.handNumber}|${G.starter}`;
+    const prevStarter = animWindows.starter;
+    const fresh = !!prevStarter && prevStarter.key === `${gameId}|${G.handNumber}|none`;
+    const flipElapsed = animElapsed('starter', starterKey, fresh, 450);
+    if (flipElapsed >= 0){
+      inner.style.animationDelay = `${-flipElapsed}ms`;
+      inner.classList.add('flip-in');
+    }
+  } else {
+    // Record the "no starter yet" state so the flip gate can see the transition.
+    animElapsed('starter', `${gameId}|${G.handNumber}|none`, false, 0);
   }
   el.appendChild(wrap);
 }
@@ -2053,17 +2148,35 @@ function renderPegging(){
   // Opponent's cards ride high, yours ride low; each lands with its own small tilt.
   const round = G.peggingRound || [];
   $('pegging-caption').style.visibility = (inPegging || round.length) ? 'visible' : 'hidden';
+  // Record the pile state even when empty, so the first play reads as a transition.
+  const thrownKey = `${gameId}|${G.handNumber}|${(G.peggingHistory || []).length}`;
+  const prevThrown = animWindows.thrown;
+  const isNewPlay = !!prevThrown && prevThrown.key !== thrownKey &&
+    prevThrown.key.startsWith(`${gameId}|${G.handNumber}|`);
+  const thrownElapsed = animElapsed('thrown', thrownKey, isNewPlay, 380);
   if (round.length === 0) return;
   round.forEach((p, ix) => {
     const mine = p.uid === userId;
+    // Outer cell carries the cascade slot + throw animation; inner holds the
+    // resting tilt so the two transforms never fight.
     const c = document.createElement('div');
     c.className = 'card peg-card';
-    c.style.transform = `translateY(${mine ? 9 : -9}px) rotate(${cardJitter(p.card)}deg)`;
     c.style.zIndex = 10 + ix;
     c.title = `${nameOf(p.uid)} played ${labelOf(p.card)}${SUIT_GLYPH[suitOf(p.card)]}`;
-    c.innerHTML = renderCardSVG(p.card, cardDims('pile'));
+    const inner = document.createElement('div');
+    inner.style.transform = `translateY(${mine ? 9 : -9}px) rotate(${cardJitter(p.card)}deg)`;
+    inner.innerHTML = renderCardSVG(p.card, cardDims('pile'));
+    c.appendChild(inner);
     el.appendChild(c);
   });
+
+  // Thrown-card animation for the newest play only.
+  if (thrownElapsed >= 0 && el.lastChild){
+    const mine = round[round.length - 1].uid === userId;
+    el.lastChild.style.setProperty('--fromY', mine ? '70px' : '-70px');
+    el.lastChild.style.animationDelay = `${-thrownElapsed}ms`;
+    el.lastChild.classList.add('thrown');
+  }
 }
 
 // Deterministic small tilt per card, so the cascade looks hand-thrown but stable.
