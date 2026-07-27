@@ -169,14 +169,8 @@
     border: 3px solid #3e2613;
   }
   .board-svg { width:100%; height:auto; display:block; }
-  .hole { fill:#2a1a0d; stroke:#4a2e18; stroke-width:.4; }
-  .hole-skunk { stroke:#c0392b; stroke-width:1.4; }
-  .peg { stroke:#3a2208; stroke-width:.5; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
-  .peg-front-1 { fill: #d4af37; }   /* gold */
-  .peg-back-1  { fill: #b8860b; }
-  .peg-front-2 { fill: #c0c0c0; }   /* silver */
-  .peg-back-2  { fill: #8a8a8a; }
-  .peg-move    { transition: transform .8s cubic-bezier(.4,1.4,.6,1); }
+  .peg { filter: drop-shadow(0 1.2px 1.2px rgba(0,0,0,.55)); }
+  .peg-move { transition: transform .8s cubic-bezier(.4,1.4,.6,1); }
   .no-anim     { transition: none !important; }
 
   .pip { font-family: "Times New Roman", serif; }
@@ -1702,34 +1696,37 @@ function buildBoardSkeleton(orient, key){
 
   let html = '';
 
-  // --- Background plank + wood grain + inner frame ---
+  // --- Background plank: base fill + turbulence wood grain (clipped to plank) ---
   html += `<rect x="4" y="4" width="${W-8}" height="${H-8}" rx="14"
               fill="#7a4a22" stroke="#3e2613" stroke-width="3"/>`;
-  html += `<rect x="4" y="4" width="${W-8}" height="${H-8}" rx="14"
-              fill="url(#wood-grain)" opacity="0.18"/>`;
-  html += `<rect x="16" y="16" width="${W-32}" height="${H-32}" rx="10"
-              fill="none" stroke="#3e2613" stroke-width="1.2" opacity="0.6"/>`;
-
-  // --- Decorative curves joining straights 1→2 (far end) and 2→3 (near end) ---
-  function curveAt(m, cA, cB, dir){
-    const r = (cB - cA)/2 + lane + 6;
-    const bulge = m + dir * r * 1.1;
-    const a = toXY(m, cA - lane - 2), b = toXY(m, cB + lane + 2);
-    const ca = toXY(bulge, cA - lane - 2), cb = toXY(bulge, cB + lane + 2);
-    return `<path d="M ${a.x},${a.y} C ${ca.x},${ca.y} ${cb.x},${cb.y} ${b.x},${b.y}"
-              fill="none" stroke="#3e2613" stroke-width="2" opacity="0.85"/>`;
+  html += `<g clip-path="url(#plank-clip)">
+             <rect x="4" y="4" width="${W-8}" height="${H-8}" filter="url(#wood-grain-f)" opacity="0.5"/>
+           </g>`;
+  // Brass inlay border with corner screws
+  html += `<rect x="13" y="13" width="${W-26}" height="${H-26}" rx="10"
+              fill="none" stroke="url(#brass-lin)" stroke-width="1.8" opacity="0.85"/>`;
+  for (const [sx, sy] of [[20,20],[W-20,20],[20,H-20],[W-20,H-20]]){
+    html += `<circle cx="${sx}" cy="${sy}" r="2.6" fill="url(#peg-gold)" stroke="#6d5510" stroke-width="0.5"/>
+             <line x1="${sx-1.5}" y1="${sy-1.5}" x2="${sx+1.5}" y2="${sy+1.5}" stroke="#6d5510" stroke-width="0.6"/>`;
   }
-  const dirFar = Math.sign(mEnd - mStart);
-  html += curveAt(mEnd, rowCs[0], rowCs[1], dirFar);
-  html += curveAt(mStart, rowCs[1], rowCs[2], -dirFar);
 
-  // --- Lane tint stripes: gold for player 1's row, silver for player 2's ---
-  for (let r = 0; r < 3; r++){
-    for (const [off, color] of [[-lane, '#d4af37'], [+lane, '#c0c0c0']]){
-      const a = toXY(mStart, rowCs[r] + off), b = toXY(mEnd, rowCs[r] + off);
-      html += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"
-                stroke="${color}" stroke-width="9.5" stroke-linecap="round" opacity="0.14"/>`;
-    }
+  // --- Routed lane grooves: one continuous track per player, curves included ---
+  const dirFar = Math.sign(mEnd - mStart);
+  function lanePathD(off){
+    const pt = (m, c) => { const q = toXY(m, c); return `${q.x},${q.y}`; };
+    const rowGap = rowCs[1] - rowCs[0];
+    const bulgeFar  = mEnd + dirFar * (rowGap / 2 + 4);
+    const bulgeNear = mStart - dirFar * (rowGap / 2 + 4);
+    return `M ${pt(mStart, rowCs[0]+off)} L ${pt(mEnd, rowCs[0]+off)}` +
+      ` C ${pt(bulgeFar, rowCs[0]+off)} ${pt(bulgeFar, rowCs[1]+off)} ${pt(mEnd, rowCs[1]+off)}` +
+      ` L ${pt(mStart, rowCs[1]+off)}` +
+      ` C ${pt(bulgeNear, rowCs[1]+off)} ${pt(bulgeNear, rowCs[2]+off)} ${pt(mStart, rowCs[2]+off)}` +
+      ` L ${pt(mEnd, rowCs[2]+off)}`;
+  }
+  for (const [off, tint] of [[-lane, '#d4af37'], [+lane, '#c0c0c0']]){
+    const d = lanePathD(off);
+    html += `<path d="${d}" fill="none" stroke="#241407" stroke-width="11" opacity="0.45" stroke-linecap="round"/>`;
+    html += `<path d="${d}" fill="none" stroke="${tint}" stroke-width="7.5" opacity="0.13" stroke-linecap="round"/>`;
   }
 
   // --- Skunk markers on holes 60 (faint dashed) and 90 (bold dashed) ---
@@ -1750,6 +1747,17 @@ function buildBoardSkeleton(orient, key){
     }
   }
 
+  // --- Engraved numerals every 15 holes (dark cut + light catch-light) ---
+  for (let n = 15; n <= 120; n += 15){
+    const m = holeM(n), row = holeRow(n);
+    const p = toXY(m, rowCs[row] + lane + 16);
+    html += `<g font-family="'Libre Baskerville', Georgia, serif" font-style="italic"
+                font-size="8" text-anchor="middle">
+      <text x="${p.x + 0.5}" y="${p.y + 0.5}" fill="#a9793f" opacity="0.55">${n}</text>
+      <text x="${p.x}" y="${p.y}" fill="#2a1708">${n}</text>
+    </g>`;
+  }
+
   // --- Start (S) / game-hole (121) labels + player names (horizontal only) ---
   const u1 = G.playerIds[0], u2 = G.playerIds[1];
   if (orient === 'vertical'){
@@ -1768,32 +1776,98 @@ function buildBoardSkeleton(orient, key){
                 fill="#fde68a" font-weight="700">${escapeXML(nameOf(u2))}</text>`;
   }
 
-  // --- Holes ---
+  // --- Engraved brass nameplate ---
+  {
+    const clip10 = s => (s || '').slice(0, 10);
+    const plateText = (u1 && u2)
+      ? `${clip10(nameOf(u1))} & ${clip10(nameOf(u2))}`
+      : 'CRIBBAGE';
+    const pw = 124, ph = 15;
+    const px = W/2 - pw/2;
+    const py = H - (orient === 'vertical' ? 22 : 24) - ph/2;
+    html += `<g>
+      <rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="3.5"
+        fill="url(#brass-lin)" stroke="#6d5510" stroke-width="0.7"/>
+      <rect x="${px+1.6}" y="${py+1.6}" width="${pw-3.2}" height="${ph-3.2}" rx="2.2"
+        fill="none" stroke="#6d5510" stroke-width="0.4" opacity="0.6"/>
+      <text x="${W/2}" y="${py + ph/2 + 2.8}" text-anchor="middle"
+        font-family="'Libre Baskerville', Georgia, serif" font-style="italic"
+        font-size="8" fill="#4a3206">${escapeXML(plateText)}</text>
+    </g>`;
+  }
+
+  // --- Holes: drilled look via radial gradient + faint top rim ---
   function drawHoles(positions){
     let s = '';
     for (let i = 0; i <= 121; i++){
       const p = positions[i];
       s += `<circle cx="${p.x}" cy="${p.y}" r="${holeR}"
-              fill="#2a1a0d" stroke="#4a2e18" stroke-width="0.4"/>`;
+              fill="url(#hole-g)" stroke="#8b5a2b" stroke-width="0.35" stroke-opacity="0.5"/>`;
     }
     return s;
   }
   html += drawHoles(p1);
   html += drawHoles(p2);
 
-  // --- Persistent pegs: created once at origin, moved via CSS transform ---
+  // --- Persistent pegs: turned-brass groups moved via CSS transform ---
   // Back peg drawn first so the front peg overlaps when they share a hole (start).
-  html += `<circle id="peg-1-back"  class="peg peg-move peg-back-1"  cx="0" cy="0" r="${holeR+1.6}"/>`;
-  html += `<circle id="peg-1-front" class="peg peg-move peg-front-1" cx="0" cy="0" r="${holeR+1.6}"/>`;
-  html += `<circle id="peg-2-back"  class="peg peg-move peg-back-2"  cx="0" cy="0" r="${holeR+1.6}" visibility="hidden"/>`;
-  html += `<circle id="peg-2-front" class="peg peg-move peg-front-2" cx="0" cy="0" r="${holeR+1.6}" visibility="hidden"/>`;
+  function pegMarkup(id, fillId, hidden){
+    return `<g id="${id}" class="peg peg-move" ${hidden ? 'visibility="hidden"' : ''}>
+      <circle class="peg-body" r="${holeR+1.7}" fill="url(#${fillId})" stroke="#3a2208" stroke-width="0.5"/>
+      <circle r="1.3" cx="-1.6" cy="-1.8" fill="rgba(255,255,255,0.7)"/>
+    </g>`;
+  }
+  html += pegMarkup('peg-1-back',  'peg-gold-dk', false);
+  html += pegMarkup('peg-1-front', 'peg-gold', false);
+  html += pegMarkup('peg-2-back',  'peg-silver-dk', true);
+  html += pegMarkup('peg-2-front', 'peg-silver', true);
 
-  // --- Defs for wood grain (subtle striations) ---
+  // --- Defs: wood turbulence, plank clip, brass + peg + hole gradients ---
+  const grainFreq = (orient === 'vertical') ? '0.14 0.012' : '0.012 0.14';
   const defs = `<defs>
-    <pattern id="wood-grain" patternUnits="userSpaceOnUse" width="20" height="6">
-      <rect width="20" height="6" fill="#7a4a22"/>
-      <line x1="0" y1="3" x2="20" y2="3" stroke="#5a3618" stroke-width="0.4" opacity="0.6"/>
-    </pattern>
+    <clipPath id="plank-clip">
+      <rect x="4" y="4" width="${W-8}" height="${H-8}" rx="14"/>
+    </clipPath>
+    <filter id="wood-grain-f" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="${grainFreq}" numOctaves="4" seed="11"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncR type="table" tableValues="0.32 0.55 0.40"/>
+        <feFuncG type="table" tableValues="0.19 0.35 0.25"/>
+        <feFuncB type="table" tableValues="0.08 0.17 0.11"/>
+        <feFuncA type="table" tableValues="1 1"/>
+      </feComponentTransfer>
+    </filter>
+    <linearGradient id="brass-lin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eed48a"/>
+      <stop offset="0.5" stop-color="#c9a227"/>
+      <stop offset="1" stop-color="#9d7c17"/>
+    </linearGradient>
+    <radialGradient id="hole-g" cx="0.38" cy="0.32" r="0.9">
+      <stop offset="0" stop-color="#2b1a0a"/>
+      <stop offset="0.65" stop-color="#170d04"/>
+      <stop offset="1" stop-color="#050301"/>
+    </radialGradient>
+    <radialGradient id="peg-gold" cx="0.34" cy="0.3" r="0.85">
+      <stop offset="0" stop-color="#f8e9b0"/>
+      <stop offset="0.5" stop-color="#d4af37"/>
+      <stop offset="1" stop-color="#8a6d14"/>
+    </radialGradient>
+    <radialGradient id="peg-gold-dk" cx="0.34" cy="0.3" r="0.85">
+      <stop offset="0" stop-color="#d9bd66"/>
+      <stop offset="0.5" stop-color="#a8871c"/>
+      <stop offset="1" stop-color="#6d5510"/>
+    </radialGradient>
+    <radialGradient id="peg-silver" cx="0.34" cy="0.3" r="0.85">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#c4c4c4"/>
+      <stop offset="1" stop-color="#767676"/>
+    </radialGradient>
+    <radialGradient id="peg-silver-dk" cx="0.34" cy="0.3" r="0.85">
+      <stop offset="0" stop-color="#d8d8d8"/>
+      <stop offset="0.5" stop-color="#9a9a9a"/>
+      <stop offset="1" stop-color="#5d5d5d"/>
+    </radialGradient>
   </defs>`;
 
   svg.innerHTML = defs + html;
