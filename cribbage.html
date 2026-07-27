@@ -131,6 +131,43 @@
     border-radius: 14px; color: #f5f5f4; }
   .table-well { background: rgba(0,0,0,.18); border-radius: 12px; }
 
+  /* Wooden score plaque (matches the board) */
+  .plaque {
+    background: linear-gradient(160deg, #7a4a22, #5a3a1f 60%, #4a2e18);
+    border: 1.5px solid var(--brass-lo);
+    border-radius: 10px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 4px 12px rgba(0,0,0,.4);
+    color: var(--cream);
+  }
+  .badge-brass {
+    background: linear-gradient(180deg, var(--brass-hi), var(--brass));
+    color: #3a2c05;
+    border: 0.5px solid var(--brass-edge);
+    border-radius: 4px;
+    font-size: 10px;
+    padding: 1px 5px;
+    letter-spacing: .04em;
+  }
+
+  /* Paper scoresheet: ruling lives on the scrolling log so lines track rows */
+  .paper {
+    background: #f7f1de;
+    color: var(--ink);
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,.35);
+  }
+  .paper .caption { color: rgba(59,42,23,.65); }
+  #game-log-panel.paper #game-log {
+    background: repeating-linear-gradient(
+      transparent 0 20px, rgba(90,58,31,.18) 20px 21px, transparent 21px 22px);
+    background-attachment: local;
+    line-height: 22px;
+    font-size: .8rem;
+  }
+  #game-log-panel.paper .log-row { padding: 0; }
+  #game-log-panel.paper .log-who { color: #6b3a1e; }
+  #game-log-panel.paper .log-pts { color: #1d6b3a; }
+
   /* Active-turn glow on a player zone */
   .zone { border-radius: 12px; padding: 6px 8px; transition: box-shadow .3s ease, background .3s ease; }
   .zone-active { background: rgba(253,230,138,.07);
@@ -251,7 +288,7 @@
 
     <div id="menu-decor" class="flex justify-center mb-6"></div>
 
-    <div class="bg-white/95 rounded-2xl shadow-xl p-6 max-w-md mx-auto space-y-4 text-stone-800">
+    <div class="rounded-2xl shadow-xl p-6 max-w-md mx-auto space-y-4 text-stone-800" style="background:var(--cream)">
       <div>
         <label class="block text-sm font-semibold mb-1">Your name</label>
         <input id="name-input" type="text" maxlength="20" placeholder="e.g. Dad"
@@ -312,7 +349,7 @@
         <div class="board-wrap">
           <svg id="board-svg" class="board-svg" viewBox="0 0 232 660" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
-        <div id="score-bar" class="table-panel mt-3 divide-y divide-white/10 overflow-hidden"></div>
+        <div id="score-bar" class="plaque mt-3 divide-y divide-white/10 overflow-hidden"></div>
         <div id="series-line" class="hidden text-center text-xs text-emerald-100/80 mt-2"></div>
       </aside>
 
@@ -371,7 +408,7 @@
           <div id="action-area" class="flex flex-wrap items-center gap-2 justify-center pt-2"></div>
 
           <!-- Game log -->
-          <div id="game-log-panel" class="hidden table-panel p-3">
+          <div id="game-log-panel" class="hidden paper p-3">
             <div class="caption mb-1">score sheet</div>
             <div id="game-log"></div>
           </div>
@@ -382,8 +419,8 @@
 
     <!-- Breakdown overlay -->
     <div id="breakdown-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto text-stone-800">
-        <h3 class="text-xl font-bold mb-1">Hand complete</h3>
+      <div class="rounded-2xl shadow-xl max-w-lg w-full p-5 max-h-[90vh] overflow-y-auto text-stone-800" style="background:var(--cream)">
+        <h3 class="text-xl font-bold mb-1" style="font-family:var(--serif)">Hand complete</h3>
         <div class="text-xs text-stone-500 mb-3">Starter:
           <span id="breakdown-starter-card" class="inline-block align-middle ml-1"></span>
         </div>
@@ -398,8 +435,8 @@
 
     <!-- Game-over overlay -->
     <div id="gameover-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 text-center text-stone-800">
-        <h3 class="text-3xl font-bold mb-2" id="gameover-title">🎉</h3>
+      <div class="rounded-2xl shadow-xl max-w-md w-full p-6 text-center text-stone-800" style="background:var(--cream)">
+        <h3 class="text-3xl font-bold mb-2" id="gameover-title" style="font-family:var(--serif)"></h3>
         <p id="gameover-detail" class="mb-2 text-stone-700"></p>
         <p id="gameover-series" class="mb-5 text-sm text-stone-500"></p>
         <div class="flex gap-2">
@@ -511,7 +548,26 @@ function tone(freq, dur, type, vol, delay){
 function sndCard(){ tone(220, .06, 'square', .05); tone(180, .05, 'square', .04, .02); }
 function sndPeg(){ tone(1350, .05, 'triangle', .12); tone(1750, .06, 'triangle', .10, .06); }
 function sndWin(){ [523, 659, 784, 1047].forEach((f, i) => tone(f, .18, 'triangle', .14, i * .12)); }
-function updateMuteBtn(){ const b = $('mute-btn'); if (b) b.textContent = muted ? '🔇' : '🔊'; }
+function updateMuteBtn(){
+  const b = $('mute-btn');
+  if (!b) return;
+  const horn = `<path d="M11 5 6 9H2v6h4l5 4z"/>`;
+  const on  = `${horn}<path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.4 6a9 9 0 0 1 0 12"/>`;
+  const off = `${horn}<line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/>`;
+  b.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${muted ? off : on}</svg>`;
+}
+
+function renderMenuDecor(){
+  const el = $('menu-decor');
+  if (!el || el.childNodes.length) return;
+  const picks = ['AS', '5H', 'JD'];
+  el.innerHTML = picks.map((c, i) => `
+    <div class="card" style="transform: rotate(${(i - 1) * 14}deg) translateY(${Math.abs(i - 1) * 6}px);
+      margin: 0 -10px; z-index: ${i === 1 ? 2 : 1}">
+      ${renderCardSVG(c, {w: 72, h: 102})}
+    </div>`).join('');
+}
 
 const LOCAL_NAME_KEY = 'cribbage_player_name';
 
@@ -1379,7 +1435,7 @@ function checkGameOver(gs){
         gs.series = gs.series || {};
         gs.series[uid] = (gs.series[uid] || 0) + 1;
         const loser = gs.playerIds.find(p => p !== uid);
-        appendLog(gs, uid, `wins ${gs.scores[uid]}–${gs.scores[loser]} 🏆`);
+        appendLog(gs, uid, `wins ${gs.scores[uid]}–${gs.scores[loser]}`);
         // Fire stats once
         recordGameEnd(gs).catch(console.error);
       }
@@ -1600,8 +1656,8 @@ function renderScoreBar(){
     div.className = `score-row ${isMine ? 'bg-white/10' : ''}`;
     div.innerHTML = `
       <span class="score-dot" style="background:${pegColors[ix] || '#888'}"></span>
-      <span class="font-semibold text-sm truncate">${escapeHTML(nameOf(uid))}${isMine?' <span class="text-[10px] text-emerald-300">(you)</span>':''}${presence}</span>
-      ${isDealer ? '<span class="text-[10px] uppercase tracking-wide bg-amber-200/90 text-amber-900 rounded px-1 py-0.5 flex-none">Dealer</span>' : ''}
+      <span class="font-semibold text-sm truncate">${escapeHTML(nameOf(uid))}${isMine?' <span class="text-[10px]" style="color:rgba(251,248,239,.65)">(you)</span>':''}${presence}</span>
+      ${isDealer ? '<span class="badge-brass flex-none uppercase">Dealer</span>' : ''}
       <span class="ml-auto text-lg font-bold tabular-nums" style="font-family:var(--serif)">${G.scores[uid] || 0}</span>`;
     el.appendChild(div);
   });
@@ -2415,7 +2471,7 @@ function renderGameOverModal(){
   const loserScore = G.scores[loser];
   const skunk = loserScore < 91;
   const dskunk = loserScore < 61;
-  $('gameover-title').textContent = winnerName === nameOf(userId) ? '🏆 You won!' : `${winnerName} wins!`;
+  $('gameover-title').textContent = winnerName === nameOf(userId) ? 'You won!' : `${winnerName} wins!`;
   let detail = `Final: ${G.scores[G.winner]} – ${loserScore}.`;
   if (dskunk) detail += `  Double skunk!`;
   else if (skunk) detail += `  Skunk!`;
@@ -2495,7 +2551,7 @@ async function loadAndShowStats(){
     const byGames = [...players].sort((a,b)=>((b.wins||0)+(b.losses||0))-((a.wins||0)+(a.losses||0)));
     if (byGames.length >= 2){
       const [a, b] = byGames;
-      html += `<div class="bg-white rounded-2xl shadow-md p-4 text-center text-stone-800">
+      html += `<div class="rounded-2xl shadow-md p-4 text-center text-stone-800" style="background:var(--cream)">
         <div class="text-xs uppercase tracking-wide text-stone-400 mb-1">Head to head</div>
         <div class="text-2xl font-bold">
           ${escapeHTML(a.name||'?')} <span class="text-emerald-600">${a.wins||0}</span>
@@ -2515,8 +2571,8 @@ async function loadAndShowStats(){
     };
 
     // Per-player aggregates
-    html += `<div class="bg-white rounded-2xl shadow-md p-5 text-stone-800">
-      <h3 class="font-bold text-lg mb-3">Players</h3>`;
+    html += `<div class="rounded-2xl shadow-md p-5 text-stone-800" style="background:var(--cream)">
+      <h3 class="font-bold text-lg mb-3" style="font-family:var(--serif)">Players</h3>`;
     if (!players.length){
       html += `<p class="text-stone-500">No games played yet.</p>`;
     } else {
@@ -2544,8 +2600,8 @@ async function loadAndShowStats(){
     html += `</div>`;
 
     // History
-    html += `<div class="bg-white rounded-2xl shadow-md p-5 mt-4 text-stone-800">
-      <h3 class="font-bold text-lg mb-3">Recent Games</h3>`;
+    html += `<div class="rounded-2xl shadow-md p-5 mt-4 text-stone-800" style="background:var(--cream)">
+      <h3 class="font-bold text-lg mb-3" style="font-family:var(--serif)">Recent Games</h3>`;
     if (!history.length){
       html += `<p class="text-stone-500">No games yet.</p>`;
     } else {
@@ -2598,6 +2654,7 @@ function showMenu(){
   $('main-menu').classList.remove('hidden');
   $('game-screen').classList.add('hidden');
   $('stats-screen').classList.add('hidden');
+  renderMenuDecor();
   const stored = localStorage.getItem(LOCAL_NAME_KEY);
   if (stored && $('name-input').value === '') $('name-input').value = stored;
 }
