@@ -342,7 +342,7 @@
       <p><b>Game end.</b> When the bag is empty and a player uses their last tile, they collect the value of the
          opponent's leftover tiles. If the game ends on passes, each player's leftover tiles are deducted instead.
          The higher total wins.</p>
-      <p><b>Dictionary:</b> the public-domain ENABLE word list — the same lexicon classic Words With Friends used.</p>
+      <p><b>Dictionary:</b> TWL06, the North American Scrabble tournament word list (includes QI, ZA, and friends).</p>
       <p class="pt-1"><b>Letter values</b> (count in bag shown small):</p>
       <div id="values-grid"></div>
     </div>
@@ -428,11 +428,11 @@ const rackValue = (rk) => rk.split("").reduce((s, ch) => s + (VALUES[ch] || 0), 
 const setCell = (s, i, ch) => s.slice(0, i) + ch + s.slice(i + 1);
 
 /* ============================================================= *
- * 3. Dictionary (ENABLE list — the classic WWF lexicon)         *
+ * 3. Dictionary (TWL06 — the Scrabble tournament word list)     *
  * ============================================================= */
 const DICT_URLS = [
-  "https://cdn.jsdelivr.net/gh/dolph/dictionary@master/enable1.txt",
-  "https://raw.githubusercontent.com/dolph/dictionary/master/enable1.txt",
+  "https://cdn.jsdelivr.net/gh/jonbcard/scrabble-bot@master/src/dictionary.txt",
+  "https://raw.githubusercontent.com/jonbcard/scrabble-bot/master/src/dictionary.txt",
 ];
 let DICT = null;              // Set of lowercase words
 let dictState = "loading";    // loading | ready | failed
@@ -444,7 +444,7 @@ async function loadDictionary() {
       const text = await res.text();
       const set = new Set();
       for (const line of text.split("\n")) {
-        const w = line.trim();
+        const w = line.trim().toLowerCase(); // TWL06 source is uppercase
         if (w) set.add(w);
       }
       if (set.size < 1000) continue; // sanity check
@@ -1058,7 +1058,7 @@ function renderScores() {
 function renderDictInfo() {
   const el = $("dict-info");
   if (!el) return;
-  el.textContent = dictState === "ready" ? "ENABLE ✓"
+  el.textContent = dictState === "ready" ? "TWL06 ✓"
                  : dictState === "loading" ? "dictionary…"
                  : "no dictionary ⚠";
 }
