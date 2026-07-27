@@ -72,12 +72,29 @@
   }
   .btn-cream:hover { background: rgba(251,248,239,.12); }
   .card { display:inline-block; vertical-align:top; }
-  .card svg { display:block; }
-  .card-btn { cursor:pointer; transition: transform .1s ease, box-shadow .1s ease; border-radius:8px; }
-  .card-btn:hover { transform: translateY(-6px); box-shadow: 0 6px 12px rgba(0,0,0,.2); }
-  .card-selected { transform: translateY(-12px); box-shadow: 0 8px 16px rgba(250,204,21,.55); outline: 2px solid #facc15; }
+  .card svg { display:block; border-radius: 7px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.32), 0 5px 14px rgba(0,0,0,.22); }
   .card-disabled { opacity: .45; cursor: not-allowed; }
-  .card-disabled:hover { transform: none; box-shadow: none; }
+
+  /* Arc-fanned hands: absolutely positioned wrapper (lift) + inner tilt (rotation) */
+  .hand-fan { position: relative; }
+  .fan-slot { position: absolute; bottom: 0; transition: transform .16s ease; }
+  .fan-slot.liftable { cursor: pointer; }
+  .fan-slot.liftable:hover { transform: translateY(-14px); z-index: 40 !important; }
+  .fan-slot.card-selected { transform: translateY(-22px); z-index: 41 !important; }
+  .fan-slot.card-selected .tilt svg { box-shadow: 0 0 0 2.5px var(--brass), 0 8px 18px rgba(0,0,0,.4); }
+  .fan-slot.card-disabled:hover { transform: none; }
+  .tilt { transform-origin: 50% 115%; }
+  .opp-fan .fan-slot { bottom: auto; top: 0; }
+  .opp-fan .tilt { transform-origin: 50% -15%; }
+
+  /* Pegging cascade: thrown-card overlap; rotation set inline per card */
+  .peg-card { margin-right: -16px; }
+  .peg-card:last-child { margin-right: 0; }
+
+  /* Crib / deck stacks */
+  .stack { position: relative; }
+  .stack .card { position: absolute; left: 0; top: 0; }
 
   /* Dark translucent panels that read as objects on the felt */
   .table-panel { background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.08);
@@ -89,12 +106,6 @@
   .zone-active { background: rgba(253,230,138,.07);
     box-shadow: 0 0 0 2px rgba(253,230,138,.75), 0 0 26px rgba(253,230,138,.28); }
 
-  /* Pegging pile: opponent's cards ride high, yours ride low */
-  .peg-card { margin-right: -14px; transition: transform .25s ease; }
-  .peg-card-opp  { transform: translateY(-9px); }
-  .peg-card-mine { transform: translateY(9px); }
-  .peg-card:last-child { margin-right: 0; }
-
   /* Big running-count chip */
   #peg-count-chip {
     width: 3.4rem; height: 3.4rem; border-radius: 9999px;
@@ -105,6 +116,7 @@
     flex: none;
   }
   #peg-count-chip.chip-done { background: #a8a29e; }
+  #peg-count-chip.hidden { display: none; }
 
   /* Game log */
   #game-log { max-height: 10.5rem; overflow-y: auto; scroll-behavior: smooth;
@@ -142,12 +154,8 @@
   .breakdown-item:last-child { border-bottom:0; font-weight:700; }
   .scrollbox { max-height: 60vh; overflow-y:auto; }
 
-  @media (max-width: 640px) {
-    .card svg { width: 50px !important; height: 72px !important; }
-  }
-
   /* ===== Responsive game layout: board left on wide screens, stacked on narrow ===== */
-  #game-layout { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 1rem; align-items: start; }
+  #game-layout { display: grid; grid-template-columns: 206px minmax(0, 1fr); gap: 1rem; align-items: start; }
   @media (max-width: 899px) {
     #game-layout { grid-template-columns: 1fr; }
   }
@@ -298,7 +306,10 @@
           <!-- Opponent zone -->
           <div id="opp-zone" class="zone">
             <div class="caption mb-1" id="opponent-label">Opponent</div>
-            <div id="opponent-hand" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
+            <div class="flex items-start gap-5">
+              <div id="opponent-hand" class="hand-fan opp-fan flex-1 min-w-0"></div>
+              <div id="crib-slot-opp" class="flex-none"></div>
+            </div>
           </div>
 
           <!-- Fan zone: deck spread for cut-for-deal and starter cut -->
@@ -308,20 +319,16 @@
             <div id="fan-caption" class="caption text-center mt-2"></div>
           </div>
 
-          <!-- Middle: crib + starter + pegging -->
-          <div id="middle-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div class="table-well p-3">
-              <div class="caption mb-1" id="crib-label">Crib</div>
-              <div id="crib-area" class="flex flex-wrap gap-1.5 min-h-[80px]"></div>
+          <!-- Middle: deck/starter + pegging, straight on the felt -->
+          <div id="middle-grid" class="grid gap-4 items-start" style="grid-template-columns:auto minmax(0,1fr)">
+            <div>
+              <div class="caption mb-1 text-center">deck</div>
+              <div id="starter-area"></div>
             </div>
-            <div class="table-well p-3">
-              <div class="caption mb-1">starter</div>
-              <div id="starter-area" class="flex items-center justify-center min-h-[80px]"></div>
-            </div>
-            <div class="table-well p-3 sm:col-span-1">
-              <div class="caption mb-1">pegging</div>
-              <div class="flex items-center gap-2">
-                <div id="pegging-area" class="flex flex-wrap items-center flex-1 min-h-[96px] py-2"></div>
+            <div>
+              <div class="caption mb-1" id="pegging-caption">pegging</div>
+              <div class="flex items-center gap-3">
+                <div id="pegging-area" class="flex flex-wrap items-center flex-1 min-h-[104px] py-2 pl-1"></div>
                 <div id="peg-count-chip" class="hidden">0</div>
               </div>
             </div>
@@ -330,7 +337,10 @@
           <!-- Your zone -->
           <div id="my-zone" class="zone">
             <div class="caption mb-1" id="player-label">You</div>
-            <div id="player-hand" class="flex flex-wrap gap-1.5 min-h-[110px]"></div>
+            <div class="flex items-end gap-5">
+              <div id="player-hand" class="hand-fan flex-1 min-w-0"></div>
+              <div id="crib-slot-me" class="flex-none"></div>
+            </div>
           </div>
 
           <!-- Action area -->
@@ -526,19 +536,18 @@ function renderCardSVG(card, opts={}){
   if (isFace) {
     // Court card: ornate double frame, mirrored rank letters, suit medallion,
     // and a tinted panel — reads as royalty without external art.
-    const accent = (s === 'H' || s === 'D') ? '#fdeaea' : '#ececf4';
+    const accent = (s === 'H' || s === 'D') ? '#f9e3e0' : '#e9e7ef';
     const fs = Math.min(w,h);
     body = `
       <rect x="11" y="11" width="${w-22}" height="${h-22}" fill="${accent}" stroke="${color}" stroke-width="1.4" rx="4"/>
-      <rect x="14.5" y="14.5" width="${w-29}" height="${h-29}" fill="none" stroke="${color}" stroke-width="0.6" rx="2.5"
-        stroke-dasharray="2.5 1.5"/>
-      <g fill="${color}" font-family="Times New Roman, serif" font-weight="700" text-anchor="middle">
-        <text x="${w/2}" y="${h*0.40}" font-size="${fs*0.34}">${lbl}</text>
+      <rect x="14.5" y="14.5" width="${w-29}" height="${h-29}" fill="none" stroke="#c9a227" stroke-width="0.8" rx="2.5"/>
+      <g fill="${color}" font-family="'Libre Baskerville', Georgia, serif" font-weight="700" text-anchor="middle">
+        <text x="${w/2}" y="${h*0.40}" font-size="${fs*0.30}">${lbl}</text>
         <g transform="translate(${w/2},${h*0.62}) rotate(180)">
-          <text x="0" y="${fs*0.10}" font-size="${fs*0.34}">${lbl}</text>
+          <text x="0" y="${fs*0.10}" font-size="${fs*0.30}">${lbl}</text>
         </g>
       </g>
-      <circle cx="${w/2}" cy="${h/2}" r="${fs*0.135}" fill="white" stroke="${color}" stroke-width="0.9"/>
+      <circle cx="${w/2}" cy="${h/2}" r="${fs*0.135}" fill="#fbf8ef" stroke="#c9a227" stroke-width="1"/>
       <text x="${w/2}" y="${h/2}" text-anchor="middle" dominant-baseline="central"
         font-size="${fs*0.18}" fill="${color}">${glyph}</text>
       <g fill="${color}" font-size="${fs*0.12}" text-anchor="middle">
@@ -557,36 +566,46 @@ function renderCardSVG(card, opts={}){
     }).join('');
   }
 
-  // Corner indices (top-left and rotated bottom-right)
-  const idxFont = Math.min(w,h)*0.18;
+  // Corner indices (top-left and rotated bottom-right), engraved serif
+  const idxFont = Math.min(w,h)*0.17;
   const indices = `
-    <g font-family="Helvetica, Arial, sans-serif" font-weight="700" fill="${color}">
-      <text x="6" y="${idxFont+2}" font-size="${idxFont}">${lbl}</text>
-      <text x="6" y="${idxFont*2.0+2}" font-size="${idxFont*0.85}">${glyph}</text>
-      <g transform="translate(${w-6},${h-2}) rotate(180)">
+    <g font-family="'Libre Baskerville', Georgia, serif" font-weight="700" fill="${color}">
+      <text x="5.5" y="${idxFont+3}" font-size="${idxFont}">${lbl}</text>
+      <text x="6" y="${idxFont*2.1+3}" font-size="${idxFont*0.8}">${glyph}</text>
+      <g transform="translate(${w-5.5},${h-3}) rotate(180)">
         <text x="0" y="${idxFont}" font-size="${idxFont}">${lbl}</text>
-        <text x="0" y="${idxFont*2.0}" font-size="${idxFont*0.85}">${glyph}</text>
+        <text x="0.5" y="${idxFont*2.1}" font-size="${idxFont*0.8}">${glyph}</text>
       </g>
     </g>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="6" ry="6" fill="white" stroke="#888" stroke-width="1"/>
+    <rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="7" ry="7" fill="#fdfcf6" stroke="#cbc2a8" stroke-width="1"/>
     ${body}
     ${indices}
   </svg>`;
 }
 
 function renderBackSVG(w=70,h=100){
+  // Walnut field, brass lattice, cream border, serif medallion — shared pattern ids
+  // are fine: every instance is identical, so the first defs in the DOM wins.
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-    <rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="6" ry="6" fill="#1d4ed8" stroke="#1e3a8a" stroke-width="1"/>
-    <rect x="4" y="4" width="${w-8}" height="${h-8}" rx="4" fill="none" stroke="#fde68a" stroke-width="1" stroke-dasharray="3 2"/>
-    <g stroke="#fde68a" stroke-width=".5" fill="none">
-      ${Array.from({length:6}).map((_,i)=>`<line x1="${4+i*4}" y1="4" x2="${w-4}" y2="${h-4-i*4}" />`).join('')}
-      ${Array.from({length:6}).map((_,i)=>`<line x1="${w-4-i*4}" y1="4" x2="4" y2="${h-4-i*4}" />`).join('')}
-    </g>
-    <circle cx="${w/2}" cy="${h/2}" r="${Math.min(w,h)*0.18}" fill="#1e3a8a" stroke="#fde68a" stroke-width=".8"/>
-    <text x="${w/2}" y="${h/2+4}" text-anchor="middle" font-family="Times New Roman, serif"
-      font-style="italic" font-size="${Math.min(w,h)*0.22}" fill="#fde68a">C</text>
+    <defs>
+      <pattern id="bk-lat-a" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="7" stroke="#c9a227" stroke-width="0.9" opacity="0.5"/>
+      </pattern>
+      <pattern id="bk-lat-b" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+        <line x1="0" y1="0" x2="0" y2="7" stroke="#c9a227" stroke-width="0.9" opacity="0.5"/>
+      </pattern>
+    </defs>
+    <rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="7" ry="7" fill="#fbf8ef" stroke="#cbc2a8" stroke-width="1"/>
+    <rect x="3.5" y="3.5" width="${w-7}" height="${h-7}" rx="4.5" fill="#5a3a1f" stroke="#3e2613" stroke-width="0.8"/>
+    <rect x="3.5" y="3.5" width="${w-7}" height="${h-7}" rx="4.5" fill="url(#bk-lat-a)"/>
+    <rect x="3.5" y="3.5" width="${w-7}" height="${h-7}" rx="4.5" fill="url(#bk-lat-b)"/>
+    <ellipse cx="${w/2}" cy="${h/2}" rx="${w*0.24}" ry="${h*0.17}" fill="#3e2613" stroke="#c9a227" stroke-width="1.1"/>
+    <ellipse cx="${w/2}" cy="${h/2}" rx="${w*0.24-2.5}" ry="${h*0.17-2.5}" fill="none" stroke="#c9a227" stroke-width="0.5" opacity="0.8"/>
+    <text x="${w/2}" y="${h/2}" text-anchor="middle" dominant-baseline="central"
+      font-family="'Libre Baskerville', Georgia, serif" font-style="italic" font-weight="700"
+      font-size="${Math.min(w,h)*0.22}" fill="#eed48a">C</text>
   </svg>`;
 }
 
@@ -1552,7 +1571,14 @@ function renderScoreBar(){
 // immediately adjacent within each straight so relative position is obvious.
 // Desktop (≥900px): vertical board beside the felt. Narrow: horizontal above it.
 function boardOrientation(){
-  return window.matchMedia('(min-width: 900px)').matches ? 'vertical' : 'horizontal';
+  // Follow the layout the CSS actually produced (media queries and JS matchMedia
+  // can disagree under zoomed/emulated viewports): a narrow side column gets the
+  // vertical board, a full-width stacked aside gets the horizontal one.
+  const aside = $('board-aside'), app = $('app');
+  if (aside && app && aside.clientWidth > 0 && aside.clientWidth < app.clientWidth * 0.6){
+    return 'vertical';
+  }
+  return 'horizontal';
 }
 // Board skeleton is built once per (orientation, player-names) and kept in the DOM;
 // only the four peg elements move afterward, so CSS transitions actually animate them.
@@ -1779,38 +1805,80 @@ function renderHands(){
   $('my-zone').classList.toggle('zone-active', !!glowMe);
   $('opp-zone').classList.toggle('zone-active', !!glowOpp);
 
-  if (!G.hands || !G.hands[userId]) return;
+  if (!G.hands || !G.hands[userId]){
+    meEl.style.height = '0px';
+    oppEl.style.height = '0px';
+    return;
+  }
 
   const myHand = G.hands[userId];
   const inPegging = G.phase === 'pegging';
   const myTurn = G.peggingTurn === userId;
+  const discarding = G.phase === 'discard' && myHand.length > 4;
 
-  for (const c of myHand){
-    const el = document.createElement('div');
-    el.className = 'card card-btn';
+  layFan(meEl, myHand.length, 'hand', false, (i, slot, tilt) => {
+    const c = myHand[i];
     const selected = localSelection.includes(c);
     const tooBig = inPegging && (valueOf(c) + effectivePegTotal(G) > 31);
     const playable = inPegging && myTurn && !tooBig;
-    if (selected) el.classList.add('card-selected');
-    if (inPegging && (!myTurn || tooBig)) el.classList.add('card-disabled');
-    el.innerHTML = renderCardSVG(c, { w: 70, h: 100 });
-    el.addEventListener('click', ()=>{
+    if (selected) slot.classList.add('card-selected');
+    if (inPegging && (!myTurn || tooBig)) slot.classList.add('card-disabled');
+    if (discarding || playable) slot.classList.add('liftable');
+    tilt.innerHTML = renderCardSVG(c, cardDims('hand'));
+    slot.addEventListener('click', ()=>{
       if (G.phase === 'discard'){
         toggleSelection(c);
       } else if (inPegging && playable){
         actPlayCard(c);
       }
     });
-    meEl.appendChild(el);
-  }
+  });
 
-  // Opponent: show face-down equal count
+  // Opponent: face-down fan of equal count
   const oppHand = oppId ? (G.hands[oppId] || []) : [];
-  for (let i=0;i<oppHand.length;i++){
-    const el = document.createElement('div');
-    el.className = 'card';
-    el.innerHTML = renderBackSVG(60, 86);
-    oppEl.appendChild(el);
+  layFan(oppEl, oppHand.length, 'opp', true, (i, slot, tilt) => {
+    const d = cardDims('opp');
+    tilt.innerHTML = renderBackSVG(d.w, d.h);
+  });
+}
+
+/* Lay n cards as an arc fan inside `container` (a .hand-fan element).
+   fill(i, slotEl, tiltEl) decorates each card. */
+function layFan(container, n, kind, isOpp, fill){
+  const dims = cardDims(kind);
+  container.style.height = n ? `${dims.h + (isOpp ? 22 : 30)}px` : '0px';
+  if (!n) return;
+  const cw = container.clientWidth || 400;
+  const maxStep = dims.w * 0.62;
+  const step = n > 1 ? Math.min(maxStep, (cw - dims.w) / (n - 1)) : 0;
+  const total = dims.w + step * (n - 1);
+  const x0 = Math.max(0, (cw - total) / 2);
+  const mid = (n - 1) / 2;
+  for (let i = 0; i < n; i++){
+    const slot = document.createElement('div');
+    slot.className = 'fan-slot';
+    slot.style.left = `${x0 + i * step}px`;
+    slot.style.zIndex = 10 + i;
+    const tilt = document.createElement('div');
+    tilt.className = 'tilt';
+    const ang = (i - mid) * (isOpp ? -3.6 : 4.4);
+    const sag = Math.pow(Math.abs(i - mid), 1.7) * 3.4;
+    tilt.style.transform = `rotate(${ang}deg) translateY(${sag}px)`;
+    slot.appendChild(tilt);
+    fill(i, slot, tilt);
+    container.appendChild(slot);
+  }
+}
+
+function isNarrow(){ return window.matchMedia('(max-width: 640px)').matches; }
+function cardDims(kind){
+  const n = isNarrow();
+  switch (kind){
+    case 'hand':  return n ? {w:56, h:80} : {w:78, h:110};
+    case 'opp':   return n ? {w:42, h:60} : {w:56, h:80};
+    case 'pile':  return n ? {w:46, h:66} : {w:56, h:80};
+    case 'stack': return n ? {w:40, h:57} : {w:50, h:71};
+    default:      return {w:60, h:86};
   }
 }
 
@@ -1824,34 +1892,64 @@ function toggleSelection(c){
 
 /* ---- Crib / starter / pegging stack ---- */
 function renderCrib(){
-  const el = $('crib-area');
-  el.innerHTML = '';
-  $('crib-label').textContent = `Crib (${G.dealer ? nameOf(G.dealer)+"'s" : ''})`;
-  const cribCards = G.crib || [];
-  // During the game, crib is hidden until counted.
-  const showFaces = (G.phase === 'count') || (G.phase === 'game_done');
-  for (let i=0;i<cribCards.length;i++){
-    const el2 = document.createElement('div');
-    el2.className = 'card';
-    el2.innerHTML = showFaces ? renderCardSVG(cribCards[i], {w:50,h:72}) : renderBackSVG(50,72);
-    el.appendChild(el2);
+  const slotOpp = $('crib-slot-opp'), slotMe = $('crib-slot-me');
+  slotOpp.innerHTML = '';
+  slotMe.innerHTML = '';
+  const n = (G.crib || []).length;
+  if (!G.dealer || !n) return;
+  const slot = (G.dealer === userId) ? slotMe : slotOpp;
+  const dims = cardDims('stack');
+  const wrap = document.createElement('div');
+  wrap.className = 'flex flex-col items-center gap-1';
+  const stack = document.createElement('div');
+  stack.className = 'stack';
+  stack.style.width = `${dims.w + 10}px`;
+  stack.style.height = `${dims.h + 10}px`;
+  for (let i = 0; i < n; i++){
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.style.left = `${3 + i * 1.5}px`;
+    d.style.top = `${8 - i * 2}px`;
+    d.style.transform = `rotate(${(i % 2 ? -1 : 1) * (1 + i)}deg)`;
+    d.innerHTML = renderBackSVG(dims.w, dims.h);
+    stack.appendChild(d);
   }
-  if (cribCards.length === 0){
-    el.innerHTML = '<span class="text-xs text-emerald-100/60">empty</span>';
-  }
+  wrap.appendChild(stack);
+  const cap = document.createElement('div');
+  cap.className = 'caption text-center';
+  cap.textContent = `crib`;
+  wrap.appendChild(cap);
+  slot.appendChild(wrap);
 }
+
 
 function renderStarter(){
   const el = $('starter-area');
   el.innerHTML = '';
-  if (G.starter){
-    const c = document.createElement('div');
-    c.className = 'card';
-    c.innerHTML = renderCardSVG(G.starter, {w:60,h:86});
-    el.appendChild(c);
-  } else {
-    el.innerHTML = `<div class="text-xs text-emerald-100/60">—</div>`;
+  const dims = cardDims('stack');
+  const wrap = document.createElement('div');
+  wrap.className = 'stack';
+  wrap.style.width = `${dims.w + 12}px`;
+  wrap.style.height = `${dims.h + 8}px`;
+  // The undealt deck: a few squared backs
+  for (let i = 0; i < 3; i++){
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.style.left = `${i * 1.5}px`;
+    d.style.top = `${(2 - i) * 1.5}px`;
+    d.innerHTML = renderBackSVG(dims.w, dims.h);
+    wrap.appendChild(d);
   }
+  if (G.starter){
+    const sc = document.createElement('div');
+    sc.className = 'card';
+    sc.style.left = '6px';
+    sc.style.top = '0px';
+    sc.style.transform = 'rotate(-4deg)';
+    sc.innerHTML = renderCardSVG(G.starter, dims);
+    wrap.appendChild(sc);
+  }
+  el.appendChild(wrap);
 }
 
 /* ---- Fan zone: spread-out deck for cut-for-deal and the starter cut ---- */
@@ -1952,17 +2050,27 @@ function renderPegging(){
   }
 
   // Keep showing the most recent round even after phase moved (so the last card stays visible).
-  // Opponent's cards ride high, yours ride low, so attribution is visible at a glance.
+  // Opponent's cards ride high, yours ride low; each lands with its own small tilt.
   const round = G.peggingRound || [];
+  $('pegging-caption').style.visibility = (inPegging || round.length) ? 'visible' : 'hidden';
   if (round.length === 0) return;
-  for (const p of round){
+  round.forEach((p, ix) => {
     const mine = p.uid === userId;
     const c = document.createElement('div');
-    c.className = `card peg-card ${mine ? 'peg-card-mine' : 'peg-card-opp'}`;
+    c.className = 'card peg-card';
+    c.style.transform = `translateY(${mine ? 9 : -9}px) rotate(${cardJitter(p.card)}deg)`;
+    c.style.zIndex = 10 + ix;
     c.title = `${nameOf(p.uid)} played ${labelOf(p.card)}${SUIT_GLYPH[suitOf(p.card)]}`;
-    c.innerHTML = renderCardSVG(p.card, {w:50,h:72});
+    c.innerHTML = renderCardSVG(p.card, cardDims('pile'));
     el.appendChild(c);
-  }
+  });
+}
+
+// Deterministic small tilt per card, so the cascade looks hand-thrown but stable.
+function cardJitter(card){
+  let h = 0;
+  for (const ch of card) h = (h * 31 + ch.charCodeAt(0)) & 0xffff;
+  return (h % 9) - 4;
 }
 
 /* Pegging scoring popup ("Fifteen for 2", etc.) — shows briefly on each new event. */
@@ -2386,12 +2494,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Browsers unlock audio only after a user gesture — prime the context on first click.
   document.addEventListener('click', ()=> ac(), { once: true });
 
-  // Re-render on resize: board flips orientation at 900px and the fan re-spaces.
+  // Re-render on any viewport/layout size change: board flips orientation at
+  // 900px, fans and the card fan re-space. ResizeObserver catches embedded-pane
+  // resizes that never dispatch window `resize`.
   let resizeTimer = null;
-  window.addEventListener('resize', () => {
+  const scheduleRender = () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => { if (G) render(); }, 120);
-  });
+  };
+  window.addEventListener('resize', scheduleRender);
+  new ResizeObserver(scheduleRender).observe(document.body);
   $('invite-copy-again').addEventListener('click', async ()=>{
     const url = $('invite-url').value;
     const ok = await tryCopy(url);
