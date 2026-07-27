@@ -338,7 +338,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, onSnapshot, setDoc, getDoc, updateDoc,
-         collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp,
+         collection, query, where, orderBy, limit, getDocs,
          runTransaction
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -741,7 +741,6 @@ function nameOf(uid){
   if (G.player2 && G.player2.uid === uid) return G.player2.name;
   return '?';
 }
-function isMe(uid){ return uid === userId; }
 
 /* ========================================================================
    6. Firestore actions
@@ -1295,7 +1294,6 @@ async function recordGameEnd(gs){
 
   const winner = gs.winner;
   const loser = gs.playerIds.find(p => p !== winner);
-  const winnerScore = gs.scores[winner];
   const loserScore = gs.scores[loser];
   const skunk = loserScore < 91;          // loser failed to pass skunk line (90)
   const doubleSkunk = loserScore < 61;    // loser failed to pass double-skunk
@@ -1414,7 +1412,6 @@ function renderStatus(){
     return;
   }
   const dealerName = nameOf(G.dealer);
-  const meIsDealer = G.dealer === userId;
   switch (G.phase){
     case 'cut_for_deal': {
       const cut = (G.cutForDeal || {})[userId];

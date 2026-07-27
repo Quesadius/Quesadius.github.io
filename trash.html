@@ -8,7 +8,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Reuse Firebase Config from TicTacToe
         const firebaseConfig = {
@@ -79,7 +79,6 @@
         const gameBoardElement = document.getElementById('game-board');
         const statusTextElement = document.getElementById('status-text');
         const newGameBtn = document.getElementById('new-game-btn');
-        const joinGameBtn = document.getElementById('join-game-btn'); // For debug/manual join if needed
         const copyLinkBtn = document.getElementById('copy-link-btn');
         const leaveGameBtn = document.getElementById('leave-game-btn');
         

@@ -382,7 +382,7 @@ const LOCAL_NAME_KEY = "words_player_name";
 /* ============================================================= *
  * 2. Game constants (Words-With-Friends rules)                  *
  * ============================================================= */
-const SIZE = 15, CENTER = 112;
+const CENTER = 112;
 const idx = (r, c) => r * 15 + c;
 // Scrabble letter values (not WWF's — switched by request alongside TWL06).
 const VALUES = { A:1,B:3,C:3,D:2,E:1,F:4,G:2,H:4,I:1,J:8,K:5,L:1,M:3,N:1,O:1,
@@ -1240,7 +1240,6 @@ function maybeShowGameOver() {
   const ts = G.endInfo && G.endInfo.ts;
   if (goShownFor === ts) return;
   goShownFor = ts;
-  const opp = oppId();
   const iWon = G.winner === userId;
   const tie = G.winner === null;
   $("go-title").textContent = tie ? "🤝 Tie game" : iWon ? "🏆 You win!" : "You lose";
@@ -1376,7 +1375,6 @@ function endPointer(e) {
   if (rackEl) {
     // Return to rack / reorder at drop position.
     t.cell = null; t.blankAs = null;
-    const rackTiles = myTiles.filter(x => x.cell == null && x.id !== t.id);
     const els = [...$("rack").querySelectorAll("[data-tile-id]")].filter(elm => Number(elm.dataset.tileId) !== t.id);
     let insertBefore = null;
     for (const elm of els) {
