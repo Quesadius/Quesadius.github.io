@@ -940,7 +940,7 @@ function pyLayer(L, pi, li, out) {
   const body = [];
   body.push(`    # -- layer ${li}: ${GEN[g].label} (${L.blend})`);
 
-  let vExpr = "1.0", hOff = null, uniform = false;
+  let vExpr = "1.0", hOff = null;
 
   if (g === "solid") { vExpr = "1.0"; }
   else if (g === "spin") {
@@ -955,11 +955,11 @@ function pyLayer(L, pi, li, out) {
   }
   else if (g === "breathe") {
     body.push(`    _v = ${f(p.floor)} + ${f(1-p.floor)} * (0.5 + 0.5 * math.sin(6.2831853 * t * ${f(p.rate)}))`);
-    vExpr = "_v"; uniform = true;
+    vExpr = "_v";
   }
   else if (g === "strobe") {
     body.push(`    _v = 1.0 if _frac(t * ${f(p.rate)}) < ${f(p.duty)} else 0.0`);
-    vExpr = "_v"; uniform = true;
+    vExpr = "_v";
   }
   else if (g === "sparkle") {
     body.push(`    global ${A}`);
@@ -1511,7 +1511,7 @@ function serialSupported() { return typeof navigator !== "undefined" && "serial"
 async function serialWrite(type, payload) {
   if (!SER.writer) return;
   try { await SER.writer.write(buildFrame(type, payload)); }
-  catch (e) { toast("Write failed — board disconnected?"); await serialDisconnect(); }
+  catch { toast("Write failed — board disconnected?"); await serialDisconnect(); }
 }
 
 async function pushAll() {
@@ -1564,7 +1564,7 @@ async function readLoop() {
       if (done) break;
       if (value) parseRx(value);
     }
-  } catch (e) { /* closed */ }
+  } catch { /* reader cancelled or port closed */ }
 }
 
 async function serialConnect() {
@@ -1589,9 +1589,11 @@ async function serialConnect() {
 async function serialDisconnect() {
   SER.on = false;
   clearTimeout(SER.pending);
-  try { if (SER.reader) await SER.reader.cancel(); } catch (e) {}
-  try { if (SER.writer) SER.writer.releaseLock(); } catch (e) {}
-  try { if (SER.port) await SER.port.close(); } catch (e) {}
+  // Each of these throws if the board was already unplugged; that is the
+  // normal path out of this function, not an error worth surfacing.
+  try { if (SER.reader) await SER.reader.cancel(); } catch { /* already gone */ }
+  try { if (SER.writer) SER.writer.releaseLock(); } catch { /* already gone */ }
+  try { if (SER.port) await SER.port.close(); } catch { /* already gone */ }
   SER.reader = SER.writer = SER.port = null;
   SER.fps = 0;
   updateSerialUI();
