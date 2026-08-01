@@ -269,6 +269,18 @@ pre .cm{color:#6f6483}
     </section>
 
     <section>
+      <h2>Board <span class="count" id="serialState"></span></h2>
+      <div class="params">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+          <button class="btn gold" id="connectBtn">Connect board</button>
+          <button class="btn" id="pushBtn">Push now</button>
+          <button class="btn" id="liveBtn" aria-pressed="true" title="Push on every edit">Live</button>
+        </div>
+        <p class="hint" id="serialHint"></p>
+      </div>
+    </section>
+
+    <section>
       <h2>Export</h2>
       <div class="exportbar">
         <div class="seg" style="width:270px">
@@ -472,7 +484,13 @@ function newLayer(gen) {
 /* ------------------------------------------------------------
    Presets
    ------------------------------------------------------------ */
-function mk(gen, over) { const L = newLayer(gen); Object.assign(L.p, over || {}); return L; }
+function mk(gen, over) {
+  const L = newLayer(gen);
+  const o = Object.assign({}, over || {});
+  if (o.blend) { L.blend = o.blend; delete o.blend; }
+  Object.assign(L.p, o);
+  return L;
+}
 
 const PRESETS = [
   { name:"Comet", dur:8, layers:[ mk("comet",{speed:0.7,tail:3,hue:0.52,hueRate:0.04}) ] },
@@ -492,7 +510,6 @@ const PRESETS = [
   { name:"Rainbow crawl", dur:8, layers:[ mk("solid",{hueSpan:1,hueRate:0.12,gain:0.3}) ] },
   { name:"Beacon", dur:6, layers:[ mk("strobe",{rate:1.2,duty:0.08,hue:0.0,gain:1}) ] }
 ];
-PRESETS[6].layers[1].blend = "add";
 
 /* ------------------------------------------------------------
    State
@@ -1382,6 +1399,7 @@ function renderExport() {
   el.textContent = txt;
   const lines = txt.split("\n").length;
   $("hint").innerHTML = HINTS[S.fmt];
+  schedulePush();
   el.setAttribute("aria-label", `${S.fmt === "py" ? "Python" : "JSON"} output, ${lines} lines`);
 }
 
@@ -1396,6 +1414,213 @@ function legendText() {
   if (ma > 150) return `Pixel 0 at the top, indices clockwise. <span class="warn">Over 150 mA — the 150 mAh cell will sag and won't last an hour.</span>`;
   if (ma > 60) return `Pixel 0 at the top, indices clockwise. Outer arc is average current; you're in the bright-but-brief range.`;
   return `Pixel 0 at the top, indices clockwise. Outer arc is average current draw.`;
+}
+
+
+/* ------------------------------------------------------------
+   Web Serial link to hoop_live.ino
+
+   Wire format matches the firmware exactly:
+     A5 5A | type u8 | len u16 LE | payload | crc16 LE
+   CRC-16/CCITT-FALSE over type..payload.
+   ------------------------------------------------------------ */
+const MSG = { PROGRAM:0x01, GLOBAL:0x02, PING:0x03, SELECT:0x04,
+              HELLO:0x81, ACK:0x82, NACK:0x83, STATS:0x84 };
+const DEV = { MAX_PATTERNS:8, MAX_LAYERS:4 };
+
+/* Generator ids and parameter slots. Order is load-bearing — it defines the
+   wire format, and the firmware's enum has to agree. */
+const GEN_ID = { solid:0, spin:1, comet:2, wave:3, breathe:4, sparkle:5, ember:6, strobe:7 };
+const BLEND_ID = { add:0, max:1, over:2, set:3 };
+const GEN_SLOTS = {
+  solid:   [],
+  spin:    ["speed", "arms", "duty"],
+  comet:   ["speed", "heads", "tail"],
+  wave:    ["speed", "cycles", "floor"],
+  breathe: ["rate", "floor"],
+  sparkle: ["rate", "decay", "hueJit"],
+  ember:   ["rate", "hueJit"],
+  strobe:  ["rate", "duty"]
+};
+
+function crc16(bytes) {
+  let c = 0xFFFF;
+  for (const b of bytes) {
+    c ^= b << 8;
+    for (let i = 0; i < 8; i++) c = (c & 0x8000) ? ((c << 1) ^ 0x1021) & 0xFFFF : (c << 1) & 0xFFFF;
+  }
+  return c;
+}
+
+function buildFrame(type, payload) {
+  const out = new Uint8Array(5 + payload.length + 2);
+  out[0] = 0xA5; out[1] = 0x5A; out[2] = type;
+  out[3] = payload.length & 0xFF;
+  out[4] = (payload.length >> 8) & 0xFF;
+  out.set(payload, 5);
+  const c = crc16(out.subarray(2, 5 + payload.length));
+  out[5 + payload.length] = c & 0xFF;
+  out[6 + payload.length] = (c >> 8) & 0xFF;
+  return out;
+}
+
+function encodeProgram() {
+  const pats = S.program.slice(0, DEV.MAX_PATTERNS).map(p => ({
+    dur: p.dur,
+    layers: p.layers.filter(L => L.on).slice(0, DEV.MAX_LAYERS)
+  })).filter(p => p.layers.length);
+
+  let size = 1;
+  for (const p of pats) size += 5 + p.layers.length * 34;
+  const buf = new Uint8Array(size);
+  const dv = new DataView(buf.buffer);
+  let o = 0;
+  buf[o++] = pats.length;
+  for (const p of pats) {
+    dv.setFloat32(o, p.dur, true); o += 4;
+    buf[o++] = p.layers.length;
+    for (const L of p.layers) {
+      buf[o++] = GEN_ID[L.gen];
+      buf[o++] = BLEND_ID[L.blend];
+      for (const k of ["hue", "hueSpan", "hueRate", "sat", "gain"]) {
+        dv.setFloat32(o, L.p[k], true); o += 4;
+      }
+      const slots = GEN_SLOTS[L.gen];
+      for (let i = 0; i < 3; i++) {
+        dv.setFloat32(o, i < slots.length ? L.p[slots[i]] : 0, true); o += 4;
+      }
+    }
+  }
+  return buf;
+}
+
+function programFits() {
+  const over = [];
+  if (S.program.length > DEV.MAX_PATTERNS)
+    over.push(`${S.program.length} steps, board holds ${DEV.MAX_PATTERNS}`);
+  const deep = S.program.filter(p => p.layers.filter(L => L.on).length > DEV.MAX_LAYERS).length;
+  if (deep) over.push(`${deep} step(s) over ${DEV.MAX_LAYERS} layers`);
+  return over;
+}
+
+const SER = { port:null, writer:null, reader:null, on:false, live:true,
+              fps:0, ma:0, boardIdx:0, sentStep:-1, pending:null, buf:[] };
+
+function serialSupported() { return typeof navigator !== "undefined" && "serial" in navigator; }
+
+async function serialWrite(type, payload) {
+  if (!SER.writer) return;
+  try { await SER.writer.write(buildFrame(type, payload)); }
+  catch (e) { toast("Write failed — board disconnected?"); await serialDisconnect(); }
+}
+
+async function pushAll() {
+  await serialWrite(MSG.PROGRAM, encodeProgram());
+  await serialWrite(MSG.GLOBAL, new Uint8Array([Math.round(S.bright * 255)]));
+  if (S.step !== SER.sentStep) {
+    SER.sentStep = S.step;
+    await serialWrite(MSG.SELECT, new Uint8Array([Math.min(S.step, DEV.MAX_PATTERNS - 1)]));
+  }
+}
+
+function schedulePush() {
+  if (!SER.on || !SER.live) return;
+  clearTimeout(SER.pending);
+  SER.pending = setTimeout(pushAll, 60);
+}
+
+function parseRx(chunk) {
+  for (const b of chunk) SER.buf.push(b);
+  for (;;) {
+    while (SER.buf.length >= 2 && !(SER.buf[0] === 0xA5 && SER.buf[1] === 0x5A)) SER.buf.shift();
+    if (SER.buf.length < 5) return;
+    const len = SER.buf[3] | (SER.buf[4] << 8);
+    if (SER.buf.length < 7 + len) return;
+    const frame = SER.buf.slice(0, 7 + len);
+    SER.buf = SER.buf.slice(7 + len);
+    const type = frame[2];
+    const body = frame.slice(5, 5 + len);
+    const want = frame[5 + len] | (frame[6 + len] << 8);
+    if (crc16(frame.slice(2, 5 + len)) !== want) continue;
+    if (type === MSG.HELLO) {
+      DEV.MAX_PATTERNS = body[2]; DEV.MAX_LAYERS = body[3];
+      toast(`Board v${body[0]}, ${body[1]} px`);
+    } else if (type === MSG.STATS) {
+      SER.fps = body[0] | (body[1] << 8);
+      SER.ma = (body[2] | (body[3] << 8)) / 10;
+      SER.boardIdx = body[4];
+    } else if (type === MSG.NACK) {
+      toast(`Board rejected 0x${body[0].toString(16)} (reason ${body[1]})`);
+    }
+    updateSerialUI();
+  }
+}
+
+async function readLoop() {
+  try {
+    SER.reader = SER.port.readable.getReader();
+    for (;;) {
+      const { value, done } = await SER.reader.read();
+      if (done) break;
+      if (value) parseRx(value);
+    }
+  } catch (e) { /* closed */ }
+}
+
+async function serialConnect() {
+  if (!serialSupported()) { toast("This browser has no Web Serial"); return; }
+  try {
+    SER.port = await navigator.serial.requestPort();
+    await SER.port.open({ baudRate: 115200 });   // never 1200 — that resets to bootloader
+    SER.writer = SER.port.writable.getWriter();
+    SER.on = true;
+    SER.sentStep = -1;
+    SER.buf = [];
+    readLoop();
+    await serialWrite(MSG.PING, new Uint8Array(0));
+    await pushAll();
+  } catch (e) {
+    SER.on = false;
+    if (e && e.name !== "NotFoundError") toast("Connect failed: " + e.message);
+  }
+  updateSerialUI();
+}
+
+async function serialDisconnect() {
+  SER.on = false;
+  clearTimeout(SER.pending);
+  try { if (SER.reader) await SER.reader.cancel(); } catch (e) {}
+  try { if (SER.writer) SER.writer.releaseLock(); } catch (e) {}
+  try { if (SER.port) await SER.port.close(); } catch (e) {}
+  SER.reader = SER.writer = SER.port = null;
+  SER.fps = 0;
+  updateSerialUI();
+}
+
+function updateSerialUI() {
+  const st = $("serialState"), hint = $("serialHint"), btn = $("connectBtn");
+  if (!st) return;
+  btn.textContent = SER.on ? "Disconnect" : "Connect board";
+  btn.className = SER.on ? "btn" : "btn gold";
+  $("pushBtn").disabled = !SER.on;
+  $("liveBtn").disabled = !SER.on;
+
+  if (!serialSupported()) {
+    st.textContent = "unavailable";
+    hint.innerHTML = `Web Serial needs Chrome or Edge, on <code>https://</code> or <code>localhost</code>. Everything else on this page works regardless.`;
+    btn.disabled = true;
+    return;
+  }
+  if (!SER.on) {
+    st.textContent = "offline";
+    hint.innerHTML = `Flash <code>hoop_live.ino</code> once, then connect to tune at frame rate. Export the generated sketch when you're happy with it.`;
+    return;
+  }
+  const over = programFits();
+  st.textContent = SER.fps ? `${SER.fps} fps` : "linked";
+  hint.innerHTML = over.length
+    ? `<span style="color:var(--flare)">Truncated to fit: ${over.join("; ")}.</span>`
+    : `Step ${SER.boardIdx + 1} on the board, drawing ${SER.ma.toFixed(1)} mA against ${maEMA.toFixed(1)} predicted here.`;
 }
 
 /* ------------------------------------------------------------
@@ -1464,6 +1689,12 @@ document.querySelectorAll(".seg [data-fmt]").forEach(b => {
     renderExport();
   };
 });
+$("connectBtn").onclick = () => (SER.on ? serialDisconnect() : serialConnect());
+$("pushBtn").onclick = () => { if (SER.on) pushAll(); };
+$("liveBtn").onclick = e => {
+  SER.live = !SER.live;
+  e.currentTarget.setAttribute("aria-pressed", String(SER.live));
+};
 $("copyBtn").onclick = async () => {
   try { await navigator.clipboard.writeText(currentText(false)); toast("Copied"); }
   catch { toast("Copy blocked — select the text instead"); }
@@ -1495,6 +1726,7 @@ $("bright").value = S.bright;
 $("brightV").textContent = S.bright.toFixed(2);
 
 sizeCanvas();
+updateSerialUI();
 refresh();
 requestAnimationFrame(tick);
 </script>
