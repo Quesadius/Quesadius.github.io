@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoop Pattern Bench — Gemma M0 + 16px NeoPixel ring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --velvet:#171320;
+  --velvet-2:#100d17;
+  --panel:#1e1927;
+  --panel-2:#251f30;
+  --edge:#372f45;
+  --edge-soft:#2a2435;
+  --bone:#e9e3d8;
+  --muted:#9b90a8;
+  --brass:#d4a83c;
+  --brass-dim:#8a6f28;
+  --flare:#e2604f;
+  --serif:"Bodoni Moda","Didot","Bodoni MT",Georgia,serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(120% 90% at 50% -10%, #221a2e 0%, var(--velvet) 45%, var(--velvet-2) 100%) fixed;
+  color:var(--bone);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:2px}
+
+/* ---------- header ---------- */
+header{
+  display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+  padding:20px 26px 14px;
+  border-bottom:1px solid var(--edge-soft);
+}
+.wordmark{font-family:var(--serif);font-size:26px;font-weight:600;letter-spacing:.01em;line-height:1}
+.eyebrow{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--brass);
+}
+.spec{
+  margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted);
+  letter-spacing:.04em;
+}
+.spec b{color:var(--bone);font-weight:500}
+
+/* ---------- layout ---------- */
+main{
+  display:grid;
+  grid-template-columns:minmax(360px,460px) minmax(340px,1fr);
+  gap:0;
+  align-items:start;
+}
+.stage{
+  padding:26px;
+  position:sticky;top:0;
+  display:flex;flex-direction:column;align-items:center;gap:16px;
+}
+.editor{
+  padding:26px 26px 60px;
+  border-left:1px solid var(--edge-soft);
+  min-width:0;
+}
+@media (max-width:900px){
+  main{grid-template-columns:1fr}
+  .stage{position:static;padding-bottom:6px}
+  .editor{border-left:none;border-top:1px solid var(--edge-soft);padding-top:20px}
+}
+
+/* ---------- ring ---------- */
+#ring{width:100%;max-width:400px;height:auto;display:block;touch-action:manipulation}
+.transport{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+.btn{
+  background:var(--panel);border:1px solid var(--edge);color:var(--bone);
+  padding:7px 13px;border-radius:2px;cursor:pointer;
+  font-size:12.5px;letter-spacing:.02em;
+  transition:border-color .12s,background .12s;
+}
+.btn:hover{border-color:var(--brass-dim);background:var(--panel-2)}
+.btn[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+.btn.gold{border-color:var(--brass);color:var(--brass)}
+.btn.gold:hover{background:rgba(212,168,60,.10)}
+.btn.icon{padding:7px 10px;font-family:var(--mono)}
+.btn:disabled{opacity:.4;cursor:default}
+
+.legend{
+  font-family:var(--mono);font-size:10.5px;color:var(--muted);
+  letter-spacing:.06em;text-align:center;max-width:380px;
+}
+.legend .warn{color:var(--flare)}
+
+/* ---------- sections ---------- */
+section{margin-bottom:26px}
+h2{
+  font-family:var(--mono);font-size:10.5px;font-weight:500;
+  letter-spacing:.22em;text-transform:uppercase;color:var(--muted);
+  margin:0 0 10px;display:flex;align-items:center;gap:10px;
+}
+h2::after{content:"";flex:1;height:1px;background:var(--edge-soft)}
+h2 .count{color:var(--brass);letter-spacing:.1em}
+
+/* ---------- program strip ---------- */
+.program{display:flex;gap:6px;flex-wrap:wrap;align-items:stretch}
+.step{
+  display:flex;flex-direction:column;gap:3px;
+  background:var(--panel);border:1px solid var(--edge);border-radius:2px;
+  padding:8px 10px;cursor:pointer;min-width:106px;text-align:left;
+  transition:border-color .12s;
+}
+.step:hover{border-color:var(--brass-dim)}
+.step[aria-current="true"]{border-color:var(--brass);background:var(--panel-2)}
+.step .nm{font-size:12.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+.step .dur{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.06em}
+.step[aria-current="true"] .dur{color:var(--brass)}
+.addstep{
+  border:1px dashed var(--edge);background:none;color:var(--muted);
+  border-radius:2px;padding:8px 12px;cursor:pointer;font-size:12.5px;
+}
+.addstep:hover{border-color:var(--brass-dim);color:var(--bone)}
+
+/* ---------- layers ---------- */
+.layer{
+  display:flex;align-items:center;gap:8px;
+  background:var(--panel);border:1px solid var(--edge);border-radius:2px;
+  padding:7px 9px;margin-bottom:5px;cursor:pointer;
+}
+.layer[aria-current="true"]{border-color:var(--brass);background:var(--panel-2)}
+.layer .sw{width:12px;height:12px;border-radius:1px;flex:0 0 auto;box-shadow:0 0 7px currentColor}
+.layer .gn{font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer .bl{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.layer .x{
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  font-family:var(--mono);font-size:13px;padding:0 3px;line-height:1;
+}
+.layer .x:hover{color:var(--flare)}
+.layer.off .gn,.layer.off .bl{opacity:.4}
+.layer .eye{background:none;border:none;color:var(--muted);cursor:pointer;font-family:var(--mono);font-size:11px;padding:0 2px}
+.layer .eye:hover{color:var(--bone)}
+
+/* ---------- params ---------- */
+.params{background:var(--panel);border:1px solid var(--edge-soft);border-radius:2px;padding:14px 15px}
+.prow{display:grid;grid-template-columns:88px 1fr 54px;gap:10px;align-items:center;margin-bottom:9px}
+.prow:last-child{margin-bottom:0}
+.prow label{font-size:12.5px;color:var(--muted)}
+.prow .val{font-family:var(--mono);font-size:11.5px;text-align:right;color:var(--bone)}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:18px;background:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--edge)}
+input[type=range]::-moz-range-track{height:1px;background:var(--edge)}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:11px;height:11px;border-radius:50%;
+  background:var(--brass);margin-top:-5px;border:none;
+}
+input[type=range]::-moz-range-thumb{
+  width:11px;height:11px;border-radius:50%;background:var(--brass);border:none;
+}
+.hueband{height:6px;border-radius:1px;margin:-4px 0 8px;grid-column:2/3}
+select,input[type=text],input[type=number]{
+  background:var(--panel-2);border:1px solid var(--edge);border-radius:2px;
+  padding:5px 7px;font-size:12.5px;width:100%;
+}
+.seg{display:flex;gap:0;border:1px solid var(--edge);border-radius:2px;overflow:hidden}
+.seg button{
+  flex:1;background:none;border:none;padding:5px 0;cursor:pointer;
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+}
+.seg button+button{border-left:1px solid var(--edge)}
+.seg button[aria-pressed="true"]{background:var(--brass);color:#241a05}
+
+/* ---------- export ---------- */
+.exportbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+pre{
+  background:var(--velvet-2);border:1px solid var(--edge-soft);border-radius:2px;
+  padding:13px 15px;margin:0;overflow:auto;max-height:340px;
+  font-family:var(--mono);font-size:11.5px;line-height:1.6;color:#cfc6d8;
+  white-space:pre;
+}
+pre .cm{color:#6f6483}
+.hint{font-size:12.5px;color:var(--muted);margin:9px 0 0}
+.hint code{font-family:var(--mono);font-size:11.5px;color:var(--brass);background:rgba(212,168,60,.09);padding:1px 4px;border-radius:2px}
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(14px);
+  background:var(--brass);color:#241a05;padding:8px 16px;border-radius:2px;
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="wordmark">Hoop</span>
+  <span class="eyebrow">Pattern bench</span>
+  <span class="spec">ring <b>16&nbsp;px</b> · data <b>D0</b> · cell <b>150&nbsp;mAh</b> · <b>Gemma&nbsp;M0</b></span>
+</header>
+
+<main>
+  <div class="stage">
+    <canvas id="ring" width="800" height="800" aria-label="Simulated 16-pixel NeoPixel ring"></canvas>
+    <div class="transport">
+      <button class="btn icon" id="playBtn" aria-pressed="true" title="Play / pause">❚❚</button>
+      <button class="btn" id="runBtn" aria-pressed="false" title="Cycle through the whole program">Run program</button>
+      <button class="btn" id="mirrorBtn" aria-pressed="false" title="Preview the mirrored right-ear build">Mirror</button>
+    </div>
+    <p class="legend" id="legend">Pixel 0 sits at the top, indices climb clockwise. The outer arc is average current draw.</p>
+  </div>
+
+  <div class="editor">
+
+    <section>
+      <h2>Program <span class="count" id="progCount"></span></h2>
+      <div class="program" id="program"></div>
+      <div style="display:flex;gap:8px;margin-top:9px;align-items:center;flex-wrap:wrap">
+        <select id="presetSel" style="width:auto;min-width:180px"></select>
+        <button class="btn" id="addPreset">Add to program</button>
+        <button class="btn" id="delStep">Remove step</button>
+      </div>
+      <div class="prow" style="margin-top:12px;grid-template-columns:88px 1fr 54px">
+        <label for="stepDur">Hold for</label>
+        <input type="range" id="stepDur" min="1" max="60" step="1">
+        <span class="val" id="stepDurV"></span>
+      </div>
+      <div class="prow" style="grid-template-columns:88px 1fr">
+        <label for="stepName">Name</label>
+        <input type="text" id="stepName" maxlength="28">
+      </div>
+    </section>
+
+    <section>
+      <h2>Layers <span class="count" id="layerCount"></span></h2>
+      <div id="layers"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+        <select id="genSel" style="width:auto;min-width:170px"></select>
+        <button class="btn" id="addLayer">Add layer</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Parameters</h2>
+      <div class="params" id="params"></div>
+    </section>
+
+    <section>
+      <h2>Global</h2>
+      <div class="params">
+        <div class="prow">
+          <label for="bright">Brightness</label>
+          <input type="range" id="bright" min="0.02" max="1" step="0.01">
+          <span class="val" id="brightV"></span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Export</h2>
+      <div class="exportbar">
+        <div class="seg" style="width:270px">
+          <button data-fmt="py" aria-pressed="true">code.py</button>
+          <button data-fmt="ino" aria-pressed="false">hoop.ino</button>
+          <button data-fmt="json" aria-pressed="false">spec.json</button>
+        </div>
+        <button class="btn gold" id="copyBtn">Copy</button>
+        <button class="btn" id="dlBtn">Download</button>
+        <button class="btn" id="dlRight" title="Same program, reversed pixel order and offset in time">Download right-ear build</button>
+      </div>
+      <pre id="out"></pre>
+      <p class="hint" id="hint"></p>
+    </section>
+
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Hoop Pattern Bench
+   16-pixel NeoPixel ring on a Gemma M0 (SAMD21), data on D0.
+
+   Model: a pattern is a stack of layers. A layer is
+     intensity(pixel, time) -> 0..1     [the generator]
+     hue(pixel, time)       -> 0..1     [hue0 + u*span + t*rate + jitter]
+   composited with a blend op. Deterministic LCG so the
+   simulator and the generated Python produce identical noise.
+   ============================================================ */
+
+const N = 16;
+const TAU = Math.PI * 2;
+const CELL_MAH = 150;      // the lipo in the guide
+const MA_PER_CH = 20;      // one NeoPixel channel at full duty
+const MA_IDLE_PX = 0.7;    // pixel driver quiescent
+const MA_BOARD = 9;        // Gemma M0
+
+const clamp01 = x => x < 0 ? 0 : (x > 1 ? 1 : x);
+const frac = x => x - Math.floor(x);
+const ringd = a => { a = frac(a); return a > 0.5 ? 1 - a : a; };
+
+function hsv2rgb(h, s, v, out) {
+  h = frac(h) * 6;
+  const i = Math.floor(h), f = h - i;
+  const p = v * (1 - s), q = v * (1 - s * f), u = v * (1 - s * (1 - f));
+  switch (i % 6) {
+    case 0: out[0]=v; out[1]=u; out[2]=p; break;
+    case 1: out[0]=q; out[1]=v; out[2]=p; break;
+    case 2: out[0]=p; out[1]=v; out[2]=u; break;
+    case 3: out[0]=p; out[1]=q; out[2]=v; break;
+    case 4: out[0]=u; out[1]=p; out[2]=v; break;
+    default: out[0]=v; out[1]=p; out[2]=q;
+  }
+  return out;
+}
+
+/* deterministic LCG — mirrored exactly in the exported Python */
+let rngState = 12345 >>> 0;
+function rnd() {
+  rngState = (Math.imul(rngState, 1664525) + 1013904223) >>> 0;
+  return rngState / 4294967296;
+}
+
+/* ------------------------------------------------------------
+   Generators
+   pre()  runs once per frame (stateful buffers, uniform values)
+   at(i)  returns intensity; may write HOFF for a hue offset
+   ------------------------------------------------------------ */
+let HOFF = 0;
+let UNIFORM = 0;
+
+const GEN = {
+  solid: {
+    label: "Solid wash",
+    params: [],
+    pre() { UNIFORM = 1; },
+    at() { HOFF = 0; return UNIFORM; }
+  },
+  spin: {
+    label: "Spinner",
+    params: [
+      { k:"speed", label:"Turns / s",  min:-3,   max:3,  step:0.05, def:0.5 },
+      { k:"arms",  label:"Spokes",     min:1,    max:8,  step:1,    def:2   },
+      { k:"duty",  label:"Arc width",  min:0.05, max:1,  step:0.01, def:0.25 }
+    ],
+    pre() {},
+    at(i, u, t, p) { HOFF = 0; return frac((u + t * p.speed) * p.arms) < p.duty ? 1 : 0; }
+  },
+  comet: {
+    label: "Comet",
+    params: [
+      { k:"speed", label:"Turns / s", min:-3,  max:3, step:0.05, def:0.7 },
+      { k:"heads", label:"Heads",     min:1,   max:4, step:1,    def:1   },
+      { k:"tail",  label:"Tail (px)", min:0.4, max:9, step:0.1,  def:3   }
+    ],
+    pre() {},
+    at(i, u, t, p) {
+      HOFF = 0;
+      let v = 0;
+      for (let j = 0; j < p.heads; j++) {
+        const d = ringd(u - t * p.speed - j / p.heads);
+        const e = Math.exp(-d * N / p.tail);
+        if (e > v) v = e;
+      }
+      return v;
+    }
+  },
+  wave: {
+    label: "Standing wave",
+    params: [
+      { k:"speed",  label:"Turns / s", min:-3, max:3, step:0.05, def:0.25 },
+      { k:"cycles", label:"Lobes",     min:1,  max:6, step:1,    def:2    },
+      { k:"floor",  label:"Floor",     min:0,  max:1, step:0.01, def:0    }
+    ],
+    pre() {},
+    at(i, u, t, p) {
+      HOFF = 0;
+      const s = 0.5 + 0.5 * Math.sin(TAU * (u * p.cycles - t * p.speed));
+      return p.floor + (1 - p.floor) * s;
+    }
+  },
+  breathe: {
+    label: "Breathe",
+    params: [
+      { k:"rate",  label:"Breaths / s", min:0.05, max:3, step:0.01, def:0.3 },
+      { k:"floor", label:"Floor",       min:0,    max:1, step:0.01, def:0.05 }
+    ],
+    pre(st, t, dt, p) {
+      UNIFORM = p.floor + (1 - p.floor) * (0.5 + 0.5 * Math.sin(TAU * t * p.rate));
+    },
+    at() { HOFF = 0; return UNIFORM; }
+  },
+  sparkle: {
+    label: "Sparkle",
+    stateful: true,
+    params: [
+      { k:"rate",   label:"Hits / s",  min:1, max:90, step:1,    def:40 },
+      { k:"decay",  label:"Decay / s", min:1, max:40, step:0.5,  def:14 },
+      { k:"hueJit", label:"Hue spread",min:0, max:0.5,step:0.01, def:0  }
+    ],
+    pre(st, t, dt, p) {
+      const k = Math.exp(-dt * p.decay);
+      for (let i = 0; i < N; i++) st.b[i] *= k;
+      st.acc += dt * p.rate;
+      let guard = 0;
+      while (st.acc >= 1 && guard++ < 200) {
+        st.acc -= 1;
+        const q = (rnd() * N) | 0;
+        st.b[q] = 1;
+        if (p.hueJit > 0) st.h[q] = (rnd() - 0.5) * p.hueJit;
+      }
+    },
+    at(i, u, t, p, st) { HOFF = st.h[i]; return st.b[i]; }
+  },
+  ember: {
+    label: "Ember",
+    stateful: true,
+    params: [
+      { k:"rate",   label:"Flicker / s", min:0.5, max:16,  step:0.1,  def:5    },
+      { k:"hueJit", label:"Hue spread",  min:0,   max:0.3, step:0.005,def:0.05 }
+    ],
+    pre(st, t, dt, p) {
+      const k = Math.exp(-dt * p.rate);
+      for (let i = 0; i < N; i++) {
+        st.b[i] = st.b[i] * k + rnd() * (1 - k);
+        if (p.hueJit > 0) st.h[i] = st.h[i] * k + (rnd() - 0.5) * 2 * p.hueJit * (1 - k);
+      }
+    },
+    at(i, u, t, p, st) { HOFF = st.h[i]; const v = st.b[i]; return v * v; }
+  },
+  strobe: {
+    label: "Strobe",
+    params: [
+      { k:"rate", label:"Flashes / s", min:0.3,  max:14, step:0.1,  def:2    },
+      { k:"duty", label:"On fraction", min:0.02, max:0.9,step:0.01, def:0.12 }
+    ],
+    pre(st, t, dt, p) { UNIFORM = frac(t * p.rate) < p.duty ? 1 : 0; },
+    at() { HOFF = 0; return UNIFORM; }
+  }
+};
+
+const COLOR_PARAMS = [
+  { k:"hue",     label:"Hue",       min:0,  max:1, step:0.005, def:0.55, band:true },
+  { k:"hueSpan", label:"Hue / turn",min:-2, max:2, step:0.01,  def:0    },
+  { k:"hueRate", label:"Hue / s",   min:-1, max:1, step:0.005, def:0    },
+  { k:"sat",     label:"Saturation",min:0,  max:1, step:0.01,  def:1    },
+  { k:"gain",    label:"Gain",      min:0,  max:1, step:0.01,  def:1    }
+];
+const BLENDS = ["add", "max", "over", "set"];
+
+function newLayer(gen) {
+  const L = { gen, blend:"add", on:true, p:{} };
+  for (const d of COLOR_PARAMS) L.p[d.k] = d.def;
+  for (const d of GEN[gen].params) L.p[d.k] = d.def;
+  return L;
+}
+
+/* ------------------------------------------------------------
+   Presets
+   ------------------------------------------------------------ */
+function mk(gen, over) { const L = newLayer(gen); Object.assign(L.p, over || {}); return L; }
+
+const PRESETS = [
+  { name:"Comet", dur:8, layers:[ mk("comet",{speed:0.7,tail:3,hue:0.52,hueRate:0.04}) ] },
+  { name:"Twin comets", dur:8, layers:[
+      mk("comet",{speed:0.55,heads:2,tail:2.4,hue:0.86,hueSpan:0.5,hueRate:0.03}) ] },
+  { name:"Two-arm spinner", dur:8, layers:[ mk("spin",{speed:0.6,arms:2,duty:0.25,hue:0.1,hueRate:0.05}) ] },
+  { name:"Sparkle", dur:8, layers:[ mk("sparkle",{rate:45,decay:16,hue:0.75,hueRate:0.03}) ] },
+  { name:"Firefly", dur:10, layers:[ mk("sparkle",{rate:4,decay:2.2,hueJit:0.06,hue:0.16,sat:0.85,gain:0.7}) ] },
+  { name:"Ember", dur:10, layers:[ mk("ember",{rate:4,hueJit:0.04,hue:0.045,sat:1,gain:0.75}) ] },
+  { name:"Aurora", dur:12, layers:[
+      mk("wave",{speed:0.11,cycles:1,hue:0.42,hueSpan:0.14,gain:0.42,floor:0}),
+      mk("wave",{speed:-0.17,cycles:2,hue:0.72,hueSpan:0.1,gain:0.34,floor:0,blend:"add"}) ] },
+  { name:"Breathing halo", dur:10, layers:[ mk("breathe",{rate:0.22,floor:0.03,hue:0.88,gain:0.5}) ] },
+  { name:"Scanner", dur:8, layers:[
+      mk("wave",{speed:0,cycles:1,hue:0.0,gain:0.06,floor:0.4}),
+      mk("comet",{speed:1.1,tail:2,hue:0.0,sat:1,gain:1}) ] },
+  { name:"Rainbow crawl", dur:8, layers:[ mk("solid",{hueSpan:1,hueRate:0.12,gain:0.3}) ] },
+  { name:"Beacon", dur:6, layers:[ mk("strobe",{rate:1.2,duty:0.08,hue:0.0,gain:1}) ] }
+];
+PRESETS[6].layers[1].blend = "add";
+
+/* ------------------------------------------------------------
+   State
+   ------------------------------------------------------------ */
+const S = {
+  program: [clone(PRESETS[0]), clone(PRESETS[3])],
+  step: 0,
+  layer: 0,
+  bright: 0.35,
+  playing: true,
+  runProgram: false,
+  mirror: false,
+  fmt: "py"
+};
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+/* per-layer runtime state, keyed by object identity */
+const stateMap = new WeakMap();
+function stateFor(L) {
+  let st = stateMap.get(L);
+  if (!st) { st = { b:new Float32Array(N), h:new Float32Array(N), acc:0 }; stateMap.set(L, st); }
+  return st;
+}
+
+/* ------------------------------------------------------------
+   Render one frame of a pattern into byte arrays
+   ------------------------------------------------------------ */
+const accR = new Float32Array(N), accG = new Float32Array(N), accB = new Float32Array(N);
+const bytes = new Uint8Array(N * 3);
+const tmp = [0, 0, 0];
+
+function renderPattern(pat, t, dt, mirror) {
+  accR.fill(0); accG.fill(0); accB.fill(0);
+  for (const L of pat.layers) {
+    if (!L.on) continue;
+    const g = GEN[L.gen], p = L.p, st = stateFor(L);
+    g.pre(st, t, dt, p);
+    for (let i = 0; i < N; i++) {
+      const src = mirror ? (N - i) % N : i;
+      const u = src / N;
+      let v = g.at(i, u, t, p, st) * p.gain;
+      if (v < 0.001 && L.blend !== "set") continue;
+      v = clamp01(v);
+      const h = p.hue + u * p.hueSpan + t * p.hueRate + HOFF;
+      hsv2rgb(h, p.sat, v, tmp);
+      const r = tmp[0], gg = tmp[1], b = tmp[2];
+      switch (L.blend) {
+        case "add": accR[i]+=r; accG[i]+=gg; accB[i]+=b; break;
+        case "max": if(r>accR[i])accR[i]=r; if(gg>accG[i])accG[i]=gg; if(b>accB[i])accB[i]=b; break;
+        case "over": { const a=v; accR[i]=accR[i]*(1-a)+r; accG[i]=accG[i]*(1-a)+gg; accB[i]=accB[i]*(1-a)+b; break; }
+        default: accR[i]=r; accG[i]=gg; accB[i]=b;
+      }
+    }
+  }
+  for (let i = 0; i < N; i++) {
+    bytes[i*3]   = Math.min(255, (clamp01(accR[i]) * S.bright * 255 + 0.5) | 0);
+    bytes[i*3+1] = Math.min(255, (clamp01(accG[i]) * S.bright * 255 + 0.5) | 0);
+    bytes[i*3+2] = Math.min(255, (clamp01(accB[i]) * S.bright * 255 + 0.5) | 0);
+  }
+  return bytes;
+}
+
+/* current draw from the byte values actually sent to the strip */
+function currentMA(b) {
+  let ma = MA_BOARD;
+  for (let i = 0; i < N * 3; i++) ma += (b[i] / 255) * MA_PER_CH;
+  return ma + N * MA_IDLE_PX;
+}
+
+/* ------------------------------------------------------------
+   Canvas
+   ------------------------------------------------------------ */
+const cv = document.getElementById("ring");
+const ctx = cv.getContext("2d");
+let cssSize = 400;
+
+function sizeCanvas() {
+  const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  cv.style.width = ""; cv.style.height = "";     // let CSS size it, then measure
+  cssSize = Math.max(220, Math.min(400, cv.clientWidth || 400));
+  cv.style.width = cssSize + "px";
+  cv.style.height = cssSize + "px";
+  cv.width = Math.round(cssSize * dpr);
+  cv.height = Math.round(cssSize * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", sizeCanvas);
+
+function drawRing(b, maAvg) {
+  const W = cssSize, C = W / 2;
+  const R = W * 0.315;          // pixel ring radius
+  const pxs = W * 0.048;        // LED package size
+  ctx.clearRect(0, 0, W, W);
+
+  /* PCB */
+  ctx.beginPath();
+  ctx.arc(C, C, R + pxs * 0.95, 0, TAU);
+  ctx.arc(C, C, R - pxs * 0.95, 0, TAU, true);
+  ctx.fillStyle = "#100d16";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(212,168,60,.13)";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(C, C, R + pxs * 0.95, 0, TAU); ctx.stroke();
+  ctx.beginPath(); ctx.arc(C, C, R - pxs * 0.95, 0, TAU); ctx.stroke();
+
+  /* bezel ticks + indices */
+  ctx.font = `500 ${Math.round(W*0.026)}px "IBM Plex Mono", monospace`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (let i = 0; i < N; i++) {
+    const a = -Math.PI / 2 + i * TAU / N;
+    const rt = R + pxs * 1.55;
+    const major = i % 4 === 0;
+    ctx.strokeStyle = major ? "rgba(212,168,60,.5)" : "rgba(155,144,168,.28)";
+    ctx.lineWidth = major ? 1.2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(C + Math.cos(a) * rt, C + Math.sin(a) * rt);
+    ctx.lineTo(C + Math.cos(a) * (rt + (major ? W*0.022 : W*0.012)), C + Math.sin(a) * (rt + (major ? W*0.022 : W*0.012)));
+    ctx.stroke();
+    if (major) {
+      const rl = rt + W * 0.048;
+      ctx.fillStyle = "rgba(212,168,60,.62)";
+      ctx.fillText(String(i), C + Math.cos(a) * rl, C + Math.sin(a) * rl);
+    }
+  }
+
+  /* LEDs: dark package, then additive bloom */
+  for (let i = 0; i < N; i++) {
+    const a = -Math.PI / 2 + i * TAU / N;
+    const x = C + Math.cos(a) * R, y = C + Math.sin(a) * R;
+    ctx.fillStyle = "#1c1826";
+    ctx.fillRect(x - pxs/2, y - pxs/2, pxs, pxs);
+    ctx.strokeStyle = "rgba(255,255,255,.06)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - pxs/2, y - pxs/2, pxs, pxs);
+  }
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < N; i++) {
+    const a = -Math.PI / 2 + i * TAU / N;
+    const x = C + Math.cos(a) * R, y = C + Math.sin(a) * R;
+    /* LED duty is ~linear in emitted light; encode to sRGB for the screen */
+    const r = Math.pow(b[i*3]/255,   1/2.2) * 255;
+    const g = Math.pow(b[i*3+1]/255, 1/2.2) * 255;
+    const bl= Math.pow(b[i*3+2]/255, 1/2.2) * 255;
+    const lum = (b[i*3] + b[i*3+1] + b[i*3+2]) / 765;
+    if (lum < 0.002) continue;
+    const col = `rgb(${r|0},${g|0},${bl|0})`;
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, pxs * (1.4 + 4.2 * Math.sqrt(lum)));
+    gr.addColorStop(0, col);
+    gr.addColorStop(0.13, `rgba(${r|0},${g|0},${bl|0},0.72)`);
+    gr.addColorStop(1, `rgba(${r|0},${g|0},${bl|0},0)`);
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.arc(x, y, pxs * (1.4 + 4.2 * Math.sqrt(lum)), 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = col;
+    ctx.fillRect(x - pxs*0.36, y - pxs*0.36, pxs*0.72, pxs*0.72);
+  }
+  ctx.globalCompositeOperation = "source-over";
+
+  /* power arc — sqrt scale so small draws are still legible */
+  const rp = R + pxs * 2.9;
+  const fracP = Math.min(1, Math.sqrt(maAvg / 260));
+  ctx.lineCap = "butt";
+  ctx.lineWidth = Math.max(2, W * 0.008);
+  ctx.strokeStyle = "rgba(55,47,69,.9)";
+  ctx.beginPath(); ctx.arc(C, C, rp, 0, TAU); ctx.stroke();
+  ctx.strokeStyle = maAvg > 150 ? "#e2604f" : (maAvg > 60 ? "#d4a83c" : "#8fbf7a");
+  ctx.beginPath();
+  ctx.arc(C, C, rp, -Math.PI/2, -Math.PI/2 + TAU * fracP);
+  ctx.stroke();
+
+  /* the Gemma sits in the middle — so does its readout */
+  ctx.beginPath(); ctx.arc(C, C, W * 0.17, 0, TAU);
+  ctx.fillStyle = "#14111c"; ctx.fill();
+  ctx.strokeStyle = "rgba(212,168,60,.18)"; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#e9e3d8";
+  ctx.font = `500 ${Math.round(W*0.075)}px "IBM Plex Mono", monospace`;
+  ctx.fillText(maAvg.toFixed(0), C, C - W*0.012);
+  ctx.font = `400 ${Math.round(W*0.026)}px "IBM Plex Mono", monospace`;
+  ctx.fillStyle = "rgba(155,144,168,.9)";
+  ctx.fillText("mA average", C, C + W*0.038);
+  const hrs = CELL_MAH / maAvg;
+  const rt = hrs >= 24 ? "24 h+" : (hrs >= 1
+      ? `${Math.floor(hrs)} h ${Math.round((hrs%1)*60)} m`
+      : `${Math.round(hrs*60)} min`);
+  ctx.fillStyle = maAvg > 150 ? "#e2604f" : "rgba(212,168,60,.95)";
+  ctx.font = `500 ${Math.round(W*0.032)}px "IBM Plex Mono", monospace`;
+  ctx.fillText(rt, C, C + W*0.075);
+}
+
+/* ------------------------------------------------------------
+   Animation loop
+   ------------------------------------------------------------ */
+let last = performance.now() / 1000;
+let tPat = 0;          // time within the current pattern
+let maEMA = 20;
+let lastBucket = -1;
+
+function tick(now) {
+  requestAnimationFrame(tick);
+  now /= 1000;
+  let dt = now - last;
+  last = now;
+  if (dt > 0.1) dt = 0.1;
+  if (!S.playing) dt = 0;
+
+  tPat += dt;
+  const step = S.program[S.step];
+  if (S.runProgram && S.playing && tPat >= step.dur) {
+    tPat = 0;
+    S.step = (S.step + 1) % S.program.length;
+    S.layer = 0;
+    renderProgram(); renderLayers(); renderParams(); renderExport();
+  }
+
+  const b = renderPattern(S.program[S.step], tPat, dt, S.mirror);
+  const ma = currentMA(b);
+  const k = dt > 0 ? Math.exp(-dt / 1.2) : 1;
+  maEMA = maEMA * k + ma * (1 - k);
+  const bucket = maEMA > 150 ? 2 : (maEMA > 60 ? 1 : 0);
+  if (bucket !== lastBucket) { lastBucket = bucket; $("legend").innerHTML = legendText(); }
+  drawRing(b, maEMA);
+}
+
+/* ------------------------------------------------------------
+   UI
+   ------------------------------------------------------------ */
+const $ = id => document.getElementById(id);
+
+function renderProgram() {
+  const el = $("program");
+  el.innerHTML = "";
+  S.program.forEach((p, i) => {
+    const b = document.createElement("button");
+    b.className = "step";
+    b.setAttribute("aria-current", i === S.step ? "true" : "false");
+    b.innerHTML = `<span class="nm"></span><span class="dur"></span>`;
+    b.querySelector(".nm").textContent = p.name;
+    b.querySelector(".dur").textContent = `${p.dur}s · ${p.layers.length} layer${p.layers.length>1?"s":""}`;
+    b.onclick = () => { S.step = i; S.layer = 0; tPat = 0; refresh(); };
+    el.appendChild(b);
+  });
+  $("progCount").textContent = `${S.program.length} step${S.program.length>1?"s":""}`;
+  $("stepDur").value = S.program[S.step].dur;
+  $("stepDurV").textContent = S.program[S.step].dur + "s";
+  $("stepName").value = S.program[S.step].name;
+  $("delStep").disabled = S.program.length <= 1;
+}
+
+function renderLayers() {
+  const el = $("layers");
+  el.innerHTML = "";
+  const pat = S.program[S.step];
+  pat.layers.forEach((L, i) => {
+    const row = document.createElement("div");
+    row.className = "layer" + (L.on ? "" : " off");
+    row.setAttribute("aria-current", i === S.layer ? "true" : "false");
+    row.tabIndex = 0;
+    const c = hsv2rgb(L.p.hue, L.p.sat, 1, [0,0,0]).map(x => (x*255)|0);
+    row.innerHTML = `
+      <span class="sw" style="background:rgb(${c[0]},${c[1]},${c[2]});color:rgb(${c[0]},${c[1]},${c[2]})"></span>
+      <span class="gn"></span>
+      <span class="bl"></span>
+      <button class="eye" title="Mute layer">${L.on ? "◉" : "○"}</button>
+      <button class="x" title="Delete layer">×</button>`;
+    row.querySelector(".gn").textContent = GEN[L.gen].label;
+    row.querySelector(".bl").textContent = L.blend;
+    const pick = () => { S.layer = i; refresh(); };
+    row.onclick = pick;
+    row.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } };
+    row.querySelector(".eye").onclick = e => { e.stopPropagation(); L.on = !L.on; refresh(); };
+    row.querySelector(".x").onclick = e => {
+      e.stopPropagation();
+      if (pat.layers.length <= 1) { toast("A pattern needs at least one layer"); return; }
+      pat.layers.splice(i, 1);
+      S.layer = Math.min(S.layer, pat.layers.length - 1);
+      refresh();
+    };
+    el.appendChild(row);
+  });
+  $("layerCount").textContent = pat.layers.length;
+}
+
+function slider(host, d, obj, onChange) {
+  const row = document.createElement("div");
+  row.className = "prow";
+  const id = "p_" + d.k + "_" + Math.random().toString(36).slice(2, 7);
+  row.innerHTML = `<label for="${id}"></label>
+    <input type="range" id="${id}" min="${d.min}" max="${d.max}" step="${d.step}">
+    <span class="val"></span>`;
+  row.querySelector("label").textContent = d.label;
+  const inp = row.querySelector("input"), val = row.querySelector(".val");
+  const show = () => {
+    const v = obj[d.k];
+    val.textContent = d.step >= 1 ? String(v) : v.toFixed(d.step < 0.01 ? 3 : 2);
+  };
+  inp.value = obj[d.k];
+  show();
+  inp.oninput = () => { obj[d.k] = parseFloat(inp.value); show(); onChange(); };
+  host.appendChild(row);
+  if (d.band) {
+    const band = document.createElement("div");
+    band.className = "hueband";
+    let stops = [];
+    for (let i = 0; i <= 12; i++) {
+      const c = hsv2rgb(i/12, 1, 1, [0,0,0]).map(x => (x*255)|0);
+      stops.push(`rgb(${c[0]},${c[1]},${c[2]}) ${(i/12*100).toFixed(0)}%`);
+    }
+    band.style.background = `linear-gradient(90deg, ${stops.join(",")})`;
+    const wrap = document.createElement("div");
+    wrap.className = "prow";
+    wrap.style.marginTop = "-6px";
+    wrap.appendChild(document.createElement("span"));
+    wrap.appendChild(band);
+    wrap.appendChild(document.createElement("span"));
+    host.appendChild(wrap);
+  }
+}
+
+function renderParams() {
+  const host = $("params");
+  host.innerHTML = "";
+  const pat = S.program[S.step];
+  const L = pat.layers[S.layer];
+  if (!L) return;
+
+  const blendRow = document.createElement("div");
+  blendRow.className = "prow";
+  blendRow.innerHTML = `<label>Blend</label><div class="seg"></div><span></span>`;
+  const seg = blendRow.querySelector(".seg");
+  BLENDS.forEach(bn => {
+    const bt = document.createElement("button");
+    bt.textContent = bn;
+    bt.setAttribute("aria-pressed", L.blend === bn ? "true" : "false");
+    bt.onclick = () => { L.blend = bn; refresh(); };
+    seg.appendChild(bt);
+  });
+  host.appendChild(blendRow);
+
+  const onChange = () => { renderLayers(); renderExport(); };
+  for (const d of GEN[L.gen].params) slider(host, d, L.p, onChange);
+  const rule = document.createElement("div");
+  rule.style.cssText = "height:1px;background:var(--edge-soft);margin:12px 0 11px";
+  host.appendChild(rule);
+  for (const d of COLOR_PARAMS) slider(host, d, L.p, onChange);
+}
+
+function refresh() { renderProgram(); renderLayers(); renderParams(); renderExport(); }
+
+/* ------------------------------------------------------------
+   Code generation
+   ------------------------------------------------------------ */
+const f = (x, n = 9) => {
+  let s = Number(x).toFixed(n);
+  if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, ".0");
+  return s;
+};
+const fi = x => String(Math.round(x));
+
+function pyHeader(used, mirror) {
+  const L = [];
+  L.push(`# Gemma M0 + 16-pixel NeoPixel ring on D0.`);
+  L.push(`# Generated by Hoop Pattern Bench. Drop this on CIRCUITPY as code.py.`);
+  L.push(`# Needs lib/neopixel.mpy (factory-installed).`);
+  L.push(mirror ? `# BUILD: right ear (reversed pixel order, offset in time)` : `# BUILD: left ear`);
+  L.push(``);
+  L.push(`import time`);
+  L.push(`import math`);
+  L.push(`import board`);
+  L.push(`import neopixel`);
+  L.push(``);
+  L.push(`N = 16`);
+  L.push(`BRIGHT = ${f(S.bright, 3)}`);
+  L.push(`FPS_CAP = 50`);
+  L.push(`pix = neopixel.NeoPixel(board.D0, N, brightness=BRIGHT, auto_write=False)`);
+  L.push(``);
+  L.push(`# position of each pixel around the ring, in turns`);
+  if (mirror) L.push(`_U = [((N - i) % N) * (1.0 / N) for i in range(N)]`);
+  else        L.push(`_U = [i * (1.0 / N) for i in range(N)]`);
+  L.push(`_R = [0.0] * N`);
+  L.push(`_G = [0.0] * N`);
+  L.push(`_B = [0.0] * N`);
+  L.push(``);
+  L.push(`def _frac(x):`);
+  L.push(`    return x - math.floor(x)`);
+  L.push(``);
+  if (used.has("comet")) {
+    L.push(`def _ringd(a):`);
+    L.push(`    a = _frac(a)`);
+    L.push(`    return 1.0 - a if a > 0.5 else a`);
+    L.push(``);
+  }
+  if (used.has("sparkle") || used.has("ember")) {
+    L.push(`_seed = 12345`);
+    L.push(`def _rnd():          # same LCG the design tool used`);
+    L.push(`    global _seed`);
+    L.push(`    _seed = (_seed * 1664525 + 1013904223) & 0xFFFFFFFF`);
+    L.push(`    return _seed / 4294967296.0`);
+    L.push(``);
+  }
+  L.push(`def _hsv(h, s, v):`);
+  L.push(`    h = _frac(h) * 6.0`);
+  L.push(`    i = int(h)`);
+  L.push(`    fr = h - i`);
+  L.push(`    p = v * (1.0 - s)`);
+  L.push(`    q = v * (1.0 - s * fr)`);
+  L.push(`    w = v * (1.0 - s * (1.0 - fr))`);
+  L.push(`    i = i % 6`);
+  L.push(`    if i == 0: return v, w, p`);
+  L.push(`    if i == 1: return q, v, p`);
+  L.push(`    if i == 2: return p, v, w`);
+  L.push(`    if i == 3: return p, q, v`);
+  L.push(`    if i == 4: return w, p, v`);
+  L.push(`    return v, p, q`);
+  L.push(``);
+  L.push(`def _b(x):`);
+  L.push(`    x = int(x * 255.0 + 0.5)`);
+  L.push(`    return 0 if x < 0 else (255 if x > 255 else x)`);
+  L.push(``);
+  return L;
+}
+
+function pyLayer(L, pi, li, out) {
+  const p = L.p, g = L.gen;
+  const B = `_B${pi}_${li}`, H = `_H${pi}_${li}`, A = `_A${pi}_${li}`;
+  const body = [];
+  body.push(`    # -- layer ${li}: ${GEN[g].label} (${L.blend})`);
+
+  let vExpr = "1.0", hOff = null, uniform = false;
+
+  if (g === "solid") { vExpr = "1.0"; }
+  else if (g === "spin") {
+    vExpr = `1.0 if _frac((u + t * ${f(p.speed)}) * ${fi(p.arms)}.0) < ${f(p.duty)} else 0.0`;
+  }
+  else if (g === "comet") {
+    body.push(`    _ph = t * ${f(p.speed)}`);
+    vExpr = null; // handled inline below
+  }
+  else if (g === "wave") {
+    vExpr = `${f(p.floor)} + ${f(1-p.floor)} * (0.5 + 0.5 * math.sin(6.2831853 * (u * ${fi(p.cycles)}.0 - t * ${f(p.speed)})))`;
+  }
+  else if (g === "breathe") {
+    body.push(`    _v = ${f(p.floor)} + ${f(1-p.floor)} * (0.5 + 0.5 * math.sin(6.2831853 * t * ${f(p.rate)}))`);
+    vExpr = "_v"; uniform = true;
+  }
+  else if (g === "strobe") {
+    body.push(`    _v = 1.0 if _frac(t * ${f(p.rate)}) < ${f(p.duty)} else 0.0`);
+    vExpr = "_v"; uniform = true;
+  }
+  else if (g === "sparkle") {
+    body.push(`    global ${A}`);
+    body.push(`    _k = math.exp(-dt * ${f(p.decay)})`);
+    body.push(`    for i in range(N):`);
+    body.push(`        ${B}[i] *= _k`);
+    body.push(`    ${A} += dt * ${f(p.rate)}`);
+    body.push(`    while ${A} >= 1.0:`);
+    body.push(`        ${A} -= 1.0`);
+    body.push(`        _q = int(_rnd() * N) & 15`);
+    body.push(`        ${B}[_q] = 1.0`);
+    if (p.hueJit > 0) body.push(`        ${H}[_q] = (_rnd() - 0.5) * ${f(p.hueJit)}`);
+    vExpr = `${B}[i]`;
+    hOff = p.hueJit > 0 ? `${H}[i]` : null;
+  }
+  else if (g === "ember") {
+    body.push(`    _k = math.exp(-dt * ${f(p.rate)})`);
+    body.push(`    for i in range(N):`);
+    body.push(`        ${B}[i] = ${B}[i] * _k + _rnd() * (1.0 - _k)`);
+    if (p.hueJit > 0)
+      body.push(`        ${H}[i] = ${H}[i] * _k + (_rnd() - 0.5) * ${f(2*p.hueJit)} * (1.0 - _k)`);
+    vExpr = `${B}[i] * ${B}[i]`;
+    hOff = p.hueJit > 0 ? `${H}[i]` : null;
+  }
+
+  const needsU = (g === "spin" || g === "comet" || g === "wave") || p.hueSpan !== 0;
+  body.push(`    for i in range(N):`);
+  if (needsU) body.push(`        u = _U[i]`);
+  if (g === "comet") {
+    body.push(`        v = 0.0`);
+    for (let j = 0; j < p.heads; j++) {
+      body.push(`        _e = math.exp(-_ringd(u - _ph${j ? ` - ${f(j/p.heads)}` : ""}) * ${f(N/p.tail)})`);
+      body.push(`        if _e > v: v = _e`);
+    }
+    if (p.gain !== 1) body.push(`        v *= ${f(p.gain)}`);
+  } else {
+    body.push(p.gain === 1 ? `        v = ${vExpr}` : `        v = (${vExpr}) * ${f(p.gain)}`);
+  }
+  if (L.blend !== "set") body.push(`        if v < 0.001: continue`);
+  body.push(`        if v > 1.0: v = 1.0`);
+  const hParts = [f(p.hue)];
+  if (p.hueSpan) hParts.push(`u * ${f(p.hueSpan)}`);
+  if (p.hueRate) hParts.push(`t * ${f(p.hueRate)}`);
+  if (hOff) hParts.push(hOff);
+  body.push(`        cr, cg, cb = _hsv(${hParts.join(" + ")}, ${f(p.sat)}, v)`);
+  switch (L.blend) {
+    case "add":
+      body.push(`        _R[i] += cr; _G[i] += cg; _B[i] += cb`); break;
+    case "max":
+      body.push(`        if cr > _R[i]: _R[i] = cr`);
+      body.push(`        if cg > _G[i]: _G[i] = cg`);
+      body.push(`        if cb > _B[i]: _B[i] = cb`); break;
+    case "over":
+      body.push(`        _iv = 1.0 - v`);
+      body.push(`        _R[i] = _R[i] * _iv + cr; _G[i] = _G[i] * _iv + cg; _B[i] = _B[i] * _iv + cb`); break;
+    default:
+      body.push(`        _R[i] = cr; _G[i] = cg; _B[i] = cb`);
+  }
+  out.push(...body);
+  return { B, H, A, stateful: g === "sparkle" || g === "ember", hueState: !!hOff };
+}
+
+function generatePython(mirror) {
+  const used = new Set();
+  S.program.forEach(p => p.layers.forEach(L => { if (L.on) used.add(L.gen); }));
+  if (used.size === 0) used.add("solid");
+
+  const head = pyHeader(used, mirror);
+  const decls = [];
+  const fns = [];
+  const names = [];
+
+  S.program.forEach((pat, pi) => {
+    const body = [];
+    body.push(`def _pat${pi}(t, dt):`);
+    body.push(`    for i in range(N):`);
+    body.push(`        _R[i] = 0.0; _G[i] = 0.0; _B[i] = 0.0`);
+    const active = pat.layers.filter(L => L.on);
+    if (active.length === 0) body.push(`    pass`);
+    active.forEach((L, li) => {
+      const info = pyLayer(L, pi, li, body);
+      if (info.stateful) {
+        decls.push(`${info.B} = [0.0] * 16`);
+        if (info.hueState) decls.push(`${info.H} = [0.0] * 16`);
+        if (L.gen === "sparkle") decls.push(`${info.A} = 0.0`);
+      }
+    });
+    fns.push(body.join("\n"));
+    names.push(`_pat${pi}`);
+  });
+
+  const tail = [];
+  tail.push(``);
+  tail.push(`PROGRAM = [${names.join(", ")}]`);
+  tail.push(`HOLD = [${S.program.map(p => f(p.dur, 1)).join(", ")}]`);
+  tail.push(``);
+  tail.push(`TOFF = ${mirror ? "3.7   # phase offset so the pair doesn't move as one" : "0.0"}`);
+  tail.push(`_i = 0`);
+  tail.push(`_t0 = time.monotonic()`);
+  tail.push(`_prev = _t0`);
+  tail.push(``);
+  tail.push(`while True:`);
+  tail.push(`    _now = time.monotonic()`);
+  tail.push(`    _dt = _now - _prev`);
+  tail.push(`    _prev = _now`);
+  tail.push(`    if _dt > 0.1:`);
+  tail.push(`        _dt = 0.1`);
+  tail.push(`    PROGRAM[_i](_now - _t0 + TOFF, _dt)`);
+  tail.push(`    for _p in range(N):`);
+  tail.push(`        pix[_p] = (_b(_R[_p]), _b(_G[_p]), _b(_B[_p]))`);
+  tail.push(`    pix.show()`);
+  tail.push(`    _sp = (1.0 / FPS_CAP) - (time.monotonic() - _now)`);
+  tail.push(`    if _sp > 0:`);
+  tail.push(`        time.sleep(_sp)`);
+  tail.push(`    if (_now - _t0) >= HOLD[_i]:`);
+  tail.push(`        _i = (_i + 1) % len(PROGRAM)`);
+  tail.push(`        _t0 = time.monotonic()`);
+
+  const parts = [head.join("\n")];
+  if (decls.length) parts.push("# per-layer state\n" + decls.join("\n") + "\n");
+  parts.push(fns.join("\n\n"));
+  parts.push(tail.join("\n"));
+  return parts.join("\n") + "\n";
+}
+
+
+/* ------------------------------------------------------------
+   Arduino / C++ code generation
+   Target: Gemma M0 (SAMD21) or original Gemma — both call the
+   ring's data pad D0, which is Arduino pin 0 on either board.
+   ------------------------------------------------------------ */
+const fc = x => f(x) + "f";
+
+function cppLayer(L, pi, li, out) {
+  const p = L.p, g = L.gen;
+  const B = `s${pi}_${li}b`, H = `s${pi}_${li}h`, A = `s${pi}_${li}a`;
+  const body = [];
+  body.push(`  // layer ${li}: ${GEN[g].label} (${L.blend})`);
+
+  let vExpr = "1.0f", hOff = null;
+
+  if (g === "solid") {
+    vExpr = "1.0f";
+  } else if (g === "spin") {
+    vExpr = `fracf((u + t * ${fc(p.speed)}) * ${fi(p.arms)}.0f) < ${fc(p.duty)} ? 1.0f : 0.0f`;
+  } else if (g === "comet") {
+    body.push(`  const float ph${li} = t * ${fc(p.speed)};`);
+    vExpr = null;
+  } else if (g === "wave") {
+    vExpr = `${fc(p.floor)} + ${fc(1 - p.floor)} * (0.5f + 0.5f * sinf(6.2831853f * (u * ${fi(p.cycles)}.0f - t * ${fc(p.speed)})))`;
+  } else if (g === "breathe") {
+    body.push(`  const float vu${li} = ${fc(p.floor)} + ${fc(1 - p.floor)} * (0.5f + 0.5f * sinf(6.2831853f * t * ${fc(p.rate)}));`);
+    vExpr = `vu${li}`;
+  } else if (g === "strobe") {
+    body.push(`  const float vu${li} = fracf(t * ${fc(p.rate)}) < ${fc(p.duty)} ? 1.0f : 0.0f;`);
+    vExpr = `vu${li}`;
+  } else if (g === "sparkle") {
+    body.push(`  {`);
+    body.push(`    const float k = expf(-dt * ${fc(p.decay)});`);
+    body.push(`    for (uint8_t i = 0; i < NUM_LEDS; i++) ${B}[i] *= k;`);
+    body.push(`    ${A} += dt * ${fc(p.rate)};`);
+    body.push(`    while (${A} >= 1.0f) {`);
+    body.push(`      ${A} -= 1.0f;`);
+    body.push(`      const uint8_t q = (uint8_t)(rndBits() >> 28);`);
+    body.push(`      ${B}[q] = 1.0f;`);
+    if (p.hueJit > 0) body.push(`      ${H}[q] = (rndf() - 0.5f) * ${fc(p.hueJit)};`);
+    body.push(`    }`);
+    body.push(`  }`);
+    vExpr = `${B}[i]`;
+    hOff = p.hueJit > 0 ? `${H}[i]` : null;
+  } else if (g === "ember") {
+    body.push(`  {`);
+    body.push(`    const float k = expf(-dt * ${fc(p.rate)});`);
+    body.push(`    for (uint8_t i = 0; i < NUM_LEDS; i++) {`);
+    body.push(`      ${B}[i] = ${B}[i] * k + rndf() * (1.0f - k);`);
+    if (p.hueJit > 0) body.push(`      ${H}[i] = ${H}[i] * k + (rndf() - 0.5f) * ${fc(2 * p.hueJit)} * (1.0f - k);`);
+    body.push(`    }`);
+    body.push(`  }`);
+    vExpr = `${B}[i] * ${B}[i]`;
+    hOff = p.hueJit > 0 ? `${H}[i]` : null;
+  }
+
+  const needsU = (g === "spin" || g === "comet" || g === "wave") || p.hueSpan !== 0;
+  body.push(`  for (uint8_t i = 0; i < NUM_LEDS; i++) {`);
+  if (needsU) body.push(`    const float u = U[i];`);
+  if (g === "comet") {
+    body.push(`    float v = 0.0f, e;`);
+    for (let j = 0; j < p.heads; j++) {
+      body.push(`    e = expf(-ringd(u - ph${li}${j ? ` - ${fc(j / p.heads)}` : ""}) * ${fc(N / p.tail)}); if (e > v) v = e;`);
+    }
+    if (p.gain !== 1) body.push(`    v *= ${fc(p.gain)};`);
+  } else {
+    body.push(p.gain === 1
+      ? `    float v = ${vExpr};`
+      : `    float v = (${vExpr}) * ${fc(p.gain)};`);
+  }
+  if (L.blend !== "set") body.push(`    if (v < 0.001f) continue;`);
+  body.push(`    if (v > 1.0f) v = 1.0f;`);
+
+  const hParts = [fc(p.hue)];
+  if (p.hueSpan) hParts.push(`u * ${fc(p.hueSpan)}`);
+  if (p.hueRate) hParts.push(`t * ${fc(p.hueRate)}`);
+  if (hOff) hParts.push(hOff);
+  body.push(`    float cr, cg, cb;`);
+  body.push(`    hsv(${hParts.join(" + ")}, ${fc(p.sat)}, v, cr, cg, cb);`);
+
+  switch (L.blend) {
+    case "add":
+      body.push(`    outR[i] += cr; outG[i] += cg; outB[i] += cb;`); break;
+    case "max":
+      body.push(`    if (cr > outR[i]) outR[i] = cr;`);
+      body.push(`    if (cg > outG[i]) outG[i] = cg;`);
+      body.push(`    if (cb > outB[i]) outB[i] = cb;`); break;
+    case "over":
+      body.push(`    const float iv = 1.0f - v;`);
+      body.push(`    outR[i] = outR[i] * iv + cr; outG[i] = outG[i] * iv + cg; outB[i] = outB[i] * iv + cb;`); break;
+    default:
+      body.push(`    outR[i] = cr; outG[i] = cg; outB[i] = cb;`);
+  }
+  body.push(`  }`);
+
+  out.push(...body);
+  return { B, H, A, stateful: g === "sparkle" || g === "ember", hueState: !!hOff };
+}
+
+function generateArduino(mirror) {
+  const used = new Set();
+  S.program.forEach(p => p.layers.forEach(L => { if (L.on) used.add(L.gen); }));
+  if (used.size === 0) used.add("solid");
+  const needsRnd = used.has("sparkle") || used.has("ember");
+
+  const H = [];
+  H.push(`// Gemma hoop earring — 16-pixel NeoPixel ring on pad D0.`);
+  H.push(`// Generated by Hoop Pattern Bench. Open in the Arduino IDE and upload.`);
+  H.push(`// Board: Adafruit Gemma M0 (SAMD21). Pad D0 is Arduino pin 0 on the`);
+  H.push(`// M0 and on the original Gemma alike — the pad names were kept identical.`);
+  H.push(`// BUILD: ${mirror ? "right ear (reversed pixel order, offset in time)" : "left ear"}`);
+  H.push(``);
+  H.push(`#include <math.h>`);
+  H.push(``);
+  H.push(`// ---- knobs ---------------------------------------------------------`);
+  H.push(`#ifndef USE_FASTLED`);
+  H.push(`#define USE_FASTLED     1     // 0 falls back to Adafruit_NeoPixel`);
+  H.push(`#endif`);
+  H.push(`#define DATA_PIN        0     // ring DIN -> Gemma D0`);
+  H.push(`#define NUM_LEDS        16`);
+  H.push(`#define BRIGHTNESS      ${Math.round(S.bright * 255)}    // 0..255`);
+  H.push(`#define MAX_MA          120   // hard current cap (FastLED only)`);
+  H.push(`#define FPS_CAP         200   // high rate lets FastLED dither the low bits`);
+  H.push(`#define GAMMA_CORRECT   0     // 1 = perceptual fades; preview assumes 0`);
+  H.push(`static const float TOFF = ${mirror ? "3.7f" : "0.0f"};  // phase offset between the pair`);
+  H.push(``);
+  H.push(`// ---- driver --------------------------------------------------------`);
+  H.push(`#if USE_FASTLED`);
+  H.push(`#include <FastLED.h>`);
+  H.push(`static CRGB leds[NUM_LEDS];`);
+  H.push(`#else`);
+  H.push(`#include <Adafruit_NeoPixel.h>`);
+  H.push(`static Adafruit_NeoPixel strip(NUM_LEDS, DATA_PIN, NEO_GRB + NEO_KHZ800);`);
+  H.push(`#endif`);
+  H.push(``);
+  H.push(`// ---- frame buffers -------------------------------------------------`);
+  H.push(`static float outR[NUM_LEDS], outG[NUM_LEDS], outB[NUM_LEDS];`);
+  const us = [];
+  for (let i = 0; i < N; i++) us.push(fc((mirror ? (N - i) % N : i) / N));
+  H.push(`// position of each pixel around the ring, in turns`);
+  H.push(`static const float U[NUM_LEDS] = {${us.join(", ")}};`);
+  H.push(``);
+  H.push(`// ---- helpers -------------------------------------------------------`);
+  H.push(`static inline float fracf(float x) { return x - floorf(x); }`);
+  if (used.has("comet")) {
+    H.push(`static inline float ringd(float a) { a = fracf(a); return a > 0.5f ? 1.0f - a : a; }`);
+  }
+  if (needsRnd) {
+    H.push(``);
+    H.push(`// Same LCG the design tool used, so the noise matches the preview.`);
+    H.push(`static uint32_t rngState = 12345u;`);
+    H.push(`static inline uint32_t rndBits(void) {`);
+    H.push(`  rngState = rngState * 1664525u + 1013904223u;`);
+    H.push(`  return rngState;`);
+    H.push(`}`);
+    H.push(`static inline float rndf(void) { return (float)rndBits() * (1.0f / 4294967296.0f); }`);
+  }
+  H.push(``);
+  H.push(`static void hsv(float h, float s, float v, float &r, float &g, float &b) {`);
+  H.push(`  h = fracf(h) * 6.0f;`);
+  H.push(`  const int i = (int)h;`);
+  H.push(`  const float fr = h - (float)i;`);
+  H.push(`  const float p = v * (1.0f - s);`);
+  H.push(`  const float q = v * (1.0f - s * fr);`);
+  H.push(`  const float w = v * (1.0f - s * (1.0f - fr));`);
+  H.push(`  switch (i % 6) {`);
+  H.push(`    case 0:  r = v; g = w; b = p; break;`);
+  H.push(`    case 1:  r = q; g = v; b = p; break;`);
+  H.push(`    case 2:  r = p; g = v; b = w; break;`);
+  H.push(`    case 3:  r = p; g = q; b = v; break;`);
+  H.push(`    case 4:  r = w; g = p; b = v; break;`);
+  H.push(`    default: r = v; g = p; b = q; break;`);
+  H.push(`  }`);
+  H.push(`}`);
+  H.push(``);
+  H.push(`static inline uint8_t toByte(float x) {`);
+  H.push(`  const int v = (int)(x * 255.0f + 0.5f);`);
+  H.push(`  return v < 0 ? 0 : (v > 255 ? 255 : (uint8_t)v);`);
+  H.push(`}`);
+  H.push(``);
+  H.push(`#if GAMMA_CORRECT`);
+  H.push(`static uint8_t GAMMA8[256];`);
+  H.push(`static void buildGamma(void) {`);
+  H.push(`  for (int i = 0; i < 256; i++)`);
+  H.push(`    GAMMA8[i] = (uint8_t)(powf((float)i / 255.0f, 2.2f) * 255.0f + 0.5f);`);
+  H.push(`}`);
+  H.push(`static inline uint8_t gam(uint8_t x) { return GAMMA8[x]; }`);
+  H.push(`#else`);
+  H.push(`static inline uint8_t gam(uint8_t x) { return x; }`);
+  H.push(`#endif`);
+
+  const decls = [];
+  const fns = [];
+  const names = [];
+
+  S.program.forEach((pat, pi) => {
+    const body = [];
+    body.push(`static void pat${pi}(float t, float dt) {`);
+    body.push(`  for (uint8_t i = 0; i < NUM_LEDS; i++) { outR[i] = 0.0f; outG[i] = 0.0f; outB[i] = 0.0f; }`);
+    const active = pat.layers.filter(L => L.on);
+    active.forEach((L, li) => {
+      const info = cppLayer(L, pi, li, body);
+      if (info.stateful) {
+        decls.push(`static float ${info.B}[NUM_LEDS];`);
+        if (info.hueState) decls.push(`static float ${info.H}[NUM_LEDS];`);
+        if (L.gen === "sparkle") decls.push(`static float ${info.A} = 0.0f;`);
+      }
+    });
+    body.push(`  (void)t; (void)dt;`);
+    body.push(`}`);
+    fns.push(body.join("\n"));
+    names.push(`pat${pi}`);
+  });
+
+  const T = [];
+  T.push(`typedef void (*PatFn)(float, float);`);
+  T.push(`static PatFn const PROGRAM[] = {${names.join(", ")}};`);
+  T.push(`static const float HOLD[] = {${S.program.map(p => fc(p.dur)).join(", ")}};`);
+  T.push(`static const uint8_t NPAT = sizeof(PROGRAM) / sizeof(PROGRAM[0]);`);
+  T.push(``);
+  T.push(`void setup() {`);
+  T.push(`#if GAMMA_CORRECT`);
+  T.push(`  buildGamma();`);
+  T.push(`#endif`);
+  T.push(`#if USE_FASTLED`);
+  T.push(`  FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);`);
+  T.push(`  FastLED.setBrightness(BRIGHTNESS);`);
+  T.push(`  // Safety net, not a precise budget: FastLED's power model is calibrated`);
+  T.push(`  // at 5 V and the ring is running off ~3.7 V from the cell.`);
+  T.push(`  FastLED.setMaxPowerInVoltsAndMilliamps(5, MAX_MA);`);
+  T.push(`  FastLED.setDither(BRIGHTNESS < 255);`);
+  T.push(`#else`);
+  T.push(`  strip.begin();`);
+  T.push(`  strip.setBrightness(BRIGHTNESS);`);
+  T.push(`  strip.show();`);
+  T.push(`#endif`);
+  T.push(`}`);
+  T.push(``);
+  T.push(`void loop() {`);
+  T.push(`  static uint32_t prev = micros();`);
+  T.push(`  static uint32_t patStart = micros();`);
+  T.push(`  static uint8_t idx = 0;`);
+  T.push(``);
+  T.push(`  const uint32_t now = micros();`);
+  T.push(`  float dt = (float)(now - prev) * 1e-6f;`);
+  T.push(`  prev = now;`);
+  T.push(`  if (dt > 0.1f) dt = 0.1f;`);
+  T.push(``);
+  T.push(`  const float elapsed = (float)(now - patStart) * 1e-6f;`);
+  T.push(`  PROGRAM[idx](elapsed + TOFF, dt);`);
+  T.push(``);
+  T.push(`  for (uint8_t i = 0; i < NUM_LEDS; i++) {`);
+  T.push(`    const uint8_t r = gam(toByte(outR[i]));`);
+  T.push(`    const uint8_t g = gam(toByte(outG[i]));`);
+  T.push(`    const uint8_t b = gam(toByte(outB[i]));`);
+  T.push(`#if USE_FASTLED`);
+  T.push(`    leds[i] = CRGB(r, g, b);`);
+  T.push(`#else`);
+  T.push(`    strip.setPixelColor(i, r, g, b);`);
+  T.push(`#endif`);
+  T.push(`  }`);
+  T.push(`#if USE_FASTLED`);
+  T.push(`  FastLED.show();`);
+  T.push(`#else`);
+  T.push(`  strip.show();`);
+  T.push(`#endif`);
+  T.push(``);
+  T.push(`  if (elapsed >= HOLD[idx]) {`);
+  T.push(`    idx = (uint8_t)((idx + 1) % NPAT);`);
+  T.push(`    patStart = micros();`);
+  T.push(`  }`);
+  T.push(``);
+  T.push(`  const uint32_t budget = 1000000UL / FPS_CAP;`);
+  T.push(`  const uint32_t spent = micros() - now;`);
+  T.push(`  if (spent < budget) delayMicroseconds(budget - spent);`);
+  T.push(`}`);
+
+  const parts = [H.join("\n")];
+  if (decls.length) parts.push(`\n// ---- per-layer state -----------------------------------------------\n` + decls.join("\n"));
+  parts.push(`\n// ---- patterns ------------------------------------------------------\n` + fns.join("\n\n"));
+  parts.push(`\n// ---- program -------------------------------------------------------\n` + T.join("\n"));
+  return parts.join("\n") + "\n";
+}
+
+function generateJSON() {
+  return JSON.stringify({
+    device: { board: "gemma_m0", pin: "D0", pixels: N, cell_mah: CELL_MAH },
+    brightness: +S.bright.toFixed(3),
+    program: S.program.map(p => ({
+      name: p.name,
+      hold_s: p.dur,
+      layers: p.layers.filter(L => L.on).map(L => ({
+        gen: L.gen, blend: L.blend,
+        params: Object.fromEntries(Object.entries(L.p).map(([k, v]) => [k, +(+v).toFixed(4)]))
+      }))
+    }))
+  }, null, 2);
+}
+
+function currentText(mirror) {
+  if (S.fmt === "py") return generatePython(!!mirror);
+  if (S.fmt === "ino") return generateArduino(!!mirror);
+  return generateJSON();
+}
+const FILENAME = { py: "code.py", ino: "hoop.ino", json: "hoop-program.json" };
+const RIGHTNAME = { py: "code-right.py", ino: "hoop-right.ino" };
+
+function renderExport() {
+  const txt = currentText(false);
+  const el = $("out");
+  el.textContent = txt;
+  const lines = txt.split("\n").length;
+  $("hint").innerHTML = HINTS[S.fmt];
+  el.setAttribute("aria-label", `${S.fmt === "py" ? "Python" : "JSON"} output, ${lines} lines`);
+}
+
+const HINTS = {
+  py: `Drop <code>code.py</code> onto the <code>CIRCUITPY</code> drive. The board reloads on its own — no IDE, no compile.`,
+  ino: `Open in the Arduino IDE with the <code>Adafruit SAMD</code> board package and the <code>FastLED</code> library, pick <code>Adafruit Gemma M0</code>, upload. Set <code>USE_FASTLED 0</code> to fall back to <code>Adafruit_NeoPixel</code>.`,
+  json: `The pattern spec on its own, if you'd rather write your own runtime against it.`
+};
+
+function legendText() {
+  const ma = maEMA;
+  if (ma > 150) return `Pixel 0 at the top, indices clockwise. <span class="warn">Over 150 mA — the 150 mAh cell will sag and won't last an hour.</span>`;
+  if (ma > 60) return `Pixel 0 at the top, indices clockwise. Outer arc is average current; you're in the bright-but-brief range.`;
+  return `Pixel 0 at the top, indices clockwise. Outer arc is average current draw.`;
+}
+
+/* ------------------------------------------------------------
+   Wiring
+   ------------------------------------------------------------ */
+let toastT = null;
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("on");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove("on"), 1700);
+}
+
+$("playBtn").onclick = e => {
+  S.playing = !S.playing;
+  e.currentTarget.textContent = S.playing ? "❚❚" : "▶";
+  e.currentTarget.setAttribute("aria-pressed", String(S.playing));
+};
+$("runBtn").onclick = e => {
+  S.runProgram = !S.runProgram;
+  e.currentTarget.setAttribute("aria-pressed", String(S.runProgram));
+  if (S.runProgram) tPat = 0;
+};
+$("mirrorBtn").onclick = e => {
+  S.mirror = !S.mirror;
+  e.currentTarget.setAttribute("aria-pressed", String(S.mirror));
+};
+$("stepDur").oninput = e => {
+  S.program[S.step].dur = parseInt(e.target.value, 10);
+  $("stepDurV").textContent = e.target.value + "s";
+  renderProgram(); renderExport();
+};
+$("stepName").oninput = e => {
+  S.program[S.step].name = e.target.value || "Untitled";
+  renderProgram(); renderExport();
+};
+$("delStep").onclick = () => {
+  if (S.program.length <= 1) return;
+  S.program.splice(S.step, 1);
+  S.step = Math.max(0, S.step - 1);
+  S.layer = 0; tPat = 0; refresh();
+};
+$("addPreset").onclick = () => {
+  const p = clone(PRESETS[+$("presetSel").value]);
+  S.program.splice(S.step + 1, 0, p);
+  S.step += 1; S.layer = 0; tPat = 0; refresh();
+};
+$("addLayer").onclick = () => {
+  const pat = S.program[S.step];
+  pat.layers.push(newLayer($("genSel").value));
+  S.layer = pat.layers.length - 1;
+  refresh();
+};
+$("bright").oninput = e => {
+  S.bright = parseFloat(e.target.value);
+  $("brightV").textContent = S.bright.toFixed(2);
+  renderExport();
+};
+document.querySelectorAll(".seg [data-fmt]").forEach(b => {
+  b.onclick = () => {
+    S.fmt = b.dataset.fmt;
+    document.querySelectorAll(".seg [data-fmt]").forEach(o =>
+      o.setAttribute("aria-pressed", String(o === b)));
+    $("dlRight").disabled = S.fmt === "json";
+    renderExport();
+  };
+});
+$("copyBtn").onclick = async () => {
+  try { await navigator.clipboard.writeText(currentText(false)); toast("Copied"); }
+  catch { toast("Copy blocked — select the text instead"); }
+};
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+$("dlBtn").onclick = () => download(FILENAME[S.fmt], currentText(false));
+$("dlRight").onclick = () => {
+  download(RIGHTNAME[S.fmt], currentText(true));
+  toast("Right-ear build saved");
+};
+
+/* populate selects */
+PRESETS.forEach((p, i) => {
+  const o = document.createElement("option");
+  o.value = i; o.textContent = p.name;
+  $("presetSel").appendChild(o);
+});
+Object.keys(GEN).forEach(k => {
+  const o = document.createElement("option");
+  o.value = k; o.textContent = GEN[k].label;
+  $("genSel").appendChild(o);
+});
+$("bright").value = S.bright;
+$("brightV").textContent = S.bright.toFixed(2);
+
+sizeCanvas();
+refresh();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
