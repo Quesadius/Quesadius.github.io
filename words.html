@@ -339,7 +339,7 @@
       <p><b>Bingo!</b> Playing all 7 tiles in one turn earns a <b>+50</b> bonus.</p>
       <p><b>Blanks</b> can stand for any letter (you pick when you place one) but score 0.</p>
       <p><b>Swap or pass.</b> Instead of playing, trade in tiles (while the bag has some) or pass.
-         Six scoreless turns in a row (passes or swaps) end the game.</p>
+         If both players pass back-to-back, the game ends.</p>
       <p><b>Game end.</b> When the bag is empty and a player uses their last tile, they collect the value of the
          opponent's leftover tiles. If the game ends on passes, each player's leftover tiles are deducted instead.
          The higher total wins.</p>
@@ -391,7 +391,7 @@ const DIST   = { A:9,B:2,C:2,D:4,E:12,F:2,G:3,H:2,I:9,J:1,K:1,L:4,M:2,N:6,O:8,
                  P:2,Q:1,R:6,S:4,T:6,U:4,V:2,W:2,X:1,Y:2,Z:1,"?":2 }; // 100 tiles
 const BINGO_BONUS = 50;
 const BAG_SIZE = Object.values(DIST).reduce((a, b) => a + b, 0); // 100
-const SCORELESS_LIMIT = 6; // consecutive passes/swaps that end the game
+const PASS_LIMIT = 2; // consecutive passes (one each) that end the game; swaps reset the streak
 
 // Scrabble premium layout: d/t = double/triple letter, D/T = double/triple word,
 // * = center star (a double-word square in Scrabble).
@@ -940,7 +940,7 @@ async function actPass() {
   gs.moves.push({ by: userId, type: "pass", ts: Date.now() });
   gs.lastPlay = null;
   gs.scoreless += 1;
-  if (gs.scoreless >= SCORELESS_LIMIT) {
+  if (gs.scoreless >= PASS_LIMIT) {
     endByScorelessInto(gs);
   } else {
     gs.turn = oppId();
@@ -974,12 +974,8 @@ async function actSwap(tileIds) {
   gs.racks[userId] = rack;
   gs.moves.push({ by: userId, type: "swap", count: chars.length, ts: Date.now() });
   gs.lastPlay = null;
-  gs.scoreless += 1;
-  if (gs.scoreless >= SCORELESS_LIMIT) {
-    endByScorelessInto(gs);
-  } else {
-    gs.turn = oppId();
-  }
+  gs.scoreless = 0; // swapping is a real move — it breaks the pass streak
+  gs.turn = oppId();
   await pushState(gs);
 }
 
@@ -1196,7 +1192,8 @@ function renderActions() {
   a.appendChild(actionBtn("🔀", "btn-ghost btn-sm", shuffleRack, myTiles.length < 2));
   a.appendChild(actionBtn("⟲ Recall", "btn-ghost btn-sm", recallAll, staged.length === 0));
   a.appendChild(actionBtn("Swap", "btn-ghost btn-sm", openSwapModal, !mine || G.bag.length === 0));
-  a.appendChild(actionBtn(passArmed ? "Pass turn?" : "Pass", passArmed ? "btn-danger btn-sm" : "btn-ghost btn-sm", () => {
+  const passEnds = G.scoreless >= PASS_LIMIT - 1; // opponent just passed — ours would end the game
+  a.appendChild(actionBtn(passArmed ? (passEnds ? "End game?" : "Pass turn?") : "Pass", passArmed ? "btn-danger btn-sm" : "btn-ghost btn-sm", () => {
     if (!passArmed) {
       passArmed = true;
       clearTimeout(passTimer);
@@ -1256,7 +1253,7 @@ function maybeShowGameOver() {
              `${escapeHTML(nameOf(G.playerIds.find(p => p !== ei.by)))}'s leftover tiles.`;
   } else if (ei.reason === "passes") {
     const parts = G.playerIds.map(uid => `${escapeHTML(nameOf(uid))} −${(ei.deducted || {})[uid] ?? 0}`);
-    detail = `Six scoreless turns in a row ended the game. Leftover tiles deducted: ${parts.join(", ")}.`;
+    detail = `Both players passed, ending the game. Leftover tiles deducted: ${parts.join(", ")}.`;
   }
   $("go-detail").innerHTML = detail;
   // No rematch offer after a forfeit — the opponent has left the game.
