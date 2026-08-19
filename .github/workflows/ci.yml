@@ -53,10 +53,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - name: Stage site files (pages only, no tooling)
+      - name: Stage site files (pages + word list, no tooling)
         run: |
           mkdir -p _site
-          cp *.html _site/
+          cp *.html twl06.txt _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

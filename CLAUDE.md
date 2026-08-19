@@ -8,6 +8,8 @@ This repo is the source for the `Quesadius.github.io` GitHub Pages site. Each `*
 
 `index.html` is intentionally a placeholder ("Hello World") — the apps are reached by direct URL (e.g. `/cribbage.html`).
 
+One non-HTML asset is deployed alongside the pages: `twl06.txt`, the TWL06 word list words.html fetches same-origin (with CDN mirrors as fallbacks, so the page still works if copied elsewhere). The CI deploy job stages `*.html` plus this file.
+
 ## Running locally
 
 A static file server is required (so ES module imports and `fetch` work). The configured launch (`.claude/launch.json`) runs:
@@ -31,7 +33,7 @@ Then open `http://localhost:8765/<page>.html`. Any equivalent static server (e.g
 | `accordion.html` | Single-player Accordion solitaire | (vanilla CSS/JS) | `localStorage` (options) |
 | `cribsolv.html` | Cribbage discard solver/trainer: ranks all 15 discards by exact EV, explains why, quiz mode | none — fully self-contained, no CDN | `localStorage` (quiz preference) |
 | `mahjong.html` | Two-player American-style mahjong with an original hand set | Tailwind, Firebase, Wikimedia tile SVGs | Firestore + `localStorage` (player name) |
-| `words.html` | Two-player crossword game with full Scrabble rules (board, values, 100-tile bag, +50 bingo, live scoring, blanks, swaps) | Tailwind, Firebase, TWL06 Scrabble word list (jsDelivr → raw GitHub fallback) | Firestore + `localStorage` (player name, mute) |
+| `words.html` | Two-player crossword game with full Scrabble rules (board, values, 100-tile bag, +50 bingo, live scoring, blanks, swaps) | Tailwind, Firebase, TWL06 word list (self-hosted `twl06.txt` → jsDelivr → raw GitHub) | Firestore + `localStorage` (player name, mute) |
 
 ## cribsolv.html is generated — don't hand-edit it
 
