@@ -327,7 +327,9 @@
       <p><b>Goal.</b> Score the most points by building crossword-style words on the board with your 7 tiles.</p>
       <p><b>Your turn.</b> Drag (or tap-select, then tap a square) tiles onto the board to spell a word in one row or column.
          The first word must cover the center ★. Every later word must connect to what's on the board, and every
-         string of letters it forms must be a valid word. Then press <b>Play</b> — you'll draw back up to 7 tiles.</p>
+         string of letters it forms must be a valid word. Then press <b>Play</b> and confirm — you'll draw back
+         up to 7 tiles. Play and Pass both ask for a confirming tap (Cancel sits where the button was), so a
+         stray tap can't commit a move.</p>
       <p><b>Premium squares</b> apply only when a newly placed tile covers them:</p>
       <p>
         <span class="legend-sq" style="background:#3c6fae">DL</span> double letter ·
@@ -483,7 +485,7 @@ let nextTileId = 1;
 let selectedId = null;        // tap-to-place selection
 let pendingAction = false;
 let goShownFor = null;        // endInfo.ts we already popped the modal for
-let passArmed = false, passTimer = null;
+let armed = null, armedSig = null, armedTimer = null; // pending play/pass confirmation
 let leaveArmed = false, leaveTimer = null;
 let prevMoveCount = -1;       // to ding on opponent moves
 
@@ -1179,9 +1181,25 @@ function actionBtn(label, cls, fn, disabled) {
   return b;
 }
 
+// Commit confirmation: Play/Pass arm a two-row confirm bar instead of acting.
+// The full-width Cancel sits in the band the tapped button occupied, so an
+// accidental double-tap on mobile cancels instead of committing.
+function moveSig() {
+  return stagedTiles().map(t => `${t.cell}:${t.ch}:${t.blankAs || ""}`).sort().join("|");
+}
+function disarm() { armed = null; armedSig = null; clearTimeout(armedTimer); }
+function arm(kind) {
+  armed = kind;
+  armedSig = kind === "play" ? moveSig() : null;
+  clearTimeout(armedTimer);
+  armedTimer = setTimeout(() => { disarm(); renderActions(); }, 8000);
+  renderActions();
+}
+
 function renderActions() {
   const a = $("action-area");
   if (!a || !G) return;
+  if (G.phase !== "play") disarm(); // never carry a confirmation across game end/rematch
   a.innerHTML = "";
   if (G.phase === "waiting") return;
 
@@ -1194,31 +1212,39 @@ function renderActions() {
 
   const staged = stagedTiles();
   const mine = myTurn();
+  const chk = staged.length && mine ? checkCurrentMove() : null;
+
+  // Drop a stale confirmation: turn changed, or the staged move was edited.
+  if (armed === "play" && (!mine || !chk || !chk.ok || moveSig() !== armedSig)) disarm();
+  if (armed === "pass" && !mine) disarm();
+
+  if (armed) {
+    const passEnds = G.scoreless >= PASS_LIMIT - 1; // opponent just passed — ours would end the game
+    a.appendChild(actionBtn("Cancel", "btn-ghost btn-sm w-full", () => { disarm(); renderActions(); }));
+    const label = armed === "pass"
+      ? (passEnds ? "✓ Yes — end the game" : "✓ Yes — pass my turn")
+      : `✓ Play&nbsp;+${chk.total}`;
+    a.appendChild(actionBtn(label, (armed === "pass" ? "btn-danger" : "btn-go") + " btn-sm w-full", () => {
+      const kind = armed;
+      disarm();
+      if (kind === "pass") actPass(); else actPlay();
+    }));
+    return;
+  }
+
   a.appendChild(actionBtn("🔀", "btn-ghost btn-sm", shuffleRack, myTiles.length < 2));
   a.appendChild(actionBtn("⟲ Recall", "btn-ghost btn-sm", recallAll, staged.length === 0));
   a.appendChild(actionBtn("Swap", "btn-ghost btn-sm", openSwapModal, !mine || G.bag.length === 0));
-  const passEnds = G.scoreless >= PASS_LIMIT - 1; // opponent just passed — ours would end the game
-  a.appendChild(actionBtn(passArmed ? (passEnds ? "End game?" : "Pass turn?") : "Pass", passArmed ? "btn-danger btn-sm" : "btn-ghost btn-sm", () => {
-    if (!passArmed) {
-      passArmed = true;
-      clearTimeout(passTimer);
-      passTimer = setTimeout(() => { passArmed = false; renderActions(); }, 4000);
-      renderActions();
-    } else {
-      passArmed = false; clearTimeout(passTimer);
-      actPass();
-    }
-  }, !mine));
+  a.appendChild(actionBtn("Pass", "btn-ghost btn-sm", () => arm("pass"), !mine));
 
   let playLabel = "Play";
   let playDisabled = !mine || staged.length === 0;
-  if (staged.length && mine) {
-    const chk = checkCurrentMove();
+  if (chk) {
     if (chk.ok) playLabel = `Play&nbsp;+${chk.total}`;
     else playDisabled = true;
   }
   if (dictState === "loading" && staged.length) playDisabled = true;
-  a.appendChild(actionBtn(playLabel, "btn-go", actPlay, playDisabled));
+  a.appendChild(actionBtn(playLabel, "btn-go", () => arm("play"), playDisabled));
 }
 
 function renderHistory() {
