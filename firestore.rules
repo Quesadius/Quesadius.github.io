@@ -1,0 +1,107 @@
+rules_version = '2';
+
+// Security rules for Firebase project tictactoe-76547, shared by tictactoe,
+// trash, cribbage, mahjong and words. Every page signs in anonymously and
+// keeps all of its docs in one collection; doc type is told apart by shape:
+//
+//   roster game  - has a `playerIds` list (cribbage, mahjong, words, trash)
+//   tic-tac-toe  - has `playerX` / `playerO` slots and no roster
+//   crib stats   - _kind 'cribbage_player', id cribstat_<uid>
+//   crib history - _kind 'cribbage_history', id cribhist_<id>
+//
+// Model: a game's random UUID is the invite capability, so anyone signed in
+// may read a doc by id, but only its players may change or delete it, and a
+// newcomer may only join by appending themself to an open seat. Listing is
+// limited to cribbage's public stats/history, so game ids can't be
+// enumerated. Hidden hands stay readable by the opponent - unavoidable
+// without a server, and out of scope here.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /artifacts/tictactoe-76547/public/data/games/{docId} {
+      allow get: if signedIn();
+      allow list: if signedIn()
+        && resource.data._kind in ['cribbage_player', 'cribbage_history'];
+      allow create: if signedIn() && validCreate(request.resource.data);
+      allow update: if signedIn() && validUpdate(resource.data, request.resource.data);
+      allow delete: if signedIn() && isPlayer(resource.data);
+
+      function signedIn() { return request.auth != null; }
+      function uid() { return request.auth.uid; }
+      function kind(d) { return d.get('_kind', null); }
+      function isStatsKind(d) { return kind(d) in ['cribbage_player', 'cribbage_history']; }
+
+      function isRoster(d) { return d.get('playerIds', null) is list && !isStatsKind(d); }
+      function isTtt(d) {
+        return 'playerX' in d && 'playerO' in d && !('playerIds' in d) && !('_kind' in d);
+      }
+      function isPlayer(d) {
+        return (isRoster(d) && uid() in d.playerIds)
+          || (isTtt(d) && (d.playerX == uid() || d.playerO == uid()));
+      }
+
+      function validCreate(d) {
+        return (isRoster(d) && uid() in d.playerIds && d.playerIds.size() <= 2)
+          || (isTtt(d) && d.playerX in [null, uid()] && d.playerO in [null, uid()])
+          || validHistory(d)
+          || validStats(d);
+      }
+
+      function validUpdate(before, after) {
+        return validRosterUpdate(before, after)
+          || validTttUpdate(before, after)
+          || (kind(before) == 'cribbage_player' && validStats(after));
+      }
+
+      // A player may make any move, but can't drop the opponent, add a
+      // third seat, or change what kind of doc this is. A non-player may only
+      // take the open seat by appending themself.
+      function validRosterUpdate(before, after) {
+        return isRoster(before) && isRoster(after)
+          && kind(after) == kind(before)
+          && after.playerIds.size() <= 2
+          && after.playerIds.hasAll(before.playerIds)
+          && (uid() in before.playerIds
+              || (before.playerIds.size() < 2
+                  && after.playerIds == before.playerIds.concat([uid()])));
+      }
+
+      // Tic-tac-toe has no roster: a client claims an empty mark slot by
+      // writing the whole doc with its uid in that slot.
+      function validTttUpdate(before, after) {
+        return isTtt(before) && isTtt(after)
+          && (before.playerX == uid() || before.playerO == uid()
+              || (before.playerX == null && after.playerX == uid() && after.playerO == before.playerO)
+              || (before.playerO == null && after.playerO == uid() && after.playerX == before.playerX));
+      }
+
+      // Cribbage stats and history are listed on a public Stats screen, so
+      // their rendered fields must be the expected types. Stats can't be tied
+      // to their owner: the winner's browser updates both players' docs.
+      function isNum(d, f) { return !(f in d) || d[f] is number; }
+      function isNumOrNull(d, f) { return !(f in d) || d[f] == null || d[f] is number; }
+      function isName(v) { return v is string && v.size() <= 100; }
+
+      function validStats(d) {
+        return kind(d) == 'cribbage_player'
+          && d.uid is string && docId == 'cribstat_' + d.uid
+          && isName(d.name)
+          && isNum(d, 'wins') && isNum(d, 'losses') && isNum(d, 'streak')
+          && isNum(d, 'bestHand') && isNum(d, 'bestCrib') && isNum(d, 'bestPegRun')
+          && isNum(d, 'skunksFor') && isNum(d, 'skunksAgainst')
+          && isNum(d, 'doubleSkunksFor') && isNum(d, 'doubleSkunksAgainst')
+          && isNumOrNull(d, 'bestHandWhen') && isNumOrNull(d, 'bestCribWhen')
+          && isNumOrNull(d, 'bestPegRunWhen');
+      }
+
+      // Written once, by the winner's browser.
+      function validHistory(d) {
+        return kind(d) == 'cribbage_history'
+          && d.id is string && docId == 'cribhist_' + d.id
+          && d.winner.uid == uid() && isName(d.winner.name) && isName(d.loser.name)
+          && d.players is list && d.players.size() == 2
+          && d.players[0].score is number && d.players[1].score is number
+          && d.endedAt is number && isNum(d, 'durationMs') && isNum(d, 'handsPlayed');
+      }
+    }
+  }
+}
