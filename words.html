@@ -493,6 +493,9 @@ const $ = (id) => document.getElementById(id);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const escapeHTML = (s) => String(s ?? "").replace(/[&<>"']/g,
   c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+// Numbers from the shared game doc are opponent-writable: coerce before
+// interpolating into HTML so a string payload can't smuggle in markup.
+const toNum = (v) => Number(v) || 0;
 
 const isMe = (uid) => uid === userId;
 const oppId = () => (G && G.playerIds ? G.playerIds.find(p => p !== userId) : null);
@@ -1033,7 +1036,7 @@ function tileNode(letter, value, opts = {}) {
   d.className = "wtile";
   if (opts.blank) d.classList.add("blank");
   const showValue = !opts.blank && value > 0;
-  d.innerHTML = `<span class="lt">${letter}</span>` + (showValue ? `<span class="pv">${value}</span>` : "");
+  d.innerHTML = `<span class="lt">${escapeHTML(letter)}</span>` + (showValue ? `<span class="pv">${toNum(value)}</span>` : "");
   return d;
 }
 
@@ -1096,7 +1099,7 @@ function renderStatus() {
   const staged = stagedTiles();
   if (staged.length) {
     const chk = checkCurrentMove();
-    if (chk.err && !chk.words) { put(chk.err, "text-amber-300"); return; }
+    if (chk.err && !chk.words) { put(escapeHTML(chk.err), "text-amber-300"); return; }
     for (const w of chk.words) {
       const bad = chk.bad && chk.bad.some(b => b.word === w.word && b.cells[0] === w.cells[0]);
       const cls = bad ? "bad" : chk.unchecked ? "dubious" : "good";
@@ -1115,7 +1118,7 @@ function renderStatus() {
   const last = (G.moves || [])[G.moves.length - 1];
   const oppName = escapeHTML(nameOf(oppId()));
   if (last && last.by !== userId) {
-    put(`${oppName} ${escapeHTML(describeMove(last))}${last.type === "play" ? ` for <b>${last.score}</b>` : ""} — waiting for them… `);
+    put(`${oppName} ${escapeHTML(describeMove(last))}${last.type === "play" ? ` for <b>${toNum(last.score)}</b>` : ""} — waiting for them… `);
   } else {
     put(`Waiting for ${oppName}…`);
   }
@@ -1258,7 +1261,7 @@ function renderHistory() {
   for (const m of moves) {
     const row = document.createElement("div");
     row.className = "hrow";
-    const pts = m.type === "play" ? `<span class="hpts">+${m.score}</span>` : "";
+    const pts = m.type === "play" ? `<span class="hpts">+${toNum(m.score)}</span>` : "";
     row.innerHTML = `<b>${escapeHTML(nameOf(m.by))}</b><span>${escapeHTML(describeMove(m))}</span>${pts}`;
     list.appendChild(row);
   }
@@ -1273,17 +1276,17 @@ function maybeShowGameOver() {
   $("go-title").textContent = tie ? "🤝 Tie game" : iWon ? "🏆 You win!" : "You lose";
   $("go-scores").innerHTML = G.playerIds.map(uid =>
     `<div class="flex justify-between px-6 py-0.5 ${uid === G.winner ? "font-black text-amber-300" : ""}">
-       <span>${escapeHTML(nameOf(uid))}${isMe(uid) ? " (you)" : ""}</span><span>${G.scores[uid]}</span>
+       <span>${escapeHTML(nameOf(uid))}${isMe(uid) ? " (you)" : ""}</span><span>${toNum(G.scores[uid])}</span>
      </div>`).join("");
   const ei = G.endInfo || {};
   let detail = "";
   if (ei.reason === "resign") {
     detail = `${escapeHTML(nameOf(ei.by))} ${isMe(ei.by) ? "(you) " : ""}left the game — win by forfeit.`;
   } else if (ei.reason === "out") {
-    detail = `${escapeHTML(nameOf(ei.by))} played out and collected <b>${ei.gained}</b> points from ` +
+    detail = `${escapeHTML(nameOf(ei.by))} played out and collected <b>${toNum(ei.gained)}</b> points from ` +
              `${escapeHTML(nameOf(G.playerIds.find(p => p !== ei.by)))}'s leftover tiles.`;
   } else if (ei.reason === "passes") {
-    const parts = G.playerIds.map(uid => `${escapeHTML(nameOf(uid))} −${(ei.deducted || {})[uid] ?? 0}`);
+    const parts = G.playerIds.map(uid => `${escapeHTML(nameOf(uid))} −${toNum((ei.deducted || {})[uid])}`);
     detail = `Both players passed, ending the game. Leftover tiles deducted: ${parts.join(", ")}.`;
   }
   $("go-detail").innerHTML = detail;
@@ -1336,7 +1339,7 @@ function movePointer(e) {
     g.appendChild(node);
     g.classList.remove("hidden");
     // Visually lift the source tile
-    document.querySelectorAll(`[data-tile-id="${t.id}"]`).forEach(el => el.classList.add("ghosted"));
+    document.querySelectorAll(`[data-tile-id="${CSS.escape(String(t.id))}"]`).forEach(el => el.classList.add("ghosted"));
   }
   g.style.left = e.clientX + "px";
   g.style.top = e.clientY + "px";

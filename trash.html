@@ -41,6 +41,12 @@
             lastUpdated: 0
         };
 
+        // The shared game doc is opponent-writable: escape strings and coerce
+        // numbers before interpolating them into HTML.
+        const escapeHTML = (s) => String(s ?? "").replace(/[&<>"']/g,
+            c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+        const toNum = (v) => Number(v) || 0;
+
         // --- Card Logic ---
         const SUITS = ['H', 'D', 'C', 'S']; // Hearts, Diamonds, Clubs, Spades
         const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -526,8 +532,8 @@
                 <span class="${isMyTurn ? 'text-green-600 font-bold' : 'text-gray-600'}">
                     ${isMyTurn ? "Your Turn" : "Opponent's Turn"}
                 </span>
-                <span class="ml-4 text-xs text-blue-600 font-bold">LVL ${myData ? myData.level : 10}</span>
-                <span class="ml-2 text-xs text-gray-400 uppercase tracking-widest">${gameState.phase}</span>
+                <span class="ml-4 text-xs text-blue-600 font-bold">LVL ${myData ? toNum(myData.level) : 10}</span>
+                <span class="ml-2 text-xs text-gray-400 uppercase tracking-widest">${escapeHTML(gameState.phase)}</span>
             `;
             
             // Determine active slot requirement for highlighting
@@ -567,7 +573,7 @@
             deckElement.innerHTML = '';
             if (gameState.deck.length > 0) {
                  deckElement.appendChild(renderCard('XX', false));
-                 deckElement.innerHTML += `<div class="absolute -bottom-6 text-xs font-bold text-gray-500">${gameState.deck.length} Left</div>`;
+                 deckElement.innerHTML += `<div class="absolute -bottom-6 text-xs font-bold text-gray-500">${toNum(gameState.deck.length)} Left</div>`;
             } else {
                 deckElement.innerHTML = `<div class="text-gray-400 text-xs">Empty</div>`;
             }

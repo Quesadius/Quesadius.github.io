@@ -276,6 +276,9 @@ const $ = (id) => document.getElementById(id);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const escapeHTML = (s) => String(s ?? "").replace(/[&<>"']/g,
   c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+// Numbers from the shared game doc are opponent-writable: coerce before
+// interpolating into HTML so a string payload can't smuggle in markup.
+const toNum = (v) => Number(v) || 0;
 
 /* ============================================================= *
  * 3. Tile model: render-ids, Wikimedia files, match-codes       *
@@ -954,9 +957,10 @@ function renderGameOver() {
   } else if (G.winner) {
     $("go-title").textContent = iWon ? "🀄 You win!" : "You lose";
     const who = iWon ? "You" : nameOf(G.winner);
+    const pts = toNum(wi.points);
     $("go-detail").innerHTML =
       `${escapeHTML(who)} completed <b>${escapeHTML(wi.handName || "")}</b> ` +
-      `for <b>${wi.points}</b> point${wi.points === 1 ? "" : "s"}` +
+      `for <b>${pts}</b> point${pts === 1 ? "" : "s"}` +
       `${wi.jokerless ? " (jokerless — doubled!)" : ""}` +
       `${wi.source === "claim" ? ", claimed off a discard." : "."}`;
   } else {

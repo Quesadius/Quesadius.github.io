@@ -1582,7 +1582,7 @@ function renderGameLog(){
   panel.classList.remove('hidden');
   el.innerHTML = log.map(row => {
     const who = row.uid ? `<span class="log-who">${escapeHTML(row.uid === userId ? 'You' : nameOf(row.uid))}</span>` : '';
-    const pts = row.pts ? ` <span class="log-pts">+${row.pts}</span>` : '';
+    const pts = row.pts ? ` <span class="log-pts">+${toNum(row.pts)}</span>` : '';
     return `<div class="log-row">${who}<span>${escapeHTML(row.text)}${pts}</span></div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
@@ -1658,7 +1658,7 @@ function renderScoreBar(){
       <span class="score-dot" style="background:${pegColors[ix] || '#888'}"></span>
       <span class="font-semibold text-sm truncate">${escapeHTML(nameOf(uid))}${isMine?' <span class="text-[10px]" style="color:rgba(251,248,239,.65)">(you)</span>':''}${presence}</span>
       ${isDealer ? '<span class="badge-brass flex-none uppercase">Dealer</span>' : ''}
-      <span class="ml-auto text-lg font-bold tabular-nums" style="font-family:var(--serif)">${G.scores[uid] || 0}</span>`;
+      <span class="ml-auto text-lg font-bold tabular-nums" style="font-family:var(--serif)">${toNum(G.scores[uid])}</span>`;
     el.appendChild(div);
   });
 
@@ -2327,7 +2327,7 @@ function maybeShowPegPopup(){
   const ev = G.lastPegEvent;
   const who = ev.uid === userId ? 'You' : nameOf(ev.uid);
   const names = ev.items.map(i => i.name).join(' + ');
-  popup.innerHTML = `<span class="who">${escapeHTML(who)}</span>${escapeHTML(names)} for <span class="pts">${ev.total}</span>`;
+  popup.innerHTML = `<span class="who">${escapeHTML(who)}</span>${escapeHTML(names)} for <span class="pts">${toNum(ev.total)}</span>`;
   // Restart the animation
   popup.classList.remove('peg-popup-show');
   void popup.offsetWidth;
@@ -2430,14 +2430,14 @@ function renderBreakdownModal(){
       ? `<div class="text-stone-400 italic text-sm">No points.</div>`
       : s.block.items.map(it => `
           <div class="breakdown-item">
-            <span>${escapeHTML(it.name)}${it.cards?' <span class="text-stone-400 text-xs">'+it.cards.map(labelOf).join('-')+'</span>':''}</span>
-            <span class="font-semibold">${it.pts}</span>
+            <span>${escapeHTML(it.name)}${it.cards?' <span class="text-stone-400 text-xs">'+escapeHTML(it.cards.map(labelOf).join('-'))+'</span>':''}</span>
+            <span class="font-semibold">${toNum(it.pts)}</span>
           </div>`).join('');
     return `
       <div class="border border-stone-200 rounded-lg p-3">
         <div class="flex items-baseline justify-between mb-2">
           <div class="font-semibold">${escapeHTML(s.label)}</div>
-          <div class="text-emerald-700 font-bold">+${s.block.total}</div>
+          <div class="text-emerald-700 font-bold">+${toNum(s.block.total)}</div>
         </div>
         <div class="flex flex-wrap gap-1 mb-2">${cardsHtml}</div>
         <div class="text-sm text-stone-700">${itemsHtml}</div>
@@ -2554,9 +2554,9 @@ async function loadAndShowStats(){
       html += `<div class="rounded-2xl shadow-md p-4 text-center text-stone-800" style="background:var(--cream)">
         <div class="text-xs uppercase tracking-wide text-stone-400 mb-1">Head to head</div>
         <div class="text-2xl font-bold">
-          ${escapeHTML(a.name||'?')} <span class="text-emerald-600">${a.wins||0}</span>
+          ${escapeHTML(a.name||'?')} <span class="text-emerald-600">${toNum(a.wins)}</span>
           <span class="text-stone-400 font-normal mx-1">–</span>
-          <span class="text-emerald-600">${b.wins||0}</span> ${escapeHTML(b.name||'?')}
+          <span class="text-emerald-600">${toNum(b.wins)}</span> ${escapeHTML(b.name||'?')}
         </div>
       </div>`;
     }
@@ -2566,7 +2566,7 @@ async function loadAndShowStats(){
       const meta = [];
       if (opp) meta.push(`vs ${escapeHTML(opp)}`);
       if (when) meta.push(new Date(when).toLocaleDateString());
-      return `<div>${label}: <span class="font-semibold">${val}</span>
+      return `<div>${label}: <span class="font-semibold">${toNum(val)}</span>
         ${meta.length ? `<span class="text-stone-400">(${meta.join(', ')})</span>` : ''}</div>`;
     };
 
@@ -2578,20 +2578,21 @@ async function loadAndShowStats(){
     } else {
       html += `<div class="grid sm:grid-cols-2 gap-4">`;
       for (const p of players.sort((a,b)=> (b.wins||0)-(a.wins||0))){
-        const streakLabel = (p.streak||0) === 0 ? '–'
-          : (p.streak > 0 ? `W${p.streak}` : `L${-p.streak}`);
+        const streak = toNum(p.streak);
+        const streakLabel = streak === 0 ? '–'
+          : (streak > 0 ? `W${streak}` : `L${-streak}`);
         html += `
           <div class="border border-stone-200 rounded-xl p-3">
             <div class="flex justify-between items-baseline">
               <div class="font-semibold">${escapeHTML(p.name || p.uid)}</div>
-              <div class="text-sm text-stone-500">${p.wins||0}–${p.losses||0} (${streakLabel})</div>
+              <div class="text-sm text-stone-500">${toNum(p.wins)}–${toNum(p.losses)} (${streakLabel})</div>
             </div>
             <div class="text-xs text-stone-600 mt-2 space-y-1">
               ${bestLine('Best hand', p.bestHand, p.bestHandWhen, p.bestHandOpp)}
               ${bestLine('Best crib', p.bestCrib, p.bestCribWhen, p.bestCribOpp)}
               ${bestLine('Best pegging run', p.bestPegRun, p.bestPegRunWhen, p.bestPegRunOpp)}
-              <div>Skunks for/against: ${p.skunksFor||0}/${p.skunksAgainst||0}</div>
-              <div>Double skunks for/against: ${p.doubleSkunksFor||0}/${p.doubleSkunksAgainst||0}</div>
+              <div>Skunks for/against: ${toNum(p.skunksFor)}/${toNum(p.skunksAgainst)}</div>
+              <div>Double skunks for/against: ${toNum(p.doubleSkunksFor)}/${toNum(p.doubleSkunksAgainst)}</div>
             </div>
           </div>`;
       }
@@ -2621,9 +2622,9 @@ async function loadAndShowStats(){
         html += `<tr class="border-b last:border-0">
           <td class="py-1 pr-2 whitespace-nowrap">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}</td>
           <td class="py-1 pr-2">${escapeHTML(g.winner.name)}${skunkTag}</td>
-          <td class="py-1 pr-2 tabular-nums">${wScore}–${lScore}</td>
+          <td class="py-1 pr-2 tabular-nums">${escapeHTML(String(wScore))}–${escapeHTML(String(lScore))}</td>
           <td class="py-1 pr-2">${mins}m</td>
-          <td class="py-1">${g.handsPlayed||'?'}</td>
+          <td class="py-1">${toNum(g.handsPlayed) || '?'}</td>
         </tr>`;
       }
       html += `</tbody></table></div>`;
@@ -2667,6 +2668,9 @@ function showGame(){
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function escapeHTML(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeXML(s){ return escapeHTML(s); }
+// Numbers from Firestore docs are writable by any client: coerce before
+// interpolating into HTML so a string payload can't smuggle in markup.
+function toNum(v){ return Number(v) || 0; }
 
 async function tryCopy(text){
   try {
