@@ -2,9 +2,713 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trash / Garbage Card Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Trash — Card Game for Two</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --felt-hi: #1e754b;
+            --felt: #135536;
+            --felt-lo: #0b3923;
+            --felt-edge: #062114;
+            --panel-bg: rgba(5, 27, 17, 0.56);
+            --panel-border: rgba(255, 255, 255, 0.10);
+            --well-bg: rgba(3, 18, 11, 0.45);
+            --gold-hi: #fde68a;
+            --gold: #f5c542;
+            --gold-lo: #c9961a;
+            --gold-ink: #231902;
+            --card-red: #cf222e;
+            --card-black: #18181b;
+            --target-size: 24px;
+        }
+
+        @media (pointer: coarse) {
+            :root {
+                --target-size: 44px;
+            }
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            inline-size: 100%;
+            min-block-size: 100dvh;
+        }
+
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background:
+                radial-gradient(125% 95% at 50% 0%, var(--felt-hi) 0%, var(--felt) 42%, var(--felt-lo) 78%, var(--felt-edge) 100%)
+                var(--felt-edge);
+            color: #f2f7f4;
+            overflow-wrap: break-word;
+            display: flex;
+            flex-direction: column;
+        }
+
+        :where(a, code, .break-anywhere) {
+            overflow-wrap: anywhere;
+        }
+
+        h1, h2, h3 {
+            text-wrap: balance;
+        }
+
+        p, li {
+            text-wrap: pretty;
+        }
+
+        :where(button, input:not([type="checkbox"], [type="radio"]), [role="button"], summary) {
+            min-block-size: var(--target-size);
+            min-inline-size: var(--target-size);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .sr-only {
+            position: absolute;
+            inline-size: 1px;
+            block-size: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* ----- Surfaces & Controls ----- */
+        .felt-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+
+        .felt-well {
+            background: var(--well-bg);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.35);
+        }
+
+        .zone-active {
+            border-color: rgba(245, 197, 66, 0.65);
+            box-shadow: 0 0 0 1.5px rgba(245, 197, 66, 0.45), 0 10px 30px rgba(0, 0, 0, 0.32);
+            background: linear-gradient(180deg, rgba(245, 197, 66, 0.08) 0%, rgba(5, 27, 17, 0.58) 100%);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            border-radius: 10px;
+            padding: 0.5rem 0.9rem;
+            font-weight: 700;
+            font-size: 0.875rem;
+            line-height: 1.2;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: transform 0.08s ease, filter 0.14s ease, background-color 0.14s ease, border-color 0.14s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            white-space: nowrap;
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .btn:focus-visible,
+        .card-btn:focus-visible,
+        .pile-btn:focus-visible {
+            outline: 3px solid var(--gold-hi);
+            outline-offset: 2px;
+        }
+
+        .btn-gold {
+            background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 58%, var(--gold-lo) 100%);
+            color: var(--gold-ink);
+            border-color: rgba(120, 83, 9, 0.65);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        }
+
+        .btn-gold:hover:not(:disabled) {
+            filter: brightness(1.06);
+        }
+
+        .btn-emerald {
+            background: linear-gradient(180deg, #34d399 0%, #10b981 65%, #059669 100%);
+            color: #032217;
+            border-color: rgba(4, 120, 87, 0.7);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+        }
+
+        .btn-emerald:hover:not(:disabled) {
+            filter: brightness(1.06);
+        }
+
+        .btn-coral {
+            background: linear-gradient(180deg, #fda4af 0%, #f43f5e 60%, #e11d48 100%);
+            color: #fff;
+            border-color: rgba(159, 18, 57, 0.7);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-coral:hover:not(:disabled) {
+            filter: brightness(1.07);
+        }
+
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.09);
+            color: #eaf4ee;
+            border-color: rgba(255, 255, 255, 0.16);
+        }
+
+        .btn-ghost:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.16);
+        }
+
+        .btn-sm {
+            padding: 0.35rem 0.68rem;
+            font-size: 0.78rem;
+            border-radius: 8px;
+        }
+
+        /* ----- Main Menu ----- */
+        .menu-title {
+            font-size: clamp(2.4rem, 1.6rem + 3.6vw, 4.5rem);
+            letter-spacing: -0.02em;
+            line-height: 1;
+            font-weight: 900;
+            background: linear-gradient(180deg, #fffef7 0%, var(--gold-hi) 55%, var(--gold) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.4));
+        }
+
+        /* ----- Persistent Compact Header (< 12% viewport height) ----- */
+        .top-bar {
+            background: rgba(4, 22, 14, 0.76);
+            backdrop-filter: blur(8px);
+            border-block-end: 1px solid rgba(255, 255, 255, 0.10);
+            padding-block: max(0.38rem, env(safe-area-inset-top, 0px)) 0.38rem;
+            padding-inline: max(0.75rem, env(safe-area-inset-left, 0px)) max(0.75rem, env(safe-area-inset-right, 0px));
+            display: flex;
+            flex-wrap: wrap;
+            align-items: safe center;
+            justify-content: space-between;
+            gap: 0.4rem 0.75rem;
+            z-index: 20;
+        }
+
+        .header-scores {
+            display: none;
+            align-items: center;
+            gap: 0.375rem;
+        }
+
+        @media (min-width: 600px) {
+            .header-scores {
+                display: flex;
+            }
+        }
+
+        /* ----- Responsive Game Table Grid ----- */
+        #game-board {
+            min-block-size: 100dvh;
+            inline-size: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-strip-wrap {
+            inline-size: 100%;
+            max-inline-size: 92rem;
+            margin-inline: auto;
+            padding-inline: max(0.6rem, env(safe-area-inset-left, 0px)) max(0.6rem, env(safe-area-inset-right, 0px));
+            padding-block-start: 0.45rem;
+        }
+
+        #table-layout {
+            flex: 1 1 auto;
+            inline-size: 100%;
+            max-inline-size: 92rem;
+            margin-inline: auto;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-areas:
+                "opponent"
+                "hub"
+                "player";
+            align-content: space-between;
+            gap: 0.5rem;
+            padding-block: 0.45rem max(0.55rem, env(safe-area-inset-bottom, 0px));
+            padding-inline: max(0.6rem, env(safe-area-inset-left, 0px)) max(0.6rem, env(safe-area-inset-right, 0px));
+        }
+
+        #opponent-zone { grid-area: opponent; }
+        #hub-zone      { grid-area: hub; container: hub / inline-size; }
+        #player-zone   { grid-area: player; }
+
+        .board-zone {
+            display: flex;
+            flex-direction: column;
+            padding: 0.5rem 0.65rem 0.6rem;
+            gap: 0.4rem;
+            min-inline-size: 0;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .slots-stage {
+            container: slots / inline-size;
+            inline-size: 100%;
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-inline-size: 0;
+        }
+
+        /* Mobile / Portrait default card sizing */
+        #player-zone .slots-stage {
+            --slot-gap: clamp(5px, 1.5cqi, 10px);
+            --card-w: max(46px, min(
+                calc((100cqi - 4 * var(--slot-gap) - 4px) / 5),
+                calc((100dvh - 216px) / 6.15),
+                114px
+            ));
+        }
+
+        #opponent-zone .slots-stage {
+            --slot-gap: clamp(4px, 1.3cqi, 8px);
+            --card-w: max(40px, min(
+                calc((100cqi - 4 * var(--slot-gap) - 4px) / 5),
+                calc((100dvh - 216px) / 8.2),
+                86px
+            ));
+        }
+
+        #hub-zone {
+            --pile-w: max(48px, min(calc((100dvh - 216px) / 7.2), 82px));
+            --hand-w: max(52px, min(calc((100dvh - 216px) / 6.7), 88px));
+        }
+
+        /* Wide / Desktop two-column table: boards take full height, Command Hub sits beside */
+        @media (min-width: 900px) and (min-height: 520px) {
+            .top-strip-wrap {
+                padding-inline: max(1rem, env(safe-area-inset-left, 0px)) max(1rem, env(safe-area-inset-right, 0px));
+            }
+
+            #table-layout {
+                grid-template-columns: minmax(0, 1fr) minmax(280px, 336px);
+                grid-template-rows: minmax(0, 0.86fr) minmax(0, 1.14fr);
+                grid-template-areas:
+                    "opponent hub"
+                    "player   hub";
+                align-content: stretch;
+                gap: 0.7rem 1rem;
+                padding-block: 0.65rem max(0.75rem, env(safe-area-inset-bottom, 0px));
+                padding-inline: max(1rem, env(safe-area-inset-left, 0px)) max(1rem, env(safe-area-inset-right, 0px));
+            }
+
+            .board-zone {
+                padding: 0.65rem 0.9rem 0.75rem;
+                gap: 0.5rem;
+            }
+
+            #player-zone .slots-stage {
+                --slot-gap: clamp(8px, 1.6cqi, 14px);
+                --card-w: max(64px, min(
+                    calc((100cqi - 4 * var(--slot-gap) - 10px) / 5),
+                    calc((100dvh - 194px) / 5.15),
+                    134px
+                ));
+            }
+
+            #opponent-zone .slots-stage {
+                --slot-gap: clamp(6px, 1.3cqi, 12px);
+                --card-w: max(54px, min(
+                    calc((100cqi - 4 * var(--slot-gap) - 10px) / 5),
+                    calc((100dvh - 194px) / 6.55),
+                    104px
+                ));
+            }
+
+            #hub-zone {
+                --pile-w: clamp(72px, calc((100dvh - 260px) / 5.2), 98px);
+                --hand-w: clamp(84px, calc((100dvh - 260px) / 4.5), 116px);
+            }
+        }
+
+        .slots-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center;
+            gap: var(--slot-gap);
+            max-inline-size: calc(5 * var(--card-w) + 4 * var(--slot-gap) + 2px);
+            inline-size: 100%;
+        }
+
+        /* Hub internal layout adapts to its own container width */
+        .hub-inner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.45rem;
+            padding: 0.45rem 0.6rem;
+            block-size: 100%;
+        }
+
+        .hub-scoreboard,
+        .hub-legend {
+            display: none;
+        }
+
+        @media (min-width: 900px) and (min-height: 520px) {
+            .hub-inner {
+                flex-direction: column;
+                justify-content: space-between;
+                align-items: stretch;
+                padding: 0.85rem;
+                gap: 0.75rem;
+            }
+
+            .hub-scoreboard,
+            .hub-legend {
+                display: block;
+            }
+        }
+
+        .piles-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(0.55rem, 3cqi, 1.1rem);
+        }
+
+        /* ----- Tactile Vector Playing Cards ----- */
+        .card-btn,
+        .pile-btn {
+            appearance: none;
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0;
+            font: inherit;
+            color: inherit;
+            cursor: pointer;
+            isolation: isolate;
+        }
+
+        .tcard {
+            position: relative;
+            inline-size: var(--card-w);
+            aspect-ratio: 5 / 7;
+            border-radius: clamp(6px, calc(var(--card-w) * 0.095), 12px);
+            user-select: none;
+            -webkit-user-select: none;
+            flex: 0 0 auto;
+            transition: transform 0.14s ease, box-shadow 0.16s ease, filter 0.14s ease;
+        }
+
+        .tcard.face-up {
+            background: linear-gradient(175deg, #ffffff 0%, #f7f3e8 100%);
+            border: 1px solid rgba(15, 23, 42, 0.18);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: calc(var(--card-w) * 0.07) calc(var(--card-w) * 0.08);
+        }
+
+        .tcard.suit-red { color: var(--card-red); }
+        .tcard.suit-black { color: var(--card-black); }
+
+        .tcard.face-down {
+            background:
+                repeating-linear-gradient(
+                    45deg,
+                    rgba(255, 255, 255, 0.06) 0 4px,
+                    transparent 4px 8px
+                ),
+                repeating-linear-gradient(
+                    -45deg,
+                    rgba(255, 255, 255, 0.05) 0 4px,
+                    transparent 4px 8px
+                ),
+                linear-gradient(155deg, #1d4ed8 0%, #1e3a8a 58%, #172554 100%);
+            border: 2px solid rgba(255, 255, 255, 0.86);
+            box-shadow: 0 3px 9px rgba(0, 0, 0, 0.38), inset 0 0 0 2px rgba(30, 58, 138, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tcard.face-down::before {
+            content: "";
+            position: absolute;
+            inset: calc(var(--card-w) * 0.07);
+            border-radius: clamp(3px, calc(var(--card-w) * 0.055), 7px);
+            border: 1px solid rgba(253, 230, 138, 0.35);
+            pointer-events: none;
+        }
+
+        .tcard-corner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            line-height: 0.92;
+            font-weight: 800;
+            inline-size: fit-content;
+            z-index: 1;
+        }
+
+        .tcard-corner .rk {
+            font-size: clamp(0.62rem, calc(var(--card-w) * 0.21), 1.25rem);
+            letter-spacing: -0.03em;
+        }
+
+        .tcard-corner .st {
+            font-size: clamp(0.52rem, calc(var(--card-w) * 0.165), 1rem);
+        }
+
+        .tcard-corner.bot {
+            align-self: flex-end;
+            transform: rotate(180deg);
+        }
+
+        @media (max-width: 420px) {
+            #opponent-zone .tcard-corner.bot {
+                visibility: hidden;
+            }
+        }
+
+        .tcard-center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        .tcard-pip {
+            font-size: clamp(1.05rem, calc(var(--card-w) * 0.42), 2.7rem);
+            line-height: 1;
+            opacity: 0.92;
+        }
+
+        .tcard-tag {
+            margin-block-start: 2px;
+            padding: 1px 5px;
+            border-radius: 999px;
+            font-size: clamp(0.46rem, calc(var(--card-w) * 0.115), 0.68rem);
+            font-weight: 900;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            line-height: 1.25;
+        }
+
+        .tcard-tag.wild {
+            background: linear-gradient(135deg, #7c3aed, #db2777);
+            color: #fff;
+            box-shadow: 0 1px 4px rgba(124, 58, 237, 0.4);
+        }
+
+        .tcard-tag.trash {
+            background: rgba(15, 23, 42, 0.10);
+            color: #475569;
+        }
+
+        /* Slot number badges */
+        .slot-medallion {
+            position: relative;
+            z-index: 1;
+            min-inline-size: calc(var(--card-w) * 0.44);
+            block-size: calc(var(--card-w) * 0.44);
+            padding-inline: 0.25rem;
+            border-radius: 999px;
+            background: rgba(9, 20, 48, 0.78);
+            border: 1.5px solid rgba(255, 255, 255, 0.35);
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: clamp(0.72rem, calc(var(--card-w) * 0.24), 1.35rem);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+        }
+
+        .slot-chip {
+            position: absolute;
+            top: calc(var(--card-w) * 0.055);
+            right: calc(var(--card-w) * 0.06);
+            padding: 1px 5px;
+            border-radius: 999px;
+            font-size: clamp(0.48rem, calc(var(--card-w) * 0.12), 0.68rem);
+            font-weight: 800;
+            line-height: 1.25;
+            background: rgba(16, 185, 129, 0.16);
+            color: #065f46;
+            border: 1px solid rgba(16, 185, 129, 0.38);
+            z-index: 2;
+        }
+
+        .slot-chip.wild-slot {
+            background: rgba(124, 58, 237, 0.15);
+            color: #5b21b6;
+            border-color: rgba(124, 58, 237, 0.35);
+        }
+
+        /* Interactive & Highlight states */
+        .card-btn:hover .tcard,
+        .pile-btn:hover .tcard {
+            transform: translateY(-3px);
+        }
+
+        .card-btn:active .tcard,
+        .pile-btn:active .tcard {
+            transform: scale(0.97);
+        }
+
+        .tcard.playable-target {
+            border-color: var(--gold-hi);
+            box-shadow: 0 0 0 3px var(--gold), 0 8px 22px rgba(245, 197, 66, 0.45);
+            animation: target-pulse 1.1s ease-in-out infinite alternate;
+        }
+
+        .tcard.playable-target .slot-medallion {
+            background: var(--gold);
+            color: var(--gold-ink);
+            border-color: #fff;
+            transform: scale(1.08);
+        }
+
+        .pile-glow {
+            box-shadow: 0 0 0 3px var(--gold), 0 8px 20px rgba(245, 197, 66, 0.38) !important;
+        }
+
+        .pile-useful {
+            box-shadow: 0 0 0 3px #34d399, 0 8px 22px rgba(52, 211, 153, 0.45) !important;
+        }
+
+        /* Deck 3D stack effect */
+        .deck-stack::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: #172554;
+            border: 1.5px solid rgba(255, 255, 255, 0.55);
+            transform: translate(4px, 4px);
+            z-index: -1;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+        }
+
+        .empty-slot-well {
+            inline-size: var(--card-w);
+            aspect-ratio: 5 / 7;
+            border-radius: clamp(6px, calc(var(--card-w) * 0.095), 12px);
+            border: 2px dashed rgba(255, 255, 255, 0.24);
+            background: rgba(0, 0, 0, 0.20);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.35rem;
+            text-align: center;
+            color: rgba(242, 247, 244, 0.62);
+            font-size: clamp(0.62rem, calc(var(--card-w) * 0.14), 0.8rem);
+            font-weight: 600;
+        }
+
+        .empty-slot-well.discard-target {
+            border-color: var(--gold);
+            background: rgba(245, 197, 66, 0.12);
+            color: var(--gold-hi);
+            cursor: pointer;
+        }
+
+        /* Motion */
+        @keyframes target-pulse {
+            from { transform: translateY(0); }
+            to   { transform: translateY(-4px); }
+        }
+
+        @keyframes card-reveal {
+            from { opacity: 0.55; transform: scale(0.9) rotateY(65deg); }
+            to   { opacity: 1; transform: none; }
+        }
+
+        @keyframes nudge-shake {
+            0%, 100% { transform: translateX(0); }
+            25%      { transform: translateX(-5px); }
+            75%      { transform: translateX(5px); }
+        }
+
+        .anim-reveal {
+            animation: card-reveal 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        .anim-shake {
+            animation: nudge-shake 0.26s ease-in-out;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .tcard,
+            .btn,
+            .tcard.playable-target,
+            .anim-reveal,
+            .anim-shake {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+
+        /* ----- Native Modal Dialogs ----- */
+        dialog {
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 20px;
+            background: linear-gradient(165deg, #14492f 0%, #0a2a1a 100%);
+            color: #f2f7f4;
+            padding: 0;
+            max-inline-size: min(27rem, calc(100% - 1.5rem));
+            inline-size: 100%;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+        }
+
+        dialog:modal {
+            overscroll-behavior: contain;
+        }
+
+        dialog::backdrop {
+            background: rgba(3, 14, 9, 0.72);
+            backdrop-filter: blur(4px);
+            overflow: hidden;
+            overscroll-behavior: contain;
+        }
+
+        .dialog-body {
+            padding: 1.5rem;
+        }
+    </style>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -21,22 +725,31 @@
             measurementId: "G-BDP38SG25L"
         };
         const appId = firebaseConfig.projectId;
+        const NAME_STORAGE_KEY = "trash_player_name";
 
         // --- Global State ---
         let app, db, auth;
         let userId = null;
         let isAuthReady = false;
+        let authReadyResolve = null;
+        const authReadyPromise = new Promise((resolve) => { authReadyResolve = resolve; });
         let gameId = null;
         let gameListenerUnsubscribe = null;
+
+        // UI transient tracking (for smooth single-card reveal animations & modal state)
+        let prevRevealedMap = new Map();
+        let prevCurrentCard = null;
+        let lastAutoOpenedResultKey = null;
+        let feedbackTimer = null;
 
         // Local Game State Mirror
         let gameState = {
             deck: [],
             discardPile: [],
-            turn: null, // userId of active player
-            phase: 'draw', // 'draw' or 'play'
-            currentCard: null, // card held by cursor/active player
-            players: {}, // [userId]: { slots: [{card, revealed}], isWinner }
+            turn: null,
+            phase: "draw",
+            currentCard: null,
+            players: {},
             playerIds: [],
             lastUpdated: 0
         };
@@ -44,17 +757,23 @@
         // The shared game doc is opponent-writable: escape strings and coerce
         // numbers before interpolating them into HTML.
         const escapeHTML = (s) => String(s ?? "").replace(/[&<>"']/g,
-            c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+            c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
         const toNum = (v) => Number(v) || 0;
 
-        // --- Card Logic ---
-        const SUITS = ['H', 'D', 'C', 'S']; // Hearts, Diamonds, Clubs, Spades
-        const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        // --- Card Helpers ---
+        const SUITS = ["H", "D", "C", "S"];
+        const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+        const SUIT_META = {
+            H: { glyph: "♥", name: "Hearts", colorClass: "suit-red" },
+            D: { glyph: "♦", name: "Diamonds", colorClass: "suit-red" },
+            C: { glyph: "♣", name: "Clubs", colorClass: "suit-black" },
+            S: { glyph: "♠", name: "Spades", colorClass: "suit-black" }
+        };
 
         function createDeck() {
-            let deck = [];
-            for (let s of SUITS) {
-                for (let r of RANKS) {
+            const deck = [];
+            for (const s of SUITS) {
+                for (const r of RANKS) {
                     deck.push(r + s);
                 }
             }
@@ -62,70 +781,221 @@
         }
 
         function shuffle(array) {
-            let currentIndex = array.length, randomIndex;
-            while (currentIndex != 0) {
-                randomIndex = Math.floor(Math.random() * currentIndex);
+            let currentIndex = array.length;
+            while (currentIndex !== 0) {
+                const randomIndex = Math.floor(Math.random() * currentIndex);
                 currentIndex--;
                 [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
             }
             return array;
         }
 
+        function parseCard(cardString) {
+            const raw = String(cardString || "");
+            const suitCode = raw.slice(-1);
+            const rank = raw.slice(0, -1);
+            const suit = SUIT_META[suitCode] || { glyph: "♠", name: "Spades", colorClass: "suit-black" };
+            return { rank, suitCode, ...suit };
+        }
+
+        function formatCardShort(cardString) {
+            if (!cardString) return "";
+            const { rank, glyph } = parseCard(cardString);
+            return `${rank}${glyph}`;
+        }
+
+        function formatCardSpoken(cardString) {
+            if (!cardString) return "Card";
+            const { rank, name } = parseCard(cardString);
+            const rankWord = { A: "Ace", J: "Jack", Q: "Queen", K: "King" }[rank] || rank;
+            return `${rankWord} of ${name}`;
+        }
+
         function getCardValue(card) {
             if (!card) return null;
-            const rank = card.slice(0, -1);
-            if (rank === 'A') return 1;
-            if (rank === 'J') return 'Wild';
-            if (['Q', 'K'].includes(rank)) return null; // Unplayable
-            return parseInt(rank);
+            const rank = String(card).slice(0, -1);
+            if (rank === "A") return 1;
+            if (rank === "J") return "Wild";
+            if (["Q", "K"].includes(rank)) return null;
+            const n = parseInt(rank, 10);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function isCardPlayableForSlots(card, slots) {
+            if (!card || !Array.isArray(slots)) return false;
+            const val = getCardValue(card);
+            if (val === "Wild") return slots.some(s => !s.revealed);
+            if (typeof val === "number" && val >= 1 && val <= slots.length) {
+                return !slots[val - 1].revealed;
+            }
+            return false;
+        }
+
+        function getSavedPlayerName() {
+            try {
+                return (localStorage.getItem(NAME_STORAGE_KEY) || "").trim().slice(0, 20);
+            } catch (e) {
+                return "";
+            }
+        }
+
+        function savePlayerName(val) {
+            const trimmed = String(val || "").trim().slice(0, 20);
+            try {
+                localStorage.setItem(NAME_STORAGE_KEY, trimmed);
+            } catch (e) {
+                // ignore storage restrictions
+            }
+            return trimmed;
         }
 
         // --- DOM Elements ---
-        const mainMenuElement = document.getElementById('main-menu');
-        const gameBoardElement = document.getElementById('game-board');
-        const statusTextElement = document.getElementById('status-text');
-        const newGameBtn = document.getElementById('new-game-btn');
-        const copyLinkBtn = document.getElementById('copy-link-btn');
-        const leaveGameBtn = document.getElementById('leave-game-btn');
-        
-        // Game Board Areas
-        const opponentArea = document.getElementById('opponent-area');
-        const playerArea = document.getElementById('player-area');
-        const deckElement = document.getElementById('deck');
-        const discardElement = document.getElementById('discard');
-        const currentCardDisplay = document.getElementById('current-card-display');
+        const mainMenuElement = document.getElementById("main-menu");
+        const gameBoardElement = document.getElementById("game-board");
+        const statusTextElement = document.getElementById("status-text");
+        const headerScoreStrip = document.getElementById("header-score-strip");
+        const nameInput = document.getElementById("name-input");
+        const newGameBtn = document.getElementById("new-game-btn");
+        const copyLinkBtn = document.getElementById("copy-link-btn");
+        const leaveGameBtn = document.getElementById("leave-game-btn");
 
+        // Banners
+        const inviteBanner = document.getElementById("invite-banner");
+        const inviteUrlDisplay = document.getElementById("invite-url-display");
+        const bannerCopyBtn = document.getElementById("banner-copy-btn");
+        const roundResultBanner = document.getElementById("round-result-banner");
+        const roundBannerText = document.getElementById("round-banner-text");
+        const roundBannerActionBtn = document.getElementById("round-banner-action-btn");
+        const roundBannerModalBtn = document.getElementById("round-banner-modal-btn");
+
+        // Zones & Areas
+        const opponentZone = document.getElementById("opponent-zone");
+        const playerZone = document.getElementById("player-zone");
+        const opponentArea = document.getElementById("opponent-area");
+        const playerArea = document.getElementById("player-area");
+        const opponentLabel = document.getElementById("opponent-label");
+        const opponentMeta = document.getElementById("opponent-meta");
+        const playerLabel = document.getElementById("player-label");
+        const playerMeta = document.getElementById("player-meta");
+
+        // Hub Elements
+        const deckElement = document.getElementById("deck");
+        const discardElement = document.getElementById("discard");
+        const currentCardDisplay = document.getElementById("current-card-display");
+        const hubScoreboard = document.getElementById("hub-scoreboard");
+
+        // Dialogs
+        const gameOverModal = document.getElementById("game-over-modal");
+        const rulesModal = document.getElementById("rules-modal");
+
+        // --- Light-dismiss fallback for dialog[closedby="any"] (Safari support) ---
+        function installDialogLightDismissFallback() {
+            if (!("closedBy" in HTMLDialogElement.prototype)) {
+                const outside = (e, dialog) => {
+                    const r = dialog.getBoundingClientRect();
+                    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+                };
+                for (const dialog of document.querySelectorAll('dialog[closedby="any"]')) {
+                    let pressedOutside = false;
+                    dialog.addEventListener("pointerdown", (e) => { pressedOutside = outside(e, dialog); });
+                    dialog.addEventListener("pointerup", (e) => {
+                        if (pressedOutside && outside(e, dialog)) dialog.close();
+                    });
+                }
+            }
+        }
 
         // --- Initialization ---
-        document.addEventListener('DOMContentLoaded', () => {
-            initializeAppAndAuth();
-            newGameBtn.addEventListener('click', setupNewDataGame);
-            copyLinkBtn.addEventListener('click', copyLink);
-            leaveGameBtn.addEventListener('click', leaveGame);
-            
-            // Interaction handlers
-            deckElement.addEventListener('click', () => handleDraw('deck'));
-            discardElement.addEventListener('click', () => handleDraw('discard'));
+        document.addEventListener("DOMContentLoaded", () => {
+            installDialogLightDismissFallback();
 
-            // Modal Handlers
-            document.getElementById('next-round-btn').addEventListener('click', triggerNextRound);
-            document.getElementById('play-again-btn').addEventListener('click', () => window.location.reload());
+            for (const dlg of [gameOverModal, rulesModal]) {
+                dlg.addEventListener("close", () => { dlg.returnValue = ""; });
+            }
+
+            if (nameInput) {
+                nameInput.value = getSavedPlayerName();
+                nameInput.addEventListener("change", () => savePlayerName(nameInput.value));
+            }
+
+            // Show menu immediately if no gameId in URL so page never looks blank
+            const initialGameId = new URLSearchParams(window.location.search).get("gameId");
+            if (!initialGameId) {
+                showMainMenu();
+            }
+
+            initializeAppAndAuth();
+
+            newGameBtn.addEventListener("click", setupNewDataGame);
+            copyLinkBtn.addEventListener("click", () => copyLink(copyLinkBtn, "Invite"));
+            bannerCopyBtn.addEventListener("click", () => copyLink(bannerCopyBtn, "Copy Link"));
+            leaveGameBtn.addEventListener("click", leaveGame);
+            document.getElementById("back-menu-btn").addEventListener("click", leaveGame);
+
+            // Rules dialog triggers
+            document.getElementById("menu-rules-btn").addEventListener("click", () => openDialogSafe(rulesModal));
+            document.getElementById("header-rules-btn").addEventListener("click", () => openDialogSafe(rulesModal));
+
+            // Pile handlers
+            deckElement.addEventListener("click", () => handleDraw("deck"));
+            discardElement.addEventListener("click", () => {
+                if (gameState.turn === userId && gameState.phase === "play" && gameState.currentCard) {
+                    handleDiscard();
+                } else {
+                    handleDraw("discard");
+                }
+            });
+
+            // Round / Match completion controls
+            document.getElementById("next-round-btn").addEventListener("click", triggerNextRound);
+            document.getElementById("play-again-btn").addEventListener("click", triggerRematch);
+            document.getElementById("inspect-board-btn").addEventListener("click", () => {
+                if (gameOverModal.open) gameOverModal.close();
+            });
+            roundBannerModalBtn.addEventListener("click", () => openDialogSafe(gameOverModal));
+            roundBannerActionBtn.addEventListener("click", () => {
+                if (gameState.isMatchOver) triggerRematch();
+                else triggerNextRound();
+            });
         });
+
+        function openDialogSafe(dlg) {
+            if (dlg && !dlg.open) {
+                dlg.showModal();
+            }
+        }
+
+        function flashFeedback(message, shakeEl = null) {
+            if (shakeEl) {
+                shakeEl.classList.remove("anim-shake");
+                void shakeEl.offsetWidth;
+                shakeEl.classList.add("anim-shake");
+            }
+            if (!message) return;
+            clearTimeout(feedbackTimer);
+            statusTextElement.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs sm:text-sm font-bold bg-amber-400/20 text-amber-200 border border-amber-300/40">
+                    ${escapeHTML(message)}
+                </span>
+            `;
+            feedbackTimer = setTimeout(() => {
+                renderStatusHeader();
+            }, 2200);
+        }
 
         function initializeAppAndAuth() {
             try {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                
+
                 signInAnonymously(auth).then((userCredential) => {
                     userId = userCredential.user.uid;
                     isAuthReady = true;
-                    console.log("Authenticated as", userId);
+                    if (authReadyResolve) authReadyResolve();
 
-                    // Check URL for gameId
                     const urlParams = new URLSearchParams(window.location.search);
-                    const urlGameId = urlParams.get('gameId');
+                    const urlGameId = urlParams.get("gameId");
 
                     if (urlGameId) {
                         gameId = urlGameId;
@@ -142,62 +1012,75 @@
         // --- Core Game Actions ---
 
         async function setupNewDataGame() {
-            if (!isAuthReady) return;
-            gameId = crypto.randomUUID();
-            window.history.replaceState({}, '', `?gameId=${gameId}`);
-            
-            // Auto-copy link
-            navigator.clipboard.writeText(window.location.href)
-                .then(() => alert("Link copied to clipboard! Share it with a friend."))
-                .catch(err => console.error("Could not copy text: ", err));
+            const playerName = savePlayerName(nameInput ? nameInput.value : "");
+            if (!isAuthReady) {
+                newGameBtn.disabled = true;
+                newGameBtn.textContent = "Connecting…";
+                await authReadyPromise;
+                newGameBtn.disabled = false;
+                newGameBtn.textContent = "Start Match vs Friend";
+            }
 
-            // Initial levels
+            gameId = crypto.randomUUID();
+            window.history.replaceState({}, "", `?gameId=${gameId}`);
+
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+            } catch (err) {
+                // Clipboard may require direct interaction on some browsers; invite banner provides explicit button
+            }
+
             const p1Level = 10;
             const p2Level = 10;
+            prevRevealedMap.clear();
+            prevCurrentCard = null;
+            lastAutoOpenedResultKey = null;
 
-            await startRound(gameId, [userId], { [userId]: { level: p1Level, isWinner: false, isRoundWinner: false } }, p1Level, p2Level);
+            await startRound(
+                gameId,
+                [userId],
+                {
+                    [userId]: {
+                        level: p1Level,
+                        isWinner: false,
+                        isRoundWinner: false,
+                        name: playerName || null
+                    }
+                },
+                p1Level,
+                p2Level
+            );
             joinGame();
         }
-        
-        // Helper to deal and setup a round
+
         async function startRound(gId, currentIds, playersData, p1Level, p2Level) {
             const initialDeck = shuffle(createDeck());
-            
-            // Deal based on level
+
             const p1Slots = initialDeck.splice(0, p1Level).map(c => ({ card: c, revealed: false }));
             const p2Slots = initialDeck.splice(0, p2Level).map(c => ({ card: c, revealed: false }));
-            
-            // If P2 doesn't exist in playersData yet (first game), we reserve their slots
-            // But if P2 exists, we update them.
-            
-            let updatedPlayers = { ...playersData };
+
+            const updatedPlayers = { ...playersData };
             let reserved = null;
 
-            // userId is always P1 creator in this context? No, care needed.
-            // Let's assume passed playersData has the structural skeleton.
-            // We just need to refill slots.
-            
             Object.keys(updatedPlayers).forEach(pid => {
-                 updatedPlayers[pid].slots = initialDeck.splice(0, updatedPlayers[pid].level).map(c => ({ card: c, revealed: false }));
-                 updatedPlayers[pid].isRoundWinner = false;
-                 // Don't reset isWinner (Match winner)
+                updatedPlayers[pid] = {
+                    ...updatedPlayers[pid],
+                    slots: initialDeck.splice(0, updatedPlayers[pid].level).map(c => ({ card: c, revealed: false })),
+                    isRoundWinner: false
+                };
             });
 
-            // If we are starting fresh and only have 1 player ID known:
             if (Object.keys(updatedPlayers).length === 1) {
-                 // The passed p1Level/p2Level might be useful but simpler to just set creator's slots 
-                 // and reserve P2's.
-                 const creatorId = currentIds[0];
-                 updatedPlayers[creatorId].slots = p1Slots;
-                 reserved = p2Slots; 
+                const creatorId = currentIds[0];
+                updatedPlayers[creatorId].slots = p1Slots;
+                reserved = p2Slots;
             }
 
             const newGameState = {
                 deck: initialDeck,
                 discardPile: [],
-                turn: currentIds[0], // Winner of prev or creator starts? Let's say Round Loser starts? Or Winner? Rules vary. Winner starts usually.
-                // For MVP, just first ID starts.
-                phase: 'draw',
+                turn: currentIds[0],
+                phase: "draw",
                 currentCard: null,
                 players: updatedPlayers,
                 playerIds: currentIds,
@@ -206,217 +1089,227 @@
                 isMatchOver: false,
                 matchWinner: null
             };
-            
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', gId), newGameState);
+
+            await setDoc(doc(db, "artifacts", appId, "public", "data", "games", gId), newGameState);
         }
 
         function showMainMenu() {
-            mainMenuElement.classList.remove('hidden');
-            gameBoardElement.classList.add('hidden');
+            mainMenuElement.classList.remove("hidden");
+            gameBoardElement.classList.add("hidden");
+            if (gameOverModal.open) gameOverModal.close();
             statusTextElement.textContent = "Welcome to Trash";
         }
 
         function joinGame() {
-            mainMenuElement.classList.add('hidden');
-            gameBoardElement.classList.remove('hidden');
-            
-            // Listen
+            mainMenuElement.classList.add("hidden");
+            gameBoardElement.classList.remove("hidden");
             setupGameListener();
         }
 
         async function createPlayer2Entry(data) {
-             if (data.playerIds.length < 2 && !data.players[userId]) {
-                 const updatedPlayers = { ...data.players };
-                 // New player starts at level 10
-                 updatedPlayers[userId] = { 
-                     slots: data.reserved_slots, 
-                     level: 10,
-                     isRoundWinner: false,
-                     isMatchOver: false
-                 };
-                 
-                 const updatedIds = [...data.playerIds, userId];
-                 
-                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId), {
-                     ...data,
-                     players: updatedPlayers,
-                     playerIds: updatedIds,
-                     reserved_slots: null
-                 });
-             }
+            if (data.playerIds.length < 2 && !data.players[userId]) {
+                const updatedPlayers = { ...data.players };
+                const myName = getSavedPlayerName();
+                const fallbackSlots = Array.isArray(data.reserved_slots)
+                    ? data.reserved_slots
+                    : [];
+
+                updatedPlayers[userId] = {
+                    slots: fallbackSlots,
+                    level: 10,
+                    isRoundWinner: false,
+                    isMatchOver: false,
+                    name: myName || null
+                };
+
+                const updatedIds = [...data.playerIds, userId];
+
+                await setDoc(doc(db, "artifacts", appId, "public", "data", "games", gameId), {
+                    ...data,
+                    players: updatedPlayers,
+                    playerIds: updatedIds,
+                    reserved_slots: null
+                });
+            }
         }
 
         function setupGameListener() {
             if (gameListenerUnsubscribe) gameListenerUnsubscribe();
 
-            gameListenerUnsubscribe = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId), (docSnap) => {
+            gameListenerUnsubscribe = onSnapshot(doc(db, "artifacts", appId, "public", "data", "games", gameId), (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if (userId && !data.players[userId] && data.playerIds.length < 2) {
                         createPlayer2Entry(data);
-                        return; 
+                        return;
                     }
                     gameState = data;
                     renderGame();
                 } else {
-                    alert("Game deleted or doesn't exist.");
-                    window.location.href = window.location.pathname; 
+                    leaveGame();
                 }
             });
         }
 
         // --- Game Logic ---
 
+        function isRoundCurrentlyOver() {
+            if (!gameState || !gameState.players) return false;
+            if (gameState.isMatchOver) return true;
+            return Object.values(gameState.players).some(p => p && p.isRoundWinner);
+        }
+
         async function handleDraw(source) {
-            if (gameState.turn !== userId) return alert("Not your turn!");
-            if (gameState.phase !== 'draw') return alert("You already have a card!");
-            
+            const targetEl = source === "deck" ? deckElement : discardElement;
+            if (isRoundCurrentlyOver()) return;
+            if (gameState.turn !== userId) {
+                flashFeedback("Wait for opponent's turn", targetEl);
+                return;
+            }
+            if (gameState.phase !== "draw") {
+                flashFeedback("Play or discard your held card first", currentCardDisplay);
+                return;
+            }
+
             let card;
             let newDeck = [...gameState.deck];
             let newDiscard = [...gameState.discardPile];
 
-            if (source === 'deck') {
+            if (source === "deck") {
                 if (newDeck.length === 0) {
-                    if (newDiscard.length === 0) return alert("No cards left!");
+                    if (newDiscard.length === 0) {
+                        flashFeedback("No cards remaining to draw", deckElement);
+                        return;
+                    }
                     newDeck = shuffle(newDiscard);
                     newDiscard = [];
                 }
-                card = newDeck.shift(); 
+                card = newDeck.shift();
             } else {
-                if (newDiscard.length === 0) return alert("Discard empty!");
-                card = newDiscard.pop(); 
+                if (newDiscard.length === 0) {
+                    flashFeedback("Discard pile is empty — draw from Deck", deckElement);
+                    return;
+                }
+                card = newDiscard.pop();
             }
 
             await updateGameState({
                 deck: newDeck,
                 discardPile: newDiscard,
                 currentCard: card,
-                phase: 'play'
+                phase: "play"
             });
         }
-        
-        async function handleSlotClick(slotIndex) {
-            if (gameState.turn !== userId) return;
-            if (gameState.phase !== 'play') return;
-            
-            const card = gameState.currentCard;
-            if (!card) return;
 
+        async function handleSlotClick(slotIndex, slotBtnEl = null) {
+            if (isRoundCurrentlyOver()) return;
+            if (gameState.turn !== userId) {
+                flashFeedback("Wait for opponent's turn", slotBtnEl);
+                return;
+            }
+            if (gameState.phase !== "play" || !gameState.currentCard) {
+                flashFeedback("Draw a card from Deck or Discard first", deckElement);
+                return;
+            }
+
+            const card = gameState.currentCard;
             const val = getCardValue(card);
             const myData = gameState.players[userId];
-            const mySlots = [...myData.slots];
+            const mySlots = myData.slots.map(s => ({ ...s }));
             const targetSlot = mySlots[slotIndex];
-
-            // Validation
-            // Logic change: ACE=1, but if you have fewer than 10 cards?
-            // "1-9 in second game". So slots are 1..Level.
-            // If Level=9, card '10' is unplayable? Yes.
-            // Logic: expectedVal = slotIndex + 1. If expectedVal > Level, impossible (shouldn't render anyway).
-            
             const expectedVal = slotIndex + 1;
-            
+
             let validMove = false;
-            if (val === 'Wild') {
+            if (val === "Wild") {
                 if (!targetSlot.revealed) validMove = true;
-            } else {
-                if (val === expectedVal && !targetSlot.revealed) validMove = true;
+            } else if (val === expectedVal && !targetSlot.revealed) {
+                validMove = true;
             }
 
             if (validMove) {
                 const oldCard = targetSlot.card;
                 targetSlot.card = card;
                 targetSlot.revealed = true;
-                
-                const newCurrentCard = oldCard;
-                
-                // Check Round Win
+
                 const isRoundWinner = mySlots.every(s => s.revealed);
-                
                 const updatedPlayers = {
                     ...gameState.players,
                     [userId]: {
                         ...gameState.players[userId],
                         slots: mySlots,
-                        isRoundWinner: isRoundWinner
+                        isRoundWinner
                     }
                 };
 
-                // If round won, we don't end game, we enable "Next Round"
-                // Actually if round won, turn end?
-                // Usually play continues until turn finish, but if you fill your board, you shout "Pop Trash" -> "Trash!"
-                // Then other player gets one last turn?
-                // Simplification for MVP: Instant win of round.
-                
                 await updateGameState({
                     players: updatedPlayers,
-                    currentCard: newCurrentCard,
-                }); 
+                    currentCard: oldCard
+                });
             } else {
-                console.log("Invalid move");
+                const msg = targetSlot.revealed
+                    ? `Slot ${expectedVal} is already revealed`
+                    : `${formatCardShort(card)} cannot go in Slot ${expectedVal}`;
+                flashFeedback(msg, slotBtnEl);
             }
         }
-        
+
         async function handleDiscard() {
+            if (isRoundCurrentlyOver()) return;
             if (gameState.turn !== userId) return;
-            if (gameState.phase !== 'play') return;
-            
+            if (gameState.phase !== "play" || !gameState.currentCard) return;
+
             const card = gameState.currentCard;
             const newDiscard = [...gameState.discardPile, card];
             const otherPlayer = gameState.playerIds.find(id => id !== userId);
-            const nextTurn = otherPlayer || userId; 
+            const nextTurn = otherPlayer || userId;
 
             await updateGameState({
                 discardPile: newDiscard,
                 currentCard: null,
-                phase: 'draw',
+                phase: "draw",
                 turn: nextTurn
             });
         }
-        
+
         async function triggerNextRound() {
-            // Calculate new levels
-            // Who won?
             const winnerId = Object.keys(gameState.players).find(pid => gameState.players[pid].isRoundWinner);
             if (!winnerId) return;
 
-            const nextPlayers = { ...gameState.players };
+            const nextPlayers = {};
             let matchWinner = null;
-            
-            Object.keys(nextPlayers).forEach(pid => {
-                const p = nextPlayers[pid];
+
+            Object.keys(gameState.players).forEach(pid => {
+                const p = { ...gameState.players[pid] };
                 if (p.isRoundWinner) {
-                    p.level -= 1;
+                    p.level = Math.max(0, toNum(p.level) - 1);
                     if (p.level === 0) matchWinner = pid;
                 }
-                // Loser level stays same
+                nextPlayers[pid] = p;
             });
 
             if (matchWinner) {
                 await updateGameState({
                     isMatchOver: true,
-                    matchWinner: matchWinner,
+                    matchWinner,
                     players: nextPlayers
                 });
             } else {
-                // Determine start round
-                // We need to re-deal.
-                // We can reuse startRound logic but mapped to current object
-                // We'll do it inline to avoid complex prop passing
-                
                 const initialDeck = shuffle(createDeck());
-                
+                prevRevealedMap.clear();
+                prevCurrentCard = null;
+
                 Object.keys(nextPlayers).forEach(pid => {
-                     const lvl = nextPlayers[pid].level;
-                     nextPlayers[pid].slots = initialDeck.splice(0, lvl).map(c => ({ card: c, revealed: false }));
-                     nextPlayers[pid].isRoundWinner = false;
+                    const lvl = toNum(nextPlayers[pid].level) || 10;
+                    nextPlayers[pid].slots = initialDeck.splice(0, lvl).map(c => ({ card: c, revealed: false }));
+                    nextPlayers[pid].isRoundWinner = false;
                 });
-                
+
                 await updateGameState({
                     deck: initialDeck,
                     discardPile: [],
                     currentCard: null,
-                    phase: 'draw',
-                    turn: winnerId, // Winner starts next round
+                    phase: "draw",
+                    turn: winnerId,
                     players: nextPlayers,
                     isMatchOver: false,
                     matchWinner: null
@@ -424,313 +1317,759 @@
             }
         }
 
-        async function updateGameState(updates, isDeep = false) {
-             let nextState = { ...gameState, ...updates };
-             if (updates.deck) nextState.deck = updates.deck;
-             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'games', gameId), nextState);
+        async function triggerRematch() {
+            if (!gameState || !gameState.players) return;
+            const initialDeck = shuffle(createDeck());
+            const resetPlayers = {};
+            prevRevealedMap.clear();
+            prevCurrentCard = null;
+            lastAutoOpenedResultKey = null;
+
+            Object.keys(gameState.players).forEach(pid => {
+                resetPlayers[pid] = {
+                    ...gameState.players[pid],
+                    level: 10,
+                    isWinner: false,
+                    isRoundWinner: false,
+                    slots: initialDeck.splice(0, 10).map(c => ({ card: c, revealed: false }))
+                };
+            });
+
+            const reserved = gameState.playerIds.length < 2
+                ? initialDeck.splice(0, 10).map(c => ({ card: c, revealed: false }))
+                : null;
+
+            const starter = gameState.matchWinner || gameState.playerIds[0] || userId;
+
+            await updateGameState({
+                deck: initialDeck,
+                discardPile: [],
+                currentCard: null,
+                phase: "draw",
+                turn: starter,
+                players: resetPlayers,
+                reserved_slots: reserved,
+                isMatchOver: false,
+                matchWinner: null
+            });
+        }
+
+        async function updateGameState(updates) {
+            const nextState = { ...gameState, ...updates, lastUpdated: Date.now() };
+            if (updates.deck) nextState.deck = updates.deck;
+            await setDoc(doc(db, "artifacts", appId, "public", "data", "games", gameId), nextState);
         }
 
         // --- Rendering ---
-        
 
-        
-        function renderCard(cardString, isFaceUp, onClick = null, isHighlight = false) {
-            const div = document.createElement('div');
-            // Maintain layout dimensions and styling containers
-            // Responsive: Mobile use vh for height to ensure fit. Desktop can be larger.
-            div.className = `h-[7.5vh] aspect-[2.5/3.5] md:h-28 md:w-20 relative select-none transition-transform active:scale-95 ${isHighlight ? 'scale-105' : ''}`;
-            
-            const img = document.createElement('img');
-            img.className = `w-full h-full object-contain rounded-lg shadow-md ${isHighlight ? 'ring-2 ring-yellow-400' : ''}`;
-            
+        function createCardElement(cardString, isFaceUp, options = {}) {
+            const {
+                slotNumber = null,
+                isHighlight = false,
+                animateReveal = false
+            } = options;
+
+            const card = document.createElement("div");
+            card.className = `tcard ${isFaceUp ? "face-up" : "face-down"}`;
+            if (isHighlight) card.classList.add("playable-target");
+            if (animateReveal) card.classList.add("anim-reveal");
+
             if (!isFaceUp) {
-                img.src = "https://deckofcardsapi.com/static/img/back.png";
-                img.alt = "Back of Card";
+                if (slotNumber !== null) {
+                    const med = document.createElement("span");
+                    med.className = "slot-medallion";
+                    med.textContent = String(slotNumber);
+                    card.appendChild(med);
+                }
+                return card;
+            }
+
+            const { rank, glyph, colorClass } = parseCard(cardString);
+            card.classList.add(colorClass);
+
+            // Top corner
+            const topCorner = document.createElement("div");
+            topCorner.className = "tcard-corner";
+            topCorner.setAttribute("aria-hidden", "true");
+            topCorner.innerHTML = `<span class="rk">${escapeHTML(rank)}</span><span class="st">${glyph}</span>`;
+
+            // Center emblem
+            const center = document.createElement("div");
+            center.className = "tcard-center";
+            center.setAttribute("aria-hidden", "true");
+
+            let tagHTML = "";
+            if (rank === "J") {
+                tagHTML = `<span class="tcard-tag wild">Wild</span>`;
+            } else if (rank === "Q" || rank === "K") {
+                tagHTML = `<span class="tcard-tag trash">Trash</span>`;
+            } else if (rank === "A") {
+                tagHTML = `<span class="tcard-tag trash">= 1</span>`;
+            }
+            center.innerHTML = `<span class="tcard-pip">${glyph}</span>${tagHTML}`;
+
+            // Bottom corner
+            const botCorner = document.createElement("div");
+            botCorner.className = "tcard-corner bot";
+            botCorner.setAttribute("aria-hidden", "true");
+            botCorner.innerHTML = `<span class="rk">${escapeHTML(rank)}</span><span class="st">${glyph}</span>`;
+
+            card.appendChild(topCorner);
+            if (slotNumber !== null) {
+                const chip = document.createElement("span");
+                const isWildJack = rank === "J";
+                chip.className = `slot-chip ${isWildJack ? "wild-slot" : ""}`;
+                chip.setAttribute("aria-hidden", "true");
+                chip.textContent = isWildJack ? `★${slotNumber}` : `#${slotNumber}`;
+                card.appendChild(chip);
+            }
+            card.appendChild(center);
+            card.appendChild(botCorner);
+
+            return card;
+        }
+
+        function getPlayerDisplayName(pid, fallback) {
+            const p = pid && gameState.players ? gameState.players[pid] : null;
+            const raw = p && typeof p.name === "string" ? p.name.trim() : "";
+            return raw ? raw.slice(0, 20) : fallback;
+        }
+
+        function renderLevelPips(currentLevel) {
+            const lvl = Math.max(0, Math.min(10, toNum(currentLevel)));
+            const completed = 10 - lvl;
+            let html = `<div class="flex items-center gap-1" aria-hidden="true">`;
+            for (let i = 0; i < 10; i++) {
+                const done = i < completed;
+                html += `<span class="h-1.5 flex-1 rounded-full ${done ? "bg-amber-400" : "bg-white/15"}"></span>`;
+            }
+            html += `</div>`;
+            return html;
+        }
+
+        function renderStatusHeader() {
+            if (!gameState || !gameState.players) return;
+            const isMyTurn = gameState.turn === userId;
+            const opponentId = (gameState.playerIds || []).find(id => id !== userId);
+            const myData = gameState.players[userId];
+            const oppData = opponentId ? gameState.players[opponentId] : null;
+            const oppName = getPlayerDisplayName(opponentId, "Opponent");
+
+            const myLvl = myData ? toNum(myData.level) : 10;
+            const oppLvl = oppData ? toNum(oppData.level) : 10;
+
+            headerScoreStrip.innerHTML = `
+                <span class="px-2 py-0.5 rounded-md bg-white/10 text-xs font-bold text-emerald-100">
+                    You: <strong class="text-amber-300">Lvl ${myLvl}</strong>
+                </span>
+                <span class="text-white/40 text-xs" aria-hidden="true">vs</span>
+                <span class="px-2 py-0.5 rounded-md bg-white/10 text-xs font-bold text-emerald-100">
+                    ${escapeHTML(oppName)}: <strong class="text-emerald-200">Lvl ${oppLvl}</strong>
+                </span>
+            `;
+
+            if (gameState.isMatchOver) {
+                const won = gameState.matchWinner === userId;
+                statusTextElement.innerHTML = `
+                    <span class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs sm:text-sm font-extrabold ${won ? "bg-emerald-400/20 text-emerald-200 border border-emerald-300/40" : "bg-rose-400/20 text-rose-200 border border-rose-300/40"}">
+                        ${won ? "Match Won! All levels cleared" : `${escapeHTML(oppName)} won the match`}
+                    </span>
+                `;
+                return;
+            }
+
+            if (isRoundCurrentlyOver()) {
+                const wonRound = Boolean(myData && myData.isRoundWinner);
+                statusTextElement.innerHTML = `
+                    <span class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs sm:text-sm font-extrabold bg-amber-400/20 text-amber-200 border border-amber-300/40">
+                        ${wonRound ? `Round Won! Advancing to Level ${Math.max(1, myLvl - 1)}` : `${escapeHTML(oppName)} won the round`}
+                    </span>
+                `;
+                return;
+            }
+
+            let prompt = "";
+            if (isMyTurn) {
+                if (gameState.phase === "draw") {
+                    prompt = "Your Turn · Draw from Deck or Discard";
+                } else if (gameState.currentCard) {
+                    const playable = myData ? isCardPlayableForSlots(gameState.currentCard, myData.slots) : false;
+                    const val = getCardValue(gameState.currentCard);
+                    if (playable) {
+                        prompt = val === "Wild"
+                            ? `Your Turn · Place ${formatCardShort(gameState.currentCard)} (Wild) in any hidden slot`
+                            : `Your Turn · Place ${formatCardShort(gameState.currentCard)} in Slot ${val}`;
+                    } else {
+                        prompt = `Your Turn · ${formatCardShort(gameState.currentCard)} is unplayable — Discard`;
+                    }
+                }
             } else {
-                // Parse card string. E.g. "10H", "AS", "KD"
-                // API mapping: 
-                // 10 -> 0 (e.g. 0H)
-                // Rest is same (AS = AS, KD = KD, 8C = 8C)
-                
-                let rank = cardString.slice(0, -1);
-                const suit = cardString.slice(-1);
-                
-                if (rank === '10') rank = '0';
-                
-                img.src = `https://deckofcardsapi.com/static/img/${rank}${suit}.png`;
-                img.alt = cardString;
+                const phaseDesc = gameState.phase === "play" && gameState.currentCard
+                    ? `playing ${formatCardShort(gameState.currentCard)}`
+                    : "drawing…";
+                prompt = opponentId
+                    ? `${oppName}'s Turn · ${phaseDesc}`
+                    : "Waiting for friend to join — Your Turn ready";
             }
-            
-            div.appendChild(img);
-            
-            if (onClick) {
-                div.style.cursor = "pointer";
-                div.addEventListener('click', onClick);
-            }
-            return div;
+
+            statusTextElement.innerHTML = `
+                <span class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs sm:text-sm font-bold ${isMyTurn ? "bg-amber-400 text-amber-950 shadow" : "bg-white/10 text-emerald-100 border border-white/15"}">
+                    <span class="inline-block w-2 h-2 rounded-full ${isMyTurn ? "bg-amber-950" : "bg-emerald-300/70"}" aria-hidden="true"></span>
+                    <span>${escapeHTML(prompt)}</span>
+                </span>
+            `;
         }
 
         function renderGame() {
-            if (!gameState) return;
-            
+            if (!gameState || !gameState.players) return;
+
             const isMyTurn = gameState.turn === userId;
-            const opponentId = gameState.playerIds.find(id => id !== userId);
+            const opponentId = (gameState.playerIds || []).find(id => id !== userId);
             const myData = gameState.players[userId];
-            
-            // Check Round/Match status
-            // We use flags in DB: isMatchOver, matchWinner, OR isRoundWinner checked dynamically locally if we want animation.
-            // gameState.matchWinner implies Game Over (Whole Match)
-            // gameState.players[x].isRoundWinner implies Round Over.
+            const oppData = opponentId ? gameState.players[opponentId] : null;
+            const myName = getPlayerDisplayName(userId, "You");
+            const oppName = getPlayerDisplayName(opponentId, "Opponent");
 
-            const modal = document.getElementById('game-over-modal');
-            const title = document.getElementById('game-over-title');
-            const msg = document.getElementById('game-over-msg');
-            const playAgainBtn = document.getElementById('play-again-btn');
-            const nextRoundBtn = document.getElementById('next-round-btn');
-
-            if (gameState.isMatchOver) {
-                modal.classList.remove('hidden');
-                nextRoundBtn.classList.add('hidden');
-                playAgainBtn.classList.remove('hidden');
-                
-                if (gameState.matchWinner === userId) {
-                    title.textContent = "MATCH WINNER!";
-                    title.className = "text-4xl font-bold text-green-600 mb-4";
-                    msg.textContent = "You reduced your trash to 0! 🎉";
-                } else {
-                    title.textContent = "Match Lost";
-                    title.className = "text-4xl font-bold text-red-600 mb-4";
-                    msg.textContent = "Opponent won the match.";
-                }
-                statusTextElement.textContent = "Match Over";
-            } 
-            else if (myData && (myData.isRoundWinner || (opponentId && gameState.players[opponentId].isRoundWinner))) {
-                // Round Over
-                modal.classList.remove('hidden');
-                // Only show Next Round button if I am the winner? Or anyone can click? 
-                // Any player clicking it can trigger the logic, usually we restrict to winner or show "Waiting for host".
-                // Simplest: Anyone allows next round.
-                playAgainBtn.classList.add('hidden');
-                nextRoundBtn.classList.remove('hidden');
-                
-                if (myData.isRoundWinner) {
-                    title.textContent = "Round Won!";
-                    title.className = "text-3xl font-bold text-green-600 mb-4";
-                    msg.textContent = `You advance to Level ${myData.level - 1}!`;
-                } else {
-                    title.textContent = "Round Lost";
-                    title.className = "text-3xl font-bold text-red-600 mb-4";
-                    msg.textContent = "Opponent won the round.";
-                }
-                statusTextElement.textContent = "Round Over";
+            // 1. Invite banner (only when waiting for opponent)
+            if (!opponentId) {
+                inviteBanner.classList.remove("hidden");
+                inviteUrlDisplay.textContent = window.location.href;
             } else {
-                modal.classList.add('hidden');
+                inviteBanner.classList.add("hidden");
             }
 
-            
-            statusTextElement.innerHTML = `
-                <span class="${isMyTurn ? 'text-green-600 font-bold' : 'text-gray-600'}">
-                    ${isMyTurn ? "Your Turn" : "Opponent's Turn"}
-                </span>
-                <span class="ml-4 text-xs text-blue-600 font-bold">LVL ${myData ? toNum(myData.level) : 10}</span>
-                <span class="ml-2 text-xs text-gray-400 uppercase tracking-widest">${escapeHTML(gameState.phase)}</span>
+            // 2. Round / Match Over Dialog & Non-blocking Banner
+            const title = document.getElementById("game-over-title");
+            const msg = document.getElementById("game-over-msg");
+            const playAgainBtn = document.getElementById("play-again-btn");
+            const nextRoundBtn = document.getElementById("next-round-btn");
+
+            const roundWinnerId = Object.keys(gameState.players).find(pid => gameState.players[pid]?.isRoundWinner);
+            const roundOver = Boolean(roundWinnerId);
+
+            if (gameState.isMatchOver || roundOver) {
+                const resultKey = `${Boolean(gameState.isMatchOver)}:${gameState.matchWinner || roundWinnerId}:${myData ? toNum(myData.level) : 10}:${oppData ? toNum(oppData.level) : 10}`;
+
+                roundResultBanner.classList.remove("hidden");
+
+                if (gameState.isMatchOver) {
+                    nextRoundBtn.classList.add("hidden");
+                    playAgainBtn.classList.remove("hidden");
+                    roundBannerActionBtn.textContent = "Rematch";
+
+                    if (gameState.matchWinner === userId) {
+                        title.textContent = "Match Winner!";
+                        title.className = "text-3xl font-black text-amber-300 mb-2";
+                        msg.textContent = "You cleared every round down to 1 card and emptied your trash!";
+                        roundBannerText.textContent = "You won the match!";
+                    } else {
+                        title.textContent = "Match Complete";
+                        title.className = "text-3xl font-black text-rose-300 mb-2";
+                        msg.textContent = `${oppName} cleared their final 1-card round first.`;
+                        roundBannerText.textContent = `${oppName} won the match.`;
+                    }
+                } else {
+                    playAgainBtn.classList.add("hidden");
+                    nextRoundBtn.classList.remove("hidden");
+                    roundBannerActionBtn.textContent = "Start Next Round";
+
+                    if (myData && myData.isRoundWinner) {
+                        const nextLvl = toNum(myData.level) - 1;
+                        title.textContent = "Trash! Round Won";
+                        title.className = "text-3xl font-black text-emerald-300 mb-2";
+                        msg.textContent = nextLvl === 0
+                            ? "That was your final 1-card round — claim the match win!"
+                            : `Every slot filled! Next round you only need ${nextLvl} card${nextLvl === 1 ? "" : "s"}.`;
+                        roundBannerText.textContent = nextLvl === 0
+                            ? "Final round cleared — finish match!"
+                            : `Round won! Advance to Level ${nextLvl}.`;
+                        nextRoundBtn.textContent = nextLvl === 0 ? "Claim Match Victory" : `Deal Next Round (Lvl ${nextLvl})`;
+                    } else {
+                        const oppNext = oppData ? Math.max(0, toNum(oppData.level) - 1) : 9;
+                        title.textContent = "Round Complete";
+                        title.className = "text-3xl font-black text-amber-200 mb-2";
+                        msg.textContent = `${oppName} filled their board first and drops to ${oppNext === 0 ? "0 (Match Win)" : `Level ${oppNext}`}.`;
+                        roundBannerText.textContent = `${oppName} won this round.`;
+                        nextRoundBtn.textContent = "Start Next Round";
+                    }
+                }
+
+                if (lastAutoOpenedResultKey !== resultKey) {
+                    lastAutoOpenedResultKey = resultKey;
+                    openDialogSafe(gameOverModal);
+                }
+            } else {
+                lastAutoOpenedResultKey = null;
+                roundResultBanner.classList.add("hidden");
+                if (gameOverModal.open) gameOverModal.close();
+            }
+
+            // 3. Header Status
+            renderStatusHeader();
+
+            // 4. Zone Active Turn Highlights
+            playerZone.classList.toggle("zone-active", isMyTurn && !isRoundCurrentlyOver());
+            opponentZone.classList.toggle("zone-active", !isMyTurn && Boolean(opponentId) && !isRoundCurrentlyOver());
+
+            // 5. Desktop Command Hub Scoreboard
+            const myLvl = myData ? toNum(myData.level) : 10;
+            const myRevealed = myData && Array.isArray(myData.slots) ? myData.slots.filter(s => s.revealed).length : 0;
+            const oppLvl = oppData ? toNum(oppData.level) : 10;
+            const oppRevealed = oppData && Array.isArray(oppData.slots) ? oppData.slots.filter(s => s.revealed).length : 0;
+
+            hubScoreboard.innerHTML = `
+                <div class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-200/70 mb-2">Match Race (10 → 1)</div>
+                <div class="space-y-2.5">
+                    <div>
+                        <div class="flex items-center justify-between text-xs mb-1">
+                            <span class="font-bold text-white truncate">${escapeHTML(myName)}${myName !== "You" ? " (You)" : ""}</span>
+                            <span class="font-extrabold text-amber-300">Lvl ${myLvl} · ${myRevealed}/${myLvl}</span>
+                        </div>
+                        ${renderLevelPips(myLvl)}
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between text-xs mb-1">
+                            <span class="font-bold text-emerald-100/90 truncate">${opponentId ? escapeHTML(oppName) : "Waiting for friend…"}</span>
+                            <span class="font-bold text-emerald-200/80">${opponentId ? `Lvl ${oppLvl} · ${oppRevealed}/${oppLvl}` : "Lvl 10"}</span>
+                        </div>
+                        ${renderLevelPips(oppLvl)}
+                    </div>
+                </div>
             `;
-            
-            // Determine active slot requirement for highlighting
+
+            // 6. Determine Playable Targets
             let targetSlotIndex = -1;
             let isWild = false;
-            if (isMyTurn && gameState.phase === 'play' && gameState.currentCard) {
+            if (isMyTurn && gameState.phase === "play" && gameState.currentCard && !isRoundCurrentlyOver()) {
                 const val = getCardValue(gameState.currentCard);
-                if (val === 'Wild') isWild = true;
-                else if (typeof val === 'number') targetSlotIndex = val - 1;
+                if (val === "Wild") isWild = true;
+                else if (typeof val === "number") targetSlotIndex = val - 1;
             }
 
-            currentCardDisplay.innerHTML = '';
-            if (gameState.currentCard) {
-                const card = renderCard(gameState.currentCard, true, () => handleDiscard());
-                card.classList.add('shrink-0'); // Add this to prevent shrinking
-                const hint = document.createElement('div');
-                hint.className = "text-xs text-center mt-2 font-bold text-blue-800 bg-blue-100 px-2 py-1 rounded shadow-sm z-10 relative";
-                hint.textContent = "Click to Discard";
-                
-                const val = getCardValue(gameState.currentCard);
-                const myLvl = myData ? myData.level : 10;
-                
-                // Unplayable if null (K/Q) OR if value > current Level
-                if (val === null || (typeof val === 'number' && val > myLvl)) {
-                    hint.textContent = "Unplayable (Discard)";
-                    hint.className = "text-xs text-center mt-2 font-bold text-red-800 bg-red-100 px-2 py-1 rounded shadow-sm";
+            // 7. Deck Pile
+            const deckCount = Array.isArray(gameState.deck) ? toNum(gameState.deck.length) : 0;
+            const canDrawFromDeck = isMyTurn && gameState.phase === "draw" && !isRoundCurrentlyOver() && (deckCount > 0 || (gameState.discardPile?.length || 0) > 0);
+            deckElement.innerHTML = "";
+            deckElement.setAttribute("aria-label", `Draw from deck (${deckCount} cards left)`);
+
+            if (deckCount > 0) {
+                const deckCard = createCardElement("XX", false);
+                if (deckCount > 1) deckCard.classList.add("deck-stack");
+                if (canDrawFromDeck) deckCard.classList.add("pile-glow");
+                deckCard.style.setProperty("--card-w", "var(--pile-w)");
+
+                const badge = document.createElement("span");
+                badge.className = "px-2 py-0.5 rounded-full bg-black/55 border border-white/20 text-[11px] font-extrabold text-emerald-50 z-10";
+                badge.textContent = `${deckCount}`;
+                deckCard.appendChild(badge);
+                deckElement.appendChild(deckCard);
+            } else {
+                const emptyDeck = document.createElement("div");
+                emptyDeck.className = "empty-slot-well";
+                emptyDeck.style.setProperty("--card-w", "var(--pile-w)");
+                emptyDeck.textContent = (gameState.discardPile?.length || 0) > 0 ? "Reshuffle" : "Empty";
+                deckElement.appendChild(emptyDeck);
+            }
+
+            // 8. Discard Pile
+            const discardCount = Array.isArray(gameState.discardPile) ? toNum(gameState.discardPile.length) : 0;
+            const topDiscard = discardCount > 0 ? gameState.discardPile[discardCount - 1] : null;
+            const topDiscardUseful = isMyTurn && gameState.phase === "draw" && !isRoundCurrentlyOver() && topDiscard && myData
+                ? isCardPlayableForSlots(topDiscard, myData.slots)
+                : false;
+            const canDiscardHeldHere = isMyTurn && gameState.phase === "play" && Boolean(gameState.currentCard) && !isRoundCurrentlyOver();
+
+            discardElement.innerHTML = "";
+            if (topDiscard) {
+                const topCardEl = createCardElement(topDiscard, true);
+                topCardEl.style.setProperty("--card-w", "var(--pile-w)");
+                if (topDiscardUseful) topCardEl.classList.add("pile-useful");
+                else if (canDiscardHeldHere) topCardEl.classList.add("pile-glow");
+                discardElement.setAttribute(
+                    "aria-label",
+                    canDiscardHeldHere
+                        ? `Discard held card onto ${formatCardSpoken(topDiscard)}`
+                        : `Draw ${formatCardSpoken(topDiscard)} from discard pile`
+                );
+                discardElement.appendChild(topCardEl);
+
+                if (topDiscardUseful) {
+                    const takeTag = document.createElement("span");
+                    takeTag.className = "mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-emerald-400 text-emerald-950 shadow";
+                    takeTag.textContent = "Playable!";
+                    discardElement.appendChild(takeTag);
                 }
-
-                currentCardDisplay.appendChild(card);
-                currentCardDisplay.appendChild(hint);
-                card.onclick = handleDiscard;
             } else {
-                currentCardDisplay.innerHTML = `<div class="text-gray-400 text-sm font-medium">Draw<br>Card</div>`;
+                const emptyDiscard = document.createElement("div");
+                emptyDiscard.className = `empty-slot-well ${canDiscardHeldHere ? "discard-target" : ""}`;
+                emptyDiscard.style.setProperty("--card-w", "var(--pile-w)");
+                emptyDiscard.textContent = canDiscardHeldHere ? "Drop Here" : "Empty";
+                discardElement.setAttribute("aria-label", canDiscardHeldHere ? "Discard held card" : "Discard pile empty");
+                discardElement.appendChild(emptyDiscard);
             }
 
-            // Deck
-            deckElement.innerHTML = '';
-            if (gameState.deck.length > 0) {
-                 deckElement.appendChild(renderCard('XX', false));
-                 deckElement.innerHTML += `<div class="absolute -bottom-6 text-xs font-bold text-gray-500">${toNum(gameState.deck.length)} Left</div>`;
+            // 9. Active Held Card Stage
+            currentCardDisplay.innerHTML = "";
+            const cardChanged = gameState.currentCard && gameState.currentCard !== prevCurrentCard;
+            prevCurrentCard = gameState.currentCard || null;
+
+            if (gameState.currentCard) {
+                const heldPlayable = myData ? isCardPlayableForSlots(gameState.currentCard, myData.slots) : false;
+
+                if (isMyTurn && !isRoundCurrentlyOver()) {
+                    const heldBtn = document.createElement("button");
+                    heldBtn.type = "button";
+                    heldBtn.className = "card-btn flex flex-col items-center";
+                    heldBtn.setAttribute("aria-label", `Held card ${formatCardSpoken(gameState.currentCard)}. Click to discard and end turn.`);
+                    heldBtn.addEventListener("click", handleDiscard);
+
+                    const heldCardEl = createCardElement(gameState.currentCard, true, { animateReveal: cardChanged });
+                    heldCardEl.style.setProperty("--card-w", "var(--hand-w)");
+                    heldBtn.appendChild(heldCardEl);
+                    currentCardDisplay.appendChild(heldBtn);
+
+                    const actionBtn = document.createElement("button");
+                    actionBtn.type = "button";
+                    actionBtn.addEventListener("click", handleDiscard);
+                    if (!heldPlayable) {
+                        actionBtn.className = "btn btn-coral btn-sm mt-1.5";
+                        actionBtn.textContent = "Discard Turn";
+                    } else {
+                        actionBtn.className = "btn btn-ghost btn-sm mt-1.5";
+                        actionBtn.textContent = "Discard";
+                    }
+                    currentCardDisplay.appendChild(actionBtn);
+                } else {
+                    const wrap = document.createElement("div");
+                    wrap.className = "flex flex-col items-center";
+                    const heldCardEl = createCardElement(gameState.currentCard, true, { animateReveal: cardChanged });
+                    heldCardEl.style.setProperty("--card-w", "var(--hand-w)");
+                    wrap.appendChild(heldCardEl);
+
+                    const cap = document.createElement("span");
+                    cap.className = "mt-1 text-[11px] font-bold text-amber-200/90";
+                    cap.textContent = "In Play";
+                    wrap.appendChild(cap);
+                    currentCardDisplay.appendChild(wrap);
+                }
             } else {
-                deckElement.innerHTML = `<div class="text-gray-400 text-xs">Empty</div>`;
+                const placeholder = document.createElement("div");
+                placeholder.className = "empty-slot-well";
+                placeholder.style.setProperty("--card-w", "var(--hand-w)");
+                placeholder.innerHTML = isMyTurn && !isRoundCurrentlyOver()
+                    ? `<span>Draw a<br>Card</span>`
+                    : `<span class="opacity-70">In Hand</span>`;
+                currentCardDisplay.appendChild(placeholder);
             }
-            
-            // Discard
-            discardElement.innerHTML = '';
-            if (gameState.discardPile.length > 0) {
-                const topCard = gameState.discardPile[gameState.discardPile.length - 1];
-                discardElement.appendChild(renderCard(topCard, true));
-            } else {
-                discardElement.classList.add("border-dashed", "border-2", "border-gray-400");
-                discardElement.innerHTML = `<div class="text-gray-400 text-xs">Empty</div>`;
-            }
-            
-            // Render Me
-            playerArea.innerHTML = '';
-            // Reset grid cols based on card count?
-            // "Two rows of 5" is for 10 cards.
-            // If < 5 cards, grid-cols-min(5, count)?
-            // Actually, kept simpler: Always grid-cols-5. 
-            // If Level 9: 5 on top, 4 on bottom. Slot 10 empty.
-            
-            if (gameState.players[userId]) {
-                const slots = gameState.players[userId].slots;
-                // If fewer than 5 cards, center them? Flex might be better for small hands, 
-                // but user asked for "two rows of 5" specifically for the layout.
-                // Let's keep the grid but maybe centered?
-                // grid-cols-5 implies 5 slots width.
-                
-                slots.forEach((slot, idx) => {
-                    const slotContainer = document.createElement('div');
-                    slotContainer.className = "flex flex-col items-center gap-1 relative";
-                    
-                    const isTarget = isMyTurn && (idx === targetSlotIndex || (isWild && !slot.revealed));
+
+            // 10. Render Player Area
+            playerLabel.textContent = myName !== "You" ? `${myName} (You)` : "Your Board";
+            playerMeta.textContent = `Level ${myLvl} · ${myRevealed}/${myLvl} flipped`;
+            playerArea.innerHTML = "";
+
+            if (myData && Array.isArray(myData.slots)) {
+                myData.slots.forEach((slot, idx) => {
+                    const slotNum = idx + 1;
+                    const key = `${userId}:${idx}`;
+                    const wasRevealed = prevRevealedMap.get(key) === true;
+                    const justRevealed = Boolean(slot.revealed && !wasRevealed);
+                    prevRevealedMap.set(key, Boolean(slot.revealed));
+
+                    const isTarget = isMyTurn && !isRoundCurrentlyOver() && (idx === targetSlotIndex || (isWild && !slot.revealed));
                     const shouldHighlight = isTarget && !slot.revealed;
 
-                    const cardView = renderCard(slot.card, slot.revealed, () => handleSlotClick(idx), shouldHighlight);
-                    
-                    const label = document.createElement('span');
-                    label.className = `text-xs font-mono font-bold ${shouldHighlight ? 'text-blue-600 scale-125' : 'text-gray-400'}`;
-                    label.textContent = idx + 1;
-                    
-                    slotContainer.appendChild(label);
-                    slotContainer.appendChild(cardView);
-                    playerArea.appendChild(slotContainer);
+                    const btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "card-btn";
+                    btn.setAttribute(
+                        "aria-label",
+                        slot.revealed
+                            ? `Slot ${slotNum}: ${formatCardSpoken(slot.card)} revealed`
+                            : `Slot ${slotNum}: face down${shouldHighlight ? " — playable target" : ""}`
+                    );
+
+                    const cardEl = createCardElement(slot.card, slot.revealed, {
+                        slotNumber: slotNum,
+                        isHighlight: shouldHighlight,
+                        animateReveal: justRevealed
+                    });
+
+                    btn.appendChild(cardEl);
+                    btn.addEventListener("click", () => handleSlotClick(idx, btn));
+                    playerArea.appendChild(btn);
                 });
             }
-            
-            // Render Opponent
-            opponentArea.innerHTML = '';
-            if (opponentId && gameState.players[opponentId]) {
-                const slots = gameState.players[opponentId].slots;
-                slots.forEach((slot, idx) => {
-                     const slotContainer = document.createElement('div');
-                     slotContainer.className = "flex flex-col items-center gap-1";
-                     const cardView = renderCard(slot.card, slot.revealed, null);
-                     const label = document.createElement('span');
-                     label.className = "text-xs font-mono text-gray-400";
-                     label.textContent = idx + 1;
-                     slotContainer.appendChild(cardView);
-                     slotContainer.appendChild(label);
-                     opponentArea.appendChild(slotContainer);
+
+            // 11. Render Opponent Area
+            opponentLabel.textContent = opponentId ? `${oppName}'s Board` : "Opponent's Board";
+            opponentMeta.textContent = opponentId
+                ? `Level ${oppLvl} · ${oppRevealed}/${oppLvl} flipped`
+                : "Invite a friend to start";
+            opponentArea.innerHTML = "";
+
+            if (opponentId && oppData && Array.isArray(oppData.slots)) {
+                oppData.slots.forEach((slot, idx) => {
+                    const slotNum = idx + 1;
+                    const key = `${opponentId}:${idx}`;
+                    const wasRevealed = prevRevealedMap.get(key) === true;
+                    const justRevealed = Boolean(slot.revealed && !wasRevealed);
+                    prevRevealedMap.set(key, Boolean(slot.revealed));
+
+                    const cardEl = createCardElement(slot.card, slot.revealed, {
+                        slotNumber: slotNum,
+                        animateReveal: justRevealed
+                    });
+                    cardEl.setAttribute(
+                        "aria-label",
+                        slot.revealed
+                            ? `Opponent slot ${slotNum}: ${formatCardSpoken(slot.card)}`
+                            : `Opponent slot ${slotNum}: face down`
+                    );
+                    opponentArea.appendChild(cardEl);
                 });
             } else {
-                opponentArea.innerHTML = `<div class="col-span-5 text-center text-gray-500 italic py-4 text-xs">Waiting for opponent...</div>`;
+                const previewSlots = Array.isArray(gameState.reserved_slots) ? gameState.reserved_slots.length : 10;
+                for (let idx = 0; idx < previewSlots; idx++) {
+                    const ghost = createCardElement("XX", false, { slotNumber: idx + 1 });
+                    ghost.style.opacity = "0.42";
+                    opponentArea.appendChild(ghost);
+                }
             }
         }
 
-        async function copyLink() {
-            await navigator.clipboard.writeText(window.location.href);
-            alert("Copied!");
+        async function copyLink(btnEl, defaultLabel) {
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                if (btnEl) {
+                    btnEl.textContent = "Copied ✓";
+                    setTimeout(() => { btnEl.textContent = defaultLabel; }, 1800);
+                }
+            } catch (err) {
+                flashFeedback("Copy the URL from your address bar to invite a friend");
+            }
         }
 
         function leaveGame() {
-            // optional cleanup
-            window.location.href = window.location.pathname.split('?')[0];
+            if (gameListenerUnsubscribe) {
+                gameListenerUnsubscribe();
+                gameListenerUnsubscribe = null;
+            }
+            window.location.href = window.location.pathname.split("?")[0];
         }
-
     </script>
 </head>
-<body class="bg-green-100 h-svh w-screen overflow-hidden font-sans flex flex-col">
+<body>
 
-    <!-- Main Menu -->
-    <div id="main-menu" class="flex flex-col items-center justify-center min-h-screen p-4 space-y-6">
-        <h1 class="text-6xl font-bold text-green-800 tracking-wider">TRASH</h1>
-        <div class="bg-white p-8 rounded-xl shadow-2xl flex flex-col items-center space-y-4 w-full max-w-sm">
-            <button id="new-game-btn" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-700 transition">
-                New Game vs Friend
-            </button>
-             <div class="text-sm text-gray-500 text-center px-4">
-                Share the link with a friend after starting to play together!
+    <!-- ===================== MAIN MENU ===================== -->
+    <div id="main-menu" class="flex-1 flex flex-col items-center justify-center p-4 sm:p-6">
+        <div class="w-full max-w-md flex flex-col items-center text-center">
+            <!-- Decorative Fanned Mini Cards -->
+            <div class="flex items-end justify-center mb-3 select-none" aria-hidden="true" style="--card-w: 54px;">
+                <div class="tcard face-up suit-black -rotate-12 translate-x-2 shadow-xl">
+                    <div class="tcard-corner"><span class="rk">A</span><span class="st">♠</span></div>
+                    <div class="tcard-center"><span class="tcard-pip">♠</span></div>
+                    <div class="tcard-corner bot"><span class="rk">A</span><span class="st">♠</span></div>
+                </div>
+                <div class="tcard face-up suit-red z-10 -translate-y-2 shadow-2xl">
+                    <div class="tcard-corner"><span class="rk">J</span><span class="st">♥</span></div>
+                    <div class="tcard-center"><span class="tcard-pip">♥</span><span class="tcard-tag wild">Wild</span></div>
+                    <div class="tcard-corner bot"><span class="rk">J</span><span class="st">♥</span></div>
+                </div>
+                <div class="tcard face-up suit-red rotate-12 -translate-x-2 shadow-xl">
+                    <div class="tcard-corner"><span class="rk">10</span><span class="st">♦</span></div>
+                    <div class="tcard-center"><span class="tcard-pip">♦</span></div>
+                    <div class="tcard-corner bot"><span class="rk">10</span><span class="st">♦</span></div>
+                </div>
+            </div>
+
+            <h1 class="menu-title">TRASH</h1>
+            <p class="text-emerald-100/80 text-sm sm:text-base mt-2 mb-6 max-w-xs">
+                Chain flips from 1 to 10, shrink your layout each round, and clear your board first.
+            </p>
+
+            <div class="felt-panel w-full p-6 text-left space-y-4">
+                <div>
+                    <label for="name-input" class="block text-xs font-bold uppercase tracking-wider text-emerald-200/80 mb-1.5">
+                        Your Name <span class="text-emerald-200/50 font-normal">(optional)</span>
+                    </label>
+                    <input
+                        id="name-input"
+                        type="text"
+                        maxlength="20"
+                        autocomplete="nickname"
+                        placeholder="e.g. Alex"
+                        class="w-full rounded-xl px-3.5 py-2.5 bg-black/35 border border-white/15 text-white placeholder-emerald-100/40 font-semibold focus:outline-none focus:border-amber-300"
+                    >
+                </div>
+
+                <button id="new-game-btn" type="button" class="btn btn-gold w-full py-3 text-base">
+                    Start Match vs Friend
+                </button>
+
+                <div class="flex items-center justify-between gap-2 pt-1">
+                    <p class="text-xs text-emerald-100/65">
+                        Creates a private table &amp; copies your invite link.
+                    </p>
+                    <button id="menu-rules-btn" type="button" class="btn btn-ghost btn-sm">
+                        How to Play
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Game Board -->
-    <div id="game-board" class="hidden flex-col h-full w-full">
-        <!-- Header / Status -->
-        <header class="bg-white px-4 py-2 shadow flex justify-between items-center z-10">
-            <h2 class="font-bold text-green-700">Trash</h2>
-            <div id="status-text" class="text-sm font-medium">Initializing...</div>
-            <div class="flex gap-2">
-                <button id="copy-link-btn" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">Ref</button>
-                <button id="leave-game-btn" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">Exit</button>
+    <!-- ===================== GAME BOARD ===================== -->
+    <div id="game-board" class="hidden">
+        <!-- Single Compact Header -->
+        <header class="top-bar">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <span class="font-black tracking-tight text-base sm:text-lg text-amber-300">TRASH</span>
+                <div id="header-score-strip" class="header-scores"></div>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+                <button id="copy-link-btn" type="button" class="btn btn-ghost btn-sm">Invite</button>
+                <button id="header-rules-btn" type="button" class="btn btn-ghost btn-sm">Rules</button>
+                <button id="leave-game-btn" type="button" class="btn btn-ghost btn-sm">Exit</button>
             </div>
         </header>
 
-        <!-- Main Play Area -->
-        <main class="flex-grow flex flex-col justify-evenly py-2 select-none h-full">
-            
-            <!-- Opponent Slots -->
-            <div id="opponent-area" class="grid grid-cols-5 gap-1 px-2 sm:gap-4 max-w-4xl mx-auto w-full justify-items-center">
-                <!-- Filled via JS -->
+        <!-- Non-blocking Contextual Strips (auto-hidden when not needed) -->
+        <div class="top-strip-wrap space-y-2">
+            <div id="invite-banner" class="hidden felt-panel px-3.5 py-2 flex flex-wrap items-center justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                    <span class="text-xs font-bold text-amber-300 me-2">Waiting for opponent</span>
+                    <code id="invite-url-display" class="text-xs text-emerald-100/75 break-anywhere"></code>
+                </div>
+                <button id="banner-copy-btn" type="button" class="btn btn-gold btn-sm">Copy Link</button>
             </div>
 
-            <div class="flex justify-center items-center gap-2 py-2">
-                <div id="deck" class="relative hover:scale-105 transition cursor-pointer">
-                    <!-- Deck Graphic -->
-                    <div class="h-[7.5vh] aspect-[2.5/3.5] md:h-28 md:w-20 bg-blue-800 rounded-lg border-2 border-white shadow-lg flex items-center justify-center text-white text-xs">Deck</div>
-                </div>
-                
-                <div id="current-card-display" class="w-20 min-h-[9vh] flex flex-col items-center justify-center border-2 border-yellow-400 rounded-xl bg-yellow-50 shadow-inner p-1 animate-pulse">
-                    <!-- The card you are holding -->
-                </div>
-
-                <div id="discard" class="hover:scale-105 transition cursor-pointer">
-                     <!-- Discard Pile -->
-                     <div class="h-[7.5vh] aspect-[2.5/3.5] md:h-28 md:w-20 border-2 border-gray-300 border-dashed rounded-lg flex items-center justify-center text-gray-400 text-xs">Discard</div>
+            <div id="round-result-banner" class="hidden felt-panel px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 border-amber-300/45">
+                <span id="round-banner-text" class="text-xs sm:text-sm font-bold text-amber-200">Round complete</span>
+                <div class="flex items-center gap-2">
+                    <button id="round-banner-modal-btn" type="button" class="btn btn-ghost btn-sm">Summary</button>
+                    <button id="round-banner-action-btn" type="button" class="btn btn-emerald btn-sm">Start Next Round</button>
                 </div>
             </div>
+        </div>
 
-            <!-- Player Slots -->
-            <div id="player-area" class="grid grid-cols-5 gap-1 px-2 sm:gap-4 max-w-4xl mx-auto w-full justify-items-center">
-                <!-- Filled via JS -->
-            </div>
+        <!-- Responsive Tabletop Layout -->
+        <main id="table-layout" class="select-none">
+
+            <!-- Opponent Zone -->
+            <section id="opponent-zone" aria-labelledby="opponent-label" class="felt-panel board-zone">
+                <div class="flex items-center justify-between gap-2 px-1">
+                    <h2 id="opponent-label" class="text-xs sm:text-sm font-extrabold tracking-wide text-emerald-100 truncate">
+                        Opponent's Board
+                    </h2>
+                    <span id="opponent-meta" class="text-[11px] sm:text-xs font-semibold text-emerald-200/75 whitespace-nowrap">
+                        Level 10
+                    </span>
+                </div>
+                <div class="slots-stage">
+                    <div id="opponent-area" class="slots-grid"></div>
+                </div>
+            </section>
+
+            <!-- Command Hub (Middle bar on mobile, full-height side rail on desktop) -->
+            <aside id="hub-zone" aria-label="Turn status, draw, active card, and discard piles" class="felt-panel">
+                <div class="hub-inner">
+                    <div id="hub-scoreboard" class="hub-scoreboard felt-well p-3"></div>
+
+                    <div class="flex flex-col items-center justify-center gap-2.5 flex-1 min-w-0 w-full">
+                        <div id="status-text" role="status" aria-live="polite" class="text-xs sm:text-sm font-semibold text-center max-w-full">
+                            Connecting to table…
+                        </div>
+
+                        <div class="piles-row">
+                            <!-- Deck -->
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-200/70">Deck</span>
+                                <button id="deck" type="button" class="pile-btn flex flex-col items-center"></button>
+                            </div>
+
+                            <!-- Active Card in Hand -->
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-200/85">In Hand</span>
+                                <div id="current-card-display" class="flex flex-col items-center justify-center"></div>
+                            </div>
+
+                            <!-- Discard -->
+                            <div class="flex flex-col items-center gap-1">
+                                <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-200/70">Discard</span>
+                                <button id="discard" type="button" class="pile-btn flex flex-col items-center"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="hub-legend felt-well p-3 text-xs text-emerald-100/80 space-y-1">
+                        <div class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-200/65 mb-1">Card Values</div>
+                        <div class="flex justify-between"><span><strong>A</strong> → Slot 1</span><span><strong>2–10</strong> → Matching Slot</span></div>
+                        <div class="flex justify-between"><span class="text-fuchsia-300"><strong>J</strong> → Wild (any hidden)</span><span class="text-rose-300"><strong>Q, K</strong> → Trash (discard)</span></div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Player Zone -->
+            <section id="player-zone" aria-labelledby="player-label" class="felt-panel board-zone">
+                <div class="flex items-center justify-between gap-2 px-1">
+                    <h2 id="player-label" class="text-xs sm:text-sm font-extrabold tracking-wide text-amber-200 truncate">
+                        Your Board
+                    </h2>
+                    <span id="player-meta" class="text-[11px] sm:text-xs font-bold text-amber-200/90 whitespace-nowrap">
+                        Level 10
+                    </span>
+                </div>
+                <div class="slots-stage">
+                    <div id="player-area" class="slots-grid"></div>
+                </div>
+            </section>
 
         </main>
     </div>
 
-    <!-- Game Over Modal -->
-    <div id="game-over-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center hidden z-50 p-4">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center transform scale-100 transition-transform">
-            <h2 id="game-over-title" class="text-4xl font-bold mb-4">Game Over</h2>
-            <p id="game-over-msg" class="text-gray-600 text-lg mb-8">You sorted your trash!</p>
-            <div class="flex flex-col gap-3">
-                <button id="next-round-btn" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition shadow-lg hidden">
-                    Next Round (Start Game)
+    <!-- ===================== ROUND / MATCH MODAL ===================== -->
+    <dialog id="game-over-modal" aria-labelledby="game-over-title">
+        <div class="dialog-body text-center">
+            <h1 id="game-over-title" class="text-3xl font-black mb-2">Round Complete</h1>
+            <p id="game-over-msg" class="text-emerald-100/85 text-base mb-6">You sorted your trash!</p>
+            <div class="flex flex-col gap-2.5">
+                <button id="next-round-btn" type="button" autofocus class="btn btn-emerald w-full py-3 text-base hidden">
+                    Start Next Round
                 </button>
-                <button id="play-again-btn" class="bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition shadow-lg hidden">
-                    Play Again
+                <button id="play-again-btn" type="button" class="btn btn-gold w-full py-3 text-base hidden">
+                    Rematch (Reset to Level 10)
                 </button>
-                <button onclick="window.location.href = window.location.pathname" class="text-gray-500 hover:text-gray-800 text-sm">
-                    Back to Menu
-                </button>
+                <div class="flex gap-2 pt-1">
+                    <button id="inspect-board-btn" type="button" class="btn btn-ghost flex-1">
+                        Inspect Table
+                    </button>
+                    <button id="back-menu-btn" type="button" class="btn btn-ghost flex-1">
+                        Main Menu
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
+    </dialog>
+
+    <!-- ===================== HOW TO PLAY MODAL ===================== -->
+    <dialog id="rules-modal" closedby="any" aria-labelledby="rules-title">
+        <div class="dialog-body space-y-4">
+            <div class="flex items-center justify-between gap-3">
+                <h1 id="rules-title" class="text-xl font-black text-amber-300">How to Play Trash</h1>
+                <form method="dialog">
+                    <button type="submit" value="close" autofocus class="btn btn-ghost btn-sm" aria-label="Close rules">Close</button>
+                </form>
+            </div>
+            <ul class="space-y-2.5 text-sm text-emerald-50/90 list-disc ps-5">
+                <li><strong>Goal:</strong> Flip every face-down slot in your layout by placing matching ranks in Slots 1 through 10.</li>
+                <li><strong>Chain Reactions:</strong> Start your turn by drawing from the <strong>Deck</strong> or <strong>Discard</strong> pile. Place a playable card into its numbered slot, pick up the face-down card underneath, and keep chaining!</li>
+                <li><strong>Card Ranks:</strong> <strong>Ace</strong> goes in Slot 1, <strong>2–10</strong> match their slot number, <strong>Jacks are Wild</strong> (any face-down slot), and <strong>Queens &amp; Kings</strong> are unplayable Trash.</li>
+                <li><strong>End of Turn:</strong> When you hold an unplayable card (Q, K, above your current level, or a slot already revealed), discard it to pass the turn.</li>
+                <li><strong>Shrinking Rounds:</strong> Winning a round drops your next round by 1 card (10 → 9 → … → 1). Clear your 1-card round to win the match!</li>
+            </ul>
+        </div>
+    </dialog>
 
 </body>
 </html>
