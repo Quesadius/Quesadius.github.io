@@ -1,1 +1,706 @@
-Hello World
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Directory | Quesadius</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #faf9f6;
+            --surface: #ffffff;
+            --surface-hover: #f3f2ee;
+            --ink: #18181b;
+            --ink-muted: #52525b;
+            --ink-subtle: #71717a;
+            --border: rgba(24, 24, 27, 0.10);
+            --border-strong: rgba(24, 24, 27, 0.24);
+            --badge-bg: #f1f0ec;
+            --badge-ink: #3f3f46;
+            --tip-bg: #18181b;
+            --tip-ink: #fafafa;
+            --tip-muted: #a1a1aa;
+            --tip-border: rgba(255, 255, 255, 0.14);
+            --focus-ring: #2563eb;
+            --target-size: 24px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #111215;
+                --surface: #181a1f;
+                --surface-hover: #20232a;
+                --ink: #f4f4f5;
+                --ink-muted: #a1a1aa;
+                --ink-subtle: #71717a;
+                --border: rgba(255, 255, 255, 0.09);
+                --border-strong: rgba(255, 255, 255, 0.24);
+                --badge-bg: rgba(255, 255, 255, 0.07);
+                --badge-ink: #d4d4d8;
+                --tip-bg: #272930;
+                --tip-ink: #fafafa;
+                --tip-muted: #a1a1aa;
+                --tip-border: rgba(255, 255, 255, 0.16);
+                --focus-ring: #60a5fa;
+            }
+        }
+
+        @media (pointer: coarse) {
+            :root {
+                --target-size: 44px;
+            }
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            inline-size: 100%;
+            min-block-size: 100dvh;
+        }
+
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--ink);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            overflow-wrap: break-word;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2 {
+            text-wrap: balance;
+            margin: 0;
+        }
+
+        p {
+            text-wrap: pretty;
+            margin: 0;
+        }
+
+        .page-wrap {
+            inline-size: 100%;
+            max-inline-size: 54rem;
+            margin-inline: auto;
+            padding-block: clamp(2.25rem, 5vw, 4.25rem) clamp(2rem, 4vw, 3rem);
+            padding-inline: max(1.25rem, env(safe-area-inset-left, 0px)) max(1.25rem, env(safe-area-inset-right, 0px));
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+        }
+
+        /* ----- Header ----- */
+        .site-header {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            padding-block-end: 1.5rem;
+            border-block-end: 1px solid var(--border);
+        }
+
+        .site-title {
+            font-size: clamp(1.6rem, 1.25rem + 1.5vw, 2.25rem);
+            font-weight: 750;
+            letter-spacing: -0.025em;
+            line-height: 1.15;
+        }
+
+        .site-subtitle {
+            font-size: 0.95rem;
+            color: var(--ink-muted);
+        }
+
+        /* ----- Sections & Grid ----- */
+        .directory-main {
+            display: flex;
+            flex-direction: column;
+            gap: 2.25rem;
+        }
+
+        .category-block {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .category-heading {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-subtle);
+        }
+
+        .site-grid {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr));
+            gap: 0.65rem;
+        }
+
+        /* ----- Site Entry Card ----- */
+        .site-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            min-block-size: max(3.25rem, var(--target-size));
+            padding: 0.75rem 0.95rem;
+            border-radius: 12px;
+            background-color: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--ink);
+            text-decoration: none;
+            transition: background-color 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+        }
+
+        .site-link:hover,
+        .site-link:is(:interest-source, .interest-source) {
+            background-color: var(--surface-hover);
+            border-color: var(--border-strong);
+        }
+
+        .site-link:focus-visible {
+            outline: 2.5px solid var(--focus-ring);
+            outline-offset: 2px;
+        }
+
+        .site-glyph {
+            flex: 0 0 auto;
+            inline-size: 2rem;
+            block-size: 2rem;
+            border-radius: 8px;
+            background-color: var(--badge-bg);
+            display: grid;
+            place-items: center;
+            font-size: 1.05rem;
+            line-height: 1;
+        }
+
+        .site-label-group {
+            flex: 1 1 auto;
+            min-inline-size: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+        }
+
+        .site-name {
+            font-size: 0.95rem;
+            font-weight: 620;
+            letter-spacing: -0.01em;
+            line-height: 1.25;
+        }
+
+        .site-tag {
+            font-size: 0.75rem;
+            color: var(--ink-subtle);
+            line-height: 1.2;
+        }
+
+        .site-hint-cue {
+            flex: 0 0 auto;
+            font-size: 0.85rem;
+            color: var(--ink-subtle);
+            opacity: 0.65;
+            transition: transform 0.14s ease, opacity 0.14s ease;
+        }
+
+        .site-link:hover .site-hint-cue,
+        .site-link:focus-visible .site-hint-cue {
+            opacity: 1;
+            transform: translate(1px, -1px);
+        }
+
+        /* ----- Interest Invoker Delays ----- */
+        [interestfor] {
+            --interest-delay-start: 0.16s;
+            interest-delay-start: var(--interest-delay-start);
+            --interest-delay-end: 0.12s;
+            interest-delay-end: var(--interest-delay-end);
+        }
+
+        .directory-main:has([interestfor]:is(:interest-source, .interest-source)) [interestfor] {
+            --interest-delay-start: 0s;
+        }
+
+        /* ----- Hover Description Popover (Anchor Positioned) ----- */
+        @supports not selector(:popover-open) {
+            [popover]:not(.\:popover-open) {
+                display: none;
+            }
+        }
+
+        [popover].hover-desc {
+            inset: auto;
+            top: calc(anchor(bottom) + 8px);
+            left: anchor(left);
+            position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+            margin: 0;
+            padding: 0.8rem 0.95rem;
+            inline-size: min(19.5rem, calc(100dvw - 2rem));
+            border-radius: 11px;
+            border: 1px solid var(--tip-border);
+            background-color: var(--tip-bg);
+            color: var(--tip-ink);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+
+        [popover].hover-desc:is(:popover-open, .\:popover-open) {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @starting-style {
+            [popover].hover-desc:is(:popover-open, .\:popover-open) {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+        }
+
+        @media (prefers-reduced-motion: no-preference) {
+            [popover].hover-desc {
+                transition: opacity 0.16s ease, transform 0.16s ease, display 0.16s ease, overlay 0.16s ease;
+                transition-behavior: allow-discrete;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .site-link,
+            .site-hint-cue {
+                transition: none;
+            }
+        }
+
+        .hover-desc-text {
+            font-size: 0.84rem;
+            line-height: 1.45;
+            color: var(--tip-ink);
+        }
+
+        .hover-desc-path {
+            display: block;
+            margin-block-start: 0.45rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.72rem;
+            color: var(--tip-muted);
+            overflow-wrap: anywhere;
+        }
+
+        /* ----- Footer ----- */
+        .site-footer {
+            margin-block-start: auto;
+            padding-block-start: 1.25rem;
+            border-block-start: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--ink-subtle);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-wrap">
+        <header class="site-header">
+            <h1 class="site-title">quesadius.github.io</h1>
+            <p class="site-subtitle">Self-contained web games, solvers, maps, and hardware tools. Hover or focus any project for details.</p>
+        </header>
+
+        <main id="main-content" class="directory-main">
+            <!-- Games -->
+            <section class="category-block">
+                <h2 class="category-heading">Games</h2>
+                <ul class="site-grid" role="list">
+                    <li>
+                        <a href="cribbage.html" interestfor="desc-cribbage" class="site-link" style="anchor-name: --trig-cribbage;">
+                            <span class="site-glyph" aria-hidden="true">♠</span>
+                            <span class="site-label-group">
+                                <span class="site-name">Cribbage</span>
+                                <span class="site-tag">2-player online</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-cribbage" popover="hint" class="hover-desc" style="position-anchor: --trig-cribbage;">
+                            <p class="hover-desc-text">Two-player online cribbage on a walnut-and-brass pub board with animated pegging, full hand breakdowns, and persistent stats.</p>
+                            <span class="hover-desc-path">/cribbage.html</span>
+                        </div>
+                    </li>
+
+                    <li>
+                        <a href="words.html" interestfor="desc-words" class="site-link" style="anchor-name: --trig-words;">
+                            <span class="site-glyph" aria-hidden="true">W</span>
+                            <span class="site-label-group">
+                                <span class="site-name">Words for Two</span>
+                                <span class="site-tag">2-player online</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-words" popover="hint" class="hover-desc" style="position-anchor: --trig-words;">
+                            <p class="hover-desc-text">Two-player crossword board game with full Scrabble rules, bonus squares, a 100-tile bag, blanks, and live TWL06 dictionary validation.</p>
+                            <span class="hover-desc-path">/words.html</span>
+                        </div>
+                    </li>
+
+                    <li>
+                        <a href="mahjong.html" interestfor="desc-mahjong" class="site-link" style="anchor-name: --trig-mahjong;">
+                            <span class="site-glyph" aria-hidden="true">🀄</span>
+                            <span class="site-label-group">
+                                <span class="site-name">Mahjong for Two</span>
+                                <span class="site-tag">2-player online</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-mahjong" popover="hint" class="hover-desc" style="position-anchor: --trig-mahjong;">
+                            <p class="hover-desc-text">Two-player American-style Mahjong played over a shared invite link, featuring exposures, discard claims, and an original winning-hand set.</p>
+                            <span class="hover-desc-path">/mahjong.html</span>
+                        </div>
+                    </li>
+
+                    <li>
+                        <a href="trash.html" interestfor="desc-trash" class="site-link" style="anchor-name: --trig-trash;">
+                            <span class="site-glyph" aria-hidden="true">🃏</span>
+                            <span class="site-label-group">
+                                <span class="site-name">Trash</span>
+                                <span class="site-tag">2-player online</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-trash" popover="hint" class="hover-desc" style="position-anchor: --trig-trash;">
+                            <p class="hover-desc-text">Fast two-player card duel where you chain flips through numbered slots from 10 down to 1, using wild Jacks to clear each shrinking round.</p>
+                            <span class="hover-desc-path">/trash.html</span>
+                        </div>
+                    </li>
+
+                    <li>
+                        <a href="accordion.html" interestfor="desc-accordion" class="site-link" style="anchor-name: --trig-accordion;">
+                            <span class="site-glyph" aria-hidden="true">♣</span>
+                            <span class="site-label-group">
+                                <span class="site-name">Accordion Solitaire</span>
+                                <span class="site-tag">Single-player</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-accordion" popover="hint" class="hover-desc" style="position-anchor: --trig-accordion;">
+                            <p class="hover-desc-text">Single-player solitaire puzzle where you collapse a 52-card snake into one stack by matching cards one or three positions back by rank or suit.</p>
+                            <span class="hover-desc-path">/accordion.html</span>
+                        </div>
+                    </li>
+
+                    <li>
+                        <a href="tictactoe.html" interestfor="desc-tictactoe" class="site-link" style="anchor-name: --trig-tictactoe;">
+                            <span class="site-glyph" aria-hidden="true">#</span>
+                            <span class="site-label-group">
+                                <span class="site-name">Tic-Tac-Toe</span>
+                                <span class="site-tag">Solo AI or 2-player</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-tictactoe" popover="hint" class="hover-desc" style="position-anchor: --trig-tictactoe;">
+                            <p class="hover-desc-text">Classic Tic-Tac-Toe playable solo against Easy, Medium, or Hard computer opponents, or live against a friend with a shareable room link.</p>
+                            <span class="hover-desc-path">/tictactoe.html</span>
+                        </div>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- Tools & Companions -->
+            <section class="category-block">
+                <h2 class="category-heading">Tools &amp; Companions</h2>
+                <ul class="site-grid" role="list">
+                    <li>
+                        <a href="cribsolv.html" interestfor="desc-cribsolv" class="site-link" style="anchor-name: --trig-cribsolv;">
+                            <span class="site-glyph" aria-hidden="true">∑</span>
+                            <span class="site-label-group">
+                                <span class="site-name">CribSolv</span>
+                                <span class="site-tag">Solver &amp; trainer</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-cribsolv" popover="hint" class="hover-desc" style="position-anchor: --trig-cribsolv;">
+                            <p class="hover-desc-text">Cribbage discard analyzer and quiz trainer that ranks all 15 discard pairs by exact expected value and explains the scoring tradeoffs.</p>
+                            <span class="hover-desc-path">/cribsolv.html</span>
+                        </div>
+                    </li>
+
+                    <li>
+                        <a href="lostcities.html" interestfor="desc-lostcities" class="site-link" style="anchor-name: --trig-lostcities;">
+                            <span class="site-glyph" aria-hidden="true">🧭</span>
+                            <span class="site-label-group">
+                                <span class="site-name">Lost Cities Scorecard</span>
+                                <span class="site-tag">Tabletop utility</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-lostcities" popover="hint" class="hover-desc" style="position-anchor: --trig-lostcities;">
+                            <p class="hover-desc-text">Interactive multi-round scorecard for the Lost Cities card game with expedition costs, wager multipliers, and 8-card bonuses calculated live.</p>
+                            <span class="hover-desc-path">/lostcities.html</span>
+                        </div>
+                    </li>
+
+                    <li>
+                        <a href="hoop.html" interestfor="desc-hoop" class="site-link" style="anchor-name: --trig-hoop;">
+                            <span class="site-glyph" aria-hidden="true">◎</span>
+                            <span class="site-label-group">
+                                <span class="site-name">Hoop Pattern Bench</span>
+                                <span class="site-tag">LED simulator</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-hoop" popover="hint" class="hover-desc" style="position-anchor: --trig-hoop;">
+                            <p class="hover-desc-text">Multi-layer LED pattern editor, program sequencer, and battery current simulator for a 16-pixel NeoPixel hoop driven by an Adafruit Gemma M0.</p>
+                            <span class="hover-desc-path">/hoop.html</span>
+                        </div>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- Maps & Trackers -->
+            <section class="category-block">
+                <h2 class="category-heading">Maps &amp; Trackers</h2>
+                <ul class="site-grid" role="list">
+                    <li>
+                        <a href="highpoints.html" interestfor="desc-highpoints" class="site-link" style="anchor-name: --trig-highpoints;">
+                            <span class="site-glyph" aria-hidden="true">▲</span>
+                            <span class="site-label-group">
+                                <span class="site-name">U.S. State High Points</span>
+                                <span class="site-tag">Choropleth map</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-highpoints" popover="hint" class="hover-desc" style="position-anchor: --trig-highpoints;">
+                            <p class="hover-desc-text">Interactive D3 choropleth map tracking climbed and unclimbed highest-elevation summits across all 50 U.S. states.</p>
+                            <span class="hover-desc-path">/highpoints.html</span>
+                        </div>
+                    </li>
+
+                    <li>
+                        <a href="nationalparks.html" interestfor="desc-nationalparks" class="site-link" style="anchor-name: --trig-nationalparks;">
+                            <span class="site-glyph" aria-hidden="true">🌲</span>
+                            <span class="site-label-group">
+                                <span class="site-name">National Park Tracker</span>
+                                <span class="site-tag">Interactive map</span>
+                            </span>
+                            <span class="site-hint-cue" aria-hidden="true">↗</span>
+                        </a>
+                        <div id="desc-nationalparks" popover="hint" class="hover-desc" style="position-anchor: --trig-nationalparks;">
+                            <p class="hover-desc-text">Leaflet map and completion progress tracker for U.S. National Parks visited across the country.</p>
+                            <span class="hover-desc-path">/nationalparks.html</span>
+                        </div>
+                    </li>
+                </ul>
+            </section>
+        </main>
+
+        <footer class="site-footer">
+            <span>11 standalone single-file apps</span>
+            <span>Hover or focus any item to preview</span>
+        </footer>
+    </div>
+
+    <script type="module">
+        const normText = (s) => String(s || "").replace(/\s+/g, " ").trim();
+
+        function computeTriggerName(el) {
+            const labelledBy = el.getAttribute("aria-labelledby");
+            if (labelledBy) {
+                const joined = labelledBy
+                    .split(/\s+/)
+                    .map((id) => document.getElementById(id)?.textContent || "")
+                    .join(" ");
+                if (normText(joined)) return normText(joined);
+            }
+            if (el.getAttribute("aria-label")) return normText(el.getAttribute("aria-label"));
+            let txt = el.textContent || "";
+            for (const img of el.querySelectorAll("img[alt]")) {
+                txt += " " + img.getAttribute("alt");
+            }
+            if (normText(txt)) return normText(txt);
+            return normText(el.getAttribute("title"));
+        }
+
+        const ownedExpandedTriggers = new Set();
+
+        export function wireInterestHints(root = document) {
+            for (const trigger of root.querySelectorAll("[interestfor]")) {
+                const targetId = trigger.getAttribute("interestfor");
+                if (!targetId) continue;
+                const hint = document.getElementById(targetId);
+                if (!hint || hint.getAttribute("popover") !== "hint") continue;
+
+                const hintText = normText(hint.textContent);
+                const triggerName = computeTriggerName(trigger);
+                if (hintText && hintText === triggerName) continue;
+
+                if (!hint.hasAttribute("role")) {
+                    hint.setAttribute("role", "tooltip");
+                }
+
+                if (!triggerName) {
+                    if (!trigger.hasAttribute("aria-labelledby")) {
+                        trigger.setAttribute("aria-labelledby", targetId);
+                    }
+                    continue;
+                }
+
+                const opensOnActivate =
+                    trigger.getAttribute("popovertarget") === targetId ||
+                    trigger.getAttribute("commandfor") === targetId;
+
+                if (opensOnActivate) {
+                    if (!trigger.hasAttribute("aria-expanded")) {
+                        const isOpen = hint.matches(":is(:popover-open, .\\:popover-open)");
+                        trigger.setAttribute("aria-expanded", String(isOpen));
+                        ownedExpandedTriggers.add(trigger);
+                    }
+                } else if (!trigger.hasAttribute("aria-describedby")) {
+                    trigger.setAttribute("aria-describedby", targetId);
+                }
+            }
+        }
+
+        document.addEventListener("toggle", (e) => {
+            const popoverEl = e.target;
+            if (!(popoverEl instanceof HTMLElement) || !popoverEl.id) return;
+            const isOpen = e.newState === "open";
+            for (const trig of ownedExpandedTriggers) {
+                if (trig.getAttribute("interestfor") === popoverEl.id) {
+                    trig.setAttribute("aria-expanded", String(isOpen));
+                }
+            }
+        }, true);
+
+        // Wire ARIA attributes upfront before loading polyfills
+        wireInterestHints();
+
+        // Conditionally load Popover, Interest Invokers, and Anchor Positioning polyfills only when missing
+        async function loadPolyfillsIfNeeded() {
+            if (!Object.hasOwn(HTMLElement.prototype, "popover")) {
+                try {
+                    await import("https://cdn.jsdelivr.net/npm/@oddbird/popover-polyfill/+esm");
+                } catch {
+                    // Graceful degradation if offline
+                }
+            }
+
+            if (!CSS.supports("anchor-name: --a")) {
+                try {
+                    const mod = await import("https://cdn.jsdelivr.net/npm/@oddbird/css-anchor-positioning/fn/+esm");
+                    if (typeof mod.default === "function") await mod.default();
+                } catch {
+                    // Fallback positioning handled below if needed
+                }
+            }
+
+            if (!("interestForElement" in HTMLButtonElement.prototype)) {
+                let loaded = false;
+                try {
+                    await import("https://cdn.jsdelivr.net/npm/interestfor/+esm");
+                    loaded = true;
+                } catch {
+                    loaded = false;
+                }
+
+                // Lightweight hover/focus fallback if CDN polyfill is unreachable or unsupported
+                if (!loaded && typeof HTMLElement.prototype.showPopover === "function") {
+                    installFallbackHoverPreview();
+                }
+            }
+
+            // Ensure only one hint popover stays open in browsers where popover="hint" defaults to "manual"
+            const probe = document.createElement("div");
+            probe.setAttribute("popover", "hint");
+            if (probe.popover !== "hint") {
+                document.addEventListener("beforetoggle", ({ target, newState }) => {
+                    if (!(target instanceof HTMLElement) || target.getAttribute("popover") !== "hint") return;
+                    if (newState === "open") {
+                        for (const other of document.querySelectorAll('[popover="hint"]')) {
+                            if (other !== target && other.matches(":popover-open")) {
+                                other.hidePopover();
+                            }
+                        }
+                    }
+                }, true);
+            }
+        }
+
+        function positionFallbackPopover(trigger, hint) {
+            if (CSS.supports("anchor-name: --a")) return;
+            const rect = trigger.getBoundingClientRect();
+            const tipWidth = Math.min(312, window.innerWidth - 32);
+            const left = Math.max(16, Math.min(rect.left, window.innerWidth - tipWidth - 16));
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const top = spaceBelow >= 120 ? rect.bottom + 8 : Math.max(16, rect.top - 96);
+            hint.style.position = "fixed";
+            hint.style.inset = "auto";
+            hint.style.left = `${Math.round(left)}px`;
+            hint.style.top = `${Math.round(top)}px`;
+        }
+
+        function installFallbackHoverPreview() {
+            let openTimer = null;
+            let closeTimer = null;
+            let activeHint = null;
+
+            const showHint = (trigger, hint) => {
+                clearTimeout(closeTimer);
+                if (activeHint && activeHint !== hint && activeHint.matches(":popover-open")) {
+                    activeHint.hidePopover();
+                }
+                positionFallbackPopover(trigger, hint);
+                if (!hint.matches(":popover-open")) {
+                    hint.showPopover();
+                }
+                activeHint = hint;
+            };
+
+            const scheduleHide = (hint) => {
+                clearTimeout(openTimer);
+                closeTimer = setTimeout(() => {
+                    if (hint.matches(":popover-open")) hint.hidePopover();
+                    if (activeHint === hint) activeHint = null;
+                }, 120);
+            };
+
+            for (const trigger of document.querySelectorAll("[interestfor]")) {
+                const hint = document.getElementById(trigger.getAttribute("interestfor"));
+                if (!hint) continue;
+
+                trigger.addEventListener("pointerenter", (e) => {
+                    if (e.pointerType === "touch") return;
+                    clearTimeout(closeTimer);
+                    const delay = activeHint ? 0 : 160;
+                    openTimer = setTimeout(() => showHint(trigger, hint), delay);
+                });
+                trigger.addEventListener("pointerleave", (e) => {
+                    if (e.pointerType === "touch") return;
+                    scheduleHide(hint);
+                });
+                trigger.addEventListener("focus", () => showHint(trigger, hint));
+                trigger.addEventListener("blur", () => scheduleHide(hint));
+                hint.addEventListener("pointerenter", () => clearTimeout(closeTimer));
+                hint.addEventListener("pointerleave", () => scheduleHide(hint));
+            }
+
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && activeHint && activeHint.matches(":popover-open")) {
+                    activeHint.hidePopover();
+                    activeHint = null;
+                }
+            });
+        }
+
+        loadPolyfillsIfNeeded();
+    </script>
+</body>
+</html>

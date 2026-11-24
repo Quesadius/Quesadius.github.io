@@ -8,7 +8,8 @@ import { test, expect } from "@playwright/test";
 const PAGES = [
   {
     file: "index.html",
-    ready: (page) => expect(page.locator("body")).toContainText("Hello World"),
+    ready: (page) =>
+      expect(page.locator('main a[href$=".html"]')).toHaveCount(11),
   },
   {
     file: "accordion.html",

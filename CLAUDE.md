@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repo is the source for the `Quesadius.github.io` GitHub Pages site. Each `*.html` file at the repo root is an **independent, single-file web app** — all CSS, JS, and markup inline, with libraries pulled from CDNs at runtime. There is no build step, no bundler, no package manager, and no test suite. Editing `foo.html` and pushing to `main` publishes `foo.html`.
 
-`index.html` is intentionally a placeholder ("Hello World") — the apps are reached by direct URL (e.g. `/cribbage.html`).
+`index.html` is a directory of all standalone pages in this repo, with hover/focus descriptions for each app.
 
 One non-HTML asset is deployed alongside the pages: `twl06.txt`, the TWL06 word list words.html fetches same-origin (with CDN mirrors as fallbacks, so the page still works if copied elsewhere). The CI deploy job stages `*.html` plus this file.
 
