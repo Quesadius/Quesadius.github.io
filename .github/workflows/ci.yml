@@ -35,14 +35,33 @@ jobs:
           retention-days: 7
 
   # Pages is configured to deploy from Actions, so a push to main only goes
-  # live once lint + smoke are green. A broken push leaves the last good
-  # deploy serving.
-  deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  # live once lint + smoke are green. Staging and deploying live in separate
+  # jobs so the uploaded Pages artifact is finalized and indexed before
+  # deploy-pages queries it (and so a transient deploy failure can be re-run
+  # without colliding with the already-uploaded artifact).
+  stage:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: [lint, smoke]
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage site files (pages + word list, no tooling)
+        run: |
+          mkdir -p _site
+          cp *.html twl06.txt _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [stage]
+    runs-on: ubuntu-latest
+    permissions:
       pages: write
       id-token: write
     environment:
@@ -52,14 +71,5 @@ jobs:
       group: pages
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - name: Stage site files (pages + word list, no tooling)
-        run: |
-          mkdir -p _site
-          cp *.html twl06.txt _site/
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
